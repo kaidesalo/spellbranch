@@ -1,0 +1,175 @@
+"use client";
+
+import Link from "next/link";
+import { useTransition } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  compareDeckLists,
+  findReplacements,
+  summarizeDiffs,
+} from "@/lib/deck-diff";
+import { setPreferredBranchAction } from "@/lib/actions/decks";
+import type { DeckWithMeta } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+export function CompareView({
+  source,
+  branch,
+  canSetPreferred,
+}: {
+  source: DeckWithMeta;
+  branch: DeckWithMeta;
+  canSetPreferred: boolean;
+}) {
+  const diffs = compareDeckLists(source.cards ?? [], branch.cards ?? []);
+  const summary = summarizeDiffs(diffs);
+  const replacements = findReplacements(diffs);
+  const changed = diffs.filter((d) => d.kind !== "unchanged");
+  const [pending, startTransition] = useTransition();
+  const isPreferred = source.preferredBranchId === branch.id;
+
+  function setPreferred(value: string | null) {
+    startTransition(async () => {
+      const result = await setPreferredBranchAction(source.id, value);
+      if (result.error) toast.error(result.error);
+      else
+        toast.success(
+          value ? "Preferred branch updated" : "Preferred branch cleared",
+        );
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-border/80 bg-card/70 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Source
+          </p>
+          <h2 className="font-heading text-xl font-semibold">{source.name}</h2>
+          <p className="mt-1 text-sm text-muted-foreground capitalize">
+            {source.format} · {source.cardCount ?? 0} cards
+          </p>
+          <Button
+            className="mt-3"
+            size="sm"
+            variant="outline"
+            render={<Link href={`/decks/${source.id}`} />}
+          >
+            Open source
+          </Button>
+        </div>
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            Branch
+          </p>
+          <h2 className="font-heading text-xl font-semibold">{branch.name}</h2>
+          <p className="mt-1 text-sm text-muted-foreground capitalize">
+            {branch.format} · {branch.cardCount ?? 0} cards
+            {branch.owner ? ` · @${branch.owner.username}` : ""}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              render={<Link href={`/decks/${branch.id}`} />}
+            >
+              Open branch
+            </Button>
+            {canSetPreferred && (
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() => setPreferred(isPreferred ? null : branch.id)}
+              >
+                {isPreferred ? "Clear preferred" : "Set as preferred"}
+              </Button>
+            )}
+            {isPreferred && <Badge>Preferred</Badge>}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+          +{summary.added} added
+        </Badge>
+        <Badge className="bg-rose-700 text-white hover:bg-rose-700">
+          −{summary.removed} removed
+        </Badge>
+        <Badge className="bg-amber-600 text-white hover:bg-amber-600">
+          {summary.quantity} quantity
+        </Badge>
+        <Badge variant="secondary">{replacements.length} replaced</Badge>
+        <Badge variant="outline">{summary.unchanged} unchanged</Badge>
+      </div>
+
+      {replacements.length > 0 && (
+        <section>
+          <h3 className="mb-2 font-heading text-lg font-semibold">Replacements</h3>
+          <ul className="space-y-2">
+            {replacements.map((pair) => (
+              <li
+                key={`${pair.removed.scryfallId}-${pair.added.scryfallId}`}
+                className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm"
+              >
+                <span className="text-rose-700 line-through">
+                  {pair.removed.cardName}
+                </span>
+                <span className="mx-2 text-muted-foreground">→</span>
+                <span className="font-medium text-emerald-800">
+                  {pair.added.cardName}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section>
+        <h3 className="mb-2 font-heading text-lg font-semibold">Card changes</h3>
+        {changed.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            These lists are identical.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border/70">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2 bg-secondary/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>Card</span>
+              <span>Source</span>
+              <span>Branch</span>
+            </div>
+            <ul className="divide-y divide-border/70 bg-background/50">
+              {changed.map((diff) => (
+                <li
+                  key={diff.scryfallId}
+                  className={cn(
+                    "grid grid-cols-[1fr_auto_auto] items-center gap-2 px-4 py-2 text-sm",
+                    diff.kind === "added" && "bg-emerald-50/80",
+                    diff.kind === "removed" && "bg-rose-50/80",
+                    diff.kind === "quantity" && "bg-amber-50/80",
+                  )}
+                >
+                  <div>
+                    <p className="font-medium">{diff.cardName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {diff.manaCost ?? "—"} · {diff.typeLine}
+                    </p>
+                  </div>
+                  <span className="w-12 text-center tabular-nums">
+                    {diff.sourceQty}
+                  </span>
+                  <span className="w-12 text-center tabular-nums font-semibold">
+                    {diff.branchQty}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
