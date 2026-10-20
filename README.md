@@ -33,7 +33,7 @@ npm run dev
 
 Open [http://localhost:3847](http://localhost:3847).
 
-Accounts and decks persist in `.data/store.json` (the app does not use Supabase yet; see below).
+Accounts and decks persist in `.data/store.json` by default (see *Supabase status* below).
 
 ## Environment variables
 
@@ -41,28 +41,38 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 
 | Variable | Purpose |
 | --- | --- |
-| `AUTH_SECRET` | Signs local session cookies (required in production) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (optional, not used by the app yet) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key both work here (optional, not used yet) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret / service-role key for admin scripts only; server-side, never `NEXT_PUBLIC_` (optional) |
+| `AUTH_SECRET` | Signs local-backend session cookies. **Required in production** with the local backend (the app throws without it); dev falls back to an insecure dev-only secret with a warning. |
+| `SPELLBRANCH_BACKEND` | `local` (default) or `supabase`. Keys alone never switch the backend. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key. Used only for the sign-up username check (and future admin scripts); never `NEXT_PUBLIC_` |
+| `SPELLBRANCH_SITE_URL` | Optional, e.g. `http://localhost:3847`. If set, sign-up confirmation emails redirect to `<site>/auth/confirm` |
 
 ## Supabase status
 
-**The app does not talk to Supabase yet.** Every route still uses the local JSON
-store (`.data/store.json`) and local JWT cookie sessions, whether or not the
-Supabase variables are set. What exists today:
+| Piece | Status |
+| --- | --- |
+| Schema, RLS, seed, pgTAP checks (`supabase/`) | Done |
+| Auth: sign-up/in/out, session refresh (`src/proxy.ts`), `/auth/confirm`, profile edit | Done, behind `SPELLBRANCH_BACKEND=supabase` |
+| Data (decks, cards, friends, favorites, comments in `src/lib/actions`) | **Still the local JSON store**: Supabase data layer is the next PR |
 
-- `supabase/migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
-- `supabase/migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper)
-- `supabase/seed.sql`: local-only test data
-- `supabase/tests/rls_checks.sql`: pgTAP checks for the policies
-- `src/lib/supabase/{client,server}.ts`: `@supabase/ssr` clients, not wired in yet
+**`SPELLBRANCH_BACKEND=supabase` is not a usable mode yet.** Accounts and sessions come
+from Supabase, but decks, friends, favorites and comments are still read from and written to
+`.data/store.json`, keyed by the Supabase user id. Use it only to test auth against a project
+with the migrations applied. Leave `SPELLBRANCH_BACKEND` unset (local) for normal development.
 
-Planned follow-ups: Supabase Auth with `@supabase/ssr` (session refresh in `src/proxy.ts`,
-sign-in/up/out, `/auth/confirm`), then a Supabase-backed data layer behind the server
-actions in `src/lib/actions`.
+How the switch works (`src/lib/supabase/config.ts`):
+- unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`)
+- `supabase` + real URL/key → Supabase Auth via `@supabase/ssr` cookies. Identity always comes from `supabase.auth.getClaims()` (verified JWT), never `getSession()`.
+- `supabase` with missing/placeholder keys, or any other value → the app throws a clear configuration error
 
-Schema notes for that work:
+What exists in `supabase/`:
+- `migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
+- `migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper)
+- `seed.sql`: local-only test data
+- `tests/rls_checks.sql`: pgTAP checks for the policies
+
+Schema notes for the data-layer PR:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
 - Logged-out pages should read names from `public.public_profiles` (id, username, display_name, avatar_url).
 - Friend requests: only the addressee can change `status`. To re-send after a decline, delete the old row and insert a new `pending` one.
@@ -79,6 +89,10 @@ Schema notes for that work:
    - Redirect URLs: `http://localhost:3847/auth/confirm`
    (Add your production URL + `/auth/confirm` later.) For early development you can turn off
    *Confirm email* under *Authentication → Providers → Email*.
+   If confirmation stays on, edit *Authentication → Emails → Confirm signup* so the link is
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
+   (the route also accepts the default `?code=` redirect when `SPELLBRANCH_SITE_URL` is set and
+   the link is opened in the same browser that signed up).
 4. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
    - with the CLI (no global install needed):
      ```bash
@@ -88,7 +102,10 @@ Schema notes for that work:
      ```
      `db push` applies only `supabase/migrations/` and does **not** load `seed.sql`.
    - or by pasting each file into the dashboard *SQL Editor* and running it, `001` first.
-5. **Don't load `seed.sql` on a hosted project.** It creates test accounts with a
+5. **Try auth** (optional, once migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
+   in `.env.local`, restart `npm run dev`, then sign up / sign in / sign out. Remember the
+   data pages still use the local store.
+6. **Don't load `seed.sql` on a hosted project.** It creates test accounts with a
    published dev-only password.
 
 ### Local Supabase (Docker)
@@ -112,6 +129,7 @@ npm run build      # production build
 npm run start      # serve production build on 3847
 npm run lint
 npm run typecheck
+npm test           # vitest unit tests (redirect sanitizer, backend switch, AUTH_SECRET)
 ```
 
 ## Core flows
