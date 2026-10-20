@@ -27,6 +27,8 @@ const IMG = "https://cards.scryfall.io/normal/front/0/0/00000000-0000-0000-0000-
 
 let proxy: Server;
 let baseUrl: string;
+/** "METHOD /path" of every request the adapter makes (no query string). */
+const seen: string[] = [];
 const tokens = new Map<string, string>();
 
 async function jwt(claims: Record<string, unknown>) {
@@ -73,6 +75,7 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
     // supabase-js talks to <url>/rest/v1; PostgREST serves at /.
     const target = new URL(REST!);
     proxy = createServer((req, res) => {
+      seen.push(`${req.method} ${(req.url ?? "/").replace(/^\/rest\/v1/, "").split("?")[0]}`);
       const upstream = request(
         {
           host: target.hostname,
@@ -171,8 +174,15 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
     const row = await clientFor(BEN).from("friendships").select("status").eq("id", fid).single();
     expect(row.data?.status).toBe("declined");
 
-    // Ben (who declined) changes his mind: old row cleared, fresh request.
+    // Ben (who declined) changes his mind: old row cleared and fresh request
+    // created by ONE restart_friend_request() call (003, review I1).
+    seen.length = 0;
     await ben().sendFriendRequest(BEN, ANN);
+    expect(seen).toEqual(["GET /friendships", "POST /rpc/restart_friend_request"]);
+    const restarted = await clientFor(BEN).from("friendships").select("id, requester_id, status");
+    expect(restarted.data).toHaveLength(1);
+    expect(restarted.data![0]).toMatchObject({ requester_id: BEN, status: "pending" });
+    expect(restarted.data![0].id).not.toBe(fid);
     const annIncoming = (await ann().getFriendsData(ANN)).incoming;
     expect(annIncoming.map((r) => r.profile.username)).toEqual(["it_ben"]);
     await ann().respondFriendRequest(ANN, annIncoming[0].friendship.id, true);
@@ -186,6 +196,31 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
     await ann().setPreferredBranch(ANN, deckId, forkId);
     expect((await ann().getDeck(ANN, deckId))?.preferredBranchId).toBe(forkId);
     await ann().setPreferredBranch(ANN, deckId, null);
+  });
+
+  it("L1: a preferred branch the viewer can't see comes back as null", async () => {
+    await ann().setPreferredBranch(ANN, deckId, forkId); // Ben's friends-only fork
+    expect((await ann().getDeck(ANN, deckId))?.preferredBranchId).toBe(forkId);
+    for (const viewer of [anon(), cat()]) {
+      const deck = await viewer.getDeck(null, deckId);
+      expect(deck?.preferredBranchId).toBeNull();
+      expect(deck?.branches).toEqual([]);
+    }
+    await ann().setPreferredBranch(ANN, deckId, null);
+  });
+
+  it("L2: the DB enforces the length limits even for direct API writes", async () => {
+    const own = await ann().createDeck(ANN, { name: "Limits", format: "modern", notes: "", visibility: "private", allowForks: true });
+    const db = clientFor(ANN);
+    expect((await db.from("decks").update({ name: "n".repeat(81) }).eq("id", own)).error?.code).toBe("23514");
+    expect((await db.from("decks").update({ notes: "x".repeat(2001) }).eq("id", own)).error?.code).toBe("23514");
+    const base = { deck_id: own, scryfall_id: "lim", card_name: "c", type_line: "t", quantity: 1 };
+    expect((await db.from("deck_cards").insert({ ...base, oracle_text: "o".repeat(4001) })).error?.code).toBe("23514");
+    expect((await db.from("deck_cards").insert({ ...base, colors: ["X"] })).error?.code).toBe("23514");
+    expect((await db.from("favorite_cards").insert({ user_id: ANN, scryfall_id: "lim", card_name: "c".repeat(201) })).error?.code).toBe("23514");
+    // At the limit is fine, through the adapter.
+    await ann().updateDeck(ANN, own, { name: "n".repeat(80), format: "modern", notes: "x".repeat(2000), visibility: "private", allowForks: true });
+    await ann().deleteDeck(ANN, own);
   });
 
   it("requester can cancel a pending request; strangers can't touch it", async () => {

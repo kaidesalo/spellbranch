@@ -176,6 +176,23 @@ describe("supabase adapter: decks", () => {
   });
 });
 
+describe("supabase adapter: hidden preferred branch (review L1)", () => {
+  it("reports a preferred branch RLS hides from the viewer as null", async () => {
+    const visible = deckRow({ id: FORK, forked_from_id: DECK, owner_id: ME });
+    for (const [branches, expected] of [[[], null], [[visible], FORK]] as const) {
+      const { repo } = repoWith((c) => {
+        if (isTable(c, "decks") && c.single) return ok(deckRow({ preferred_branch_id: FORK }));
+        if (isTable(c, "decks")) return ok(branches);
+        if (isTable(c, "deck_cards")) return ok([]);
+        if (isTable(c, "public_profiles")) return ok([]);
+        return undefined;
+      });
+      const deck = await repo.getDeck(null, DECK);
+      expect(deck?.preferredBranchId).toBe(expected);
+    }
+  });
+});
+
 describe("supabase adapter: cards", () => {
   it("addCard: non-owners are refused before any write", async () => {
     const { repo, calls } = repoWith((c) => (isTable(c, "decks") ? ok(deckRow()) : undefined));
@@ -299,16 +316,42 @@ describe("supabase adapter: friends (P2)", () => {
     expect(await dataError(repo.sendFriendRequest(ME, BOB))).toBe(FRIEND_MESSAGES.declined);
   });
 
-  it("the user who declined may start over: their declined row is deleted, then a new request", async () => {
+  it("the user who declined may start over: one restart_friend_request() call (atomic, review I1)", async () => {
     const { repo, calls } = repoWith((c) => {
       if (isTable(c, "friendships"))
         return ok([friendship({ requester_id: BOB, addressee_id: ME, status: "declined" })]);
-      return ok(null);
+      if (c.op === "rpc" && c.fn === "restart_friend_request") return ok("new-id");
+      return undefined;
     });
     await repo.sendFriendRequest(ME, BOB);
-    expect(calls.map((c) => c.op)).toEqual(["select", "delete", "insert"]);
-    expect(calls[1].filters).toEqual([["eq", "id", FRIENDSHIP]]);
-    expect(calls[2].payload).toMatchObject({ requester_id: ME, addressee_id: BOB, status: "pending" });
+    expect(calls.map((c) => c.op)).toEqual(["select", "rpc"]);
+    expect(calls[1].args).toEqual({ other: BOB });
+  });
+
+  it("restart: P0002 (row already gone) falls back to a plain insert; 23505 explains the new row", async () => {
+    const declined = [friendship({ requester_id: BOB, addressee_id: ME, status: "declined" })];
+    const gone = repoWith((c) => {
+      if (c.op === "rpc") return pgError("P0002");
+      if (isTable(c, "friendships")) return ok(declined);
+      if (isTable(c, "friendships", "insert")) return ok(null);
+      return undefined;
+    });
+    await gone.repo.sendFriendRequest(ME, BOB);
+    expect(gone.calls.map((c) => c.op)).toEqual(["select", "rpc", "insert"]);
+    expect(gone.calls[2].payload).toMatchObject({ requester_id: ME, addressee_id: BOB, status: "pending" });
+
+    let selects = 0;
+    const raced = repoWith((c) => {
+      if (c.op === "rpc") return pgError("23505");
+      if (isTable(c, "friendships")) {
+        selects += 1;
+        // After the failed restart, BOB has sent a fresh pending request.
+        return ok(selects === 1 ? declined : [friendship({ requester_id: BOB, addressee_id: ME })]);
+      }
+      return undefined;
+    });
+    expect(await dataError(raced.repo.sendFriendRequest(ME, BOB))).toBe(FRIEND_MESSAGES.theyAsked);
+    expect(raced.calls.map((c) => c.op)).toEqual(["select", "rpc", "select"]);
   });
 
   it("pending/accepted/self/bad id give clear errors without writes", async () => {

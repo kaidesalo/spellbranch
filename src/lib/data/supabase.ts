@@ -223,8 +223,15 @@ async function decorate(
   return decks.map((deck) => {
     const mine = cardRows.filter((c) => c.deck_id === deck.id);
     const deckBranches = branches.filter((b) => b.forkedFromId === deck.id);
+    // RLS already hides branches the viewer can't see; a preferred branch
+    // among them is reported as null so pages never link to it (review L1).
+    const preferredBranchId =
+      deck.preferredBranchId && deckBranches.some((b) => b.id === deck.preferredBranchId)
+        ? deck.preferredBranchId
+        : null;
     return {
       ...deck,
+      preferredBranchId,
       owner: owners.get(deck.ownerId),
       cards: withCards ? mine.map(toCard) : undefined,
       cardCount: mine.reduce((sum, c) => sum + c.quantity, 0),
@@ -619,11 +626,25 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       );
       if (decision.kind === "error") throw new DataError(decision.message);
       if (decision.kind === "replace") {
-        // The caller is the addressee of a declined row: RLS lets them delete it.
-        check(
-          "friendships clear",
-          await client.from("friendships").delete().eq("id", decision.deleteId),
-        );
+        // The caller is the addressee of a declined row and asks the other
+        // way round. restart_friend_request() (003) deletes the declined row
+        // and inserts the new pending one in ONE transaction (review I1), so
+        // nobody can slip a request into a gap between two HTTP calls.
+        const { error } = await client.rpc("restart_friend_request", { other: addresseeId });
+        if (!error) return;
+        // P0002: the declined row is already gone; fall through to a plain
+        // insert. 23505: a row for the pair appeared meanwhile (handled below).
+        if (error.code !== "P0002" && error.code !== "23505") {
+          throw new SupabaseDataError("restart_friend_request", error.code);
+        }
+        if (error.code === "23505") {
+          const again = decideSendRequest(
+            await fetchPair(client, userId, addresseeId),
+            userId,
+            addresseeId,
+          );
+          throw new DataError(again.kind === "error" ? again.message : FRIEND_MESSAGES.alreadySent);
+        }
       }
 
       const { error } = await client
