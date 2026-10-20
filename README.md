@@ -20,7 +20,7 @@ Social Magic: The Gathering deck building for friends. Create decks, search Scry
 - Next.js (App Router) + React + TypeScript
 - Tailwind CSS + shadcn/ui
 - Scryfall API for card data
-- Supabase schema + RLS + seed + pgTAP checks included (app wiring in progress)
+- Supabase (optional): Auth + data under RLS, with schema, seed and pgTAP checks
 - Local JSON store (default) so the app runs without Supabase credentials
 
 ## Quick start
@@ -47,7 +47,7 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
 | `SPELLBRANCH_SITE_URL` | The app's public origin, e.g. `http://localhost:3847`. **Required with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it): sign-up confirmation emails redirect to `<site>/auth/confirm`, and the confirm POST checks `Origin` against it. Optional in local mode |
-| `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase` while data is still in the local JSON store. Without it, production refuses to start in that mode. Not for shared deploys |
+| `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase`. Without it, production refuses to run in that mode until auth rate limiting (review M1) is done and the data layer has been tested on a live project. The name is historical (it dates from the auth-only hybrid). Not for shared deploys |
 
 ## Supabase status
 
@@ -55,14 +55,30 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | --- | --- |
 | Schema, RLS, seed, pgTAP checks (`supabase/`) | Done |
 | Auth: sign-up/in/out, session refresh (`src/proxy.ts`), `/auth/confirm`, profile edit | Done, behind `SPELLBRANCH_BACKEND=supabase` |
-| Data (decks, cards, friends, favorites, comments in `src/lib/actions`) | **Still the local JSON store**: Supabase data layer is the next PR |
+| Data: decks, cards, forks, compare, friends, favorites, comments (`src/lib/data`) | Done, behind `SPELLBRANCH_BACKEND=supabase`. Unit-tested with a mocked client and against PostgREST on local Postgres; **not yet tested against a live project** |
+| Auth rate limiting (review M1) | **Open**: blocks real users |
 
-**`SPELLBRANCH_BACKEND=supabase` is not a usable mode yet.** Accounts and sessions come
-from Supabase, but decks, friends, favorites and comments are still read from and written to
-`.data/store.json`, keyed by the Supabase user id. Use it only to test auth against a project
-with the migrations applied. Leave `SPELLBRANCH_BACKEND` unset (local) for normal development.
-`NODE_ENV=production` (`next build` / `next start`) throws in this mode unless
-`SPELLBRANCH_ALLOW_HYBRID=1` is set, until the data-layer PR lands.
+In Supabase mode everything (accounts, sessions, decks, friends, favorites, comments) lives in
+Supabase and is protected by RLS; `.data/store.json` isn't used. Leave `SPELLBRANCH_BACKEND`
+unset (local) for normal development. `NODE_ENV=production` (`next build` / `next start`) still
+throws in this mode unless `SPELLBRANCH_ALLOW_HYBRID=1` is set, until M1 is fixed and the data
+layer has been tried on a live project.
+
+How data access works (`src/lib/data`):
+- `getRepository()` (`index.ts`) picks the backend with `getBackend()`. Queries
+  (`src/lib/queries/*`) and actions (`src/lib/actions/*`) only talk to that interface (`types.ts`).
+- `local.ts`: the JSON store, permissions checked in app code (`src/lib/permissions.ts`).
+- `supabase.ts`: the request-scoped server client (the user's own session, or anon when signed
+  out); RLS decides what is visible. No service-role key anywhere. Other users' names come from
+  `public_profiles`; the signed-in user's email only from the session. Forks use
+  `rpc('fork_deck')`, friend search `rpc('find_profile')`. Decks are inserted without
+  `preferred_branch_id` (the database refuses it on insert); a preferred branch is set by a later
+  update.
+- `friend-rules.ts`: the friend-request rules both backends share (they mirror the RLS): only the
+  addressee accepts or declines; the requester can cancel a pending request or unfriend; a
+  declined request stays declined and can't be re-sent (the app says "Friend request declined");
+  the person who declined can clear it by sending their own request.
+- Friend search is by **exact username** (case-insensitive), in both modes.
 
 How the switch works (`src/lib/supabase/config.ts`):
 - unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`)
@@ -75,8 +91,9 @@ How the switch works (`src/lib/supabase/config.ts`):
 What exists in `supabase/`:
 - `migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
 - `migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper, comment deletion, URL checks, grants/default privileges)
+- `migrations/003_profile_bio_limit.sql`: `profiles.bio` at most 280 characters (safe to re-run)
 - `seed.sql`: local-only test data
-- `tests/rls_checks.sql`, `tests/review_fixes.sql`: pgTAP checks for the policies and the security-review fixes
+- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`: pgTAP checks for the policies, the security-review fixes and the bio limit
 
 Schema notes for the data-layer PR:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
@@ -134,10 +151,9 @@ Schema notes for the data-layer PR:
      npx supabase db push
      ```
      Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
-   - or by pasting each file into the dashboard *SQL Editor* and running it, `001` first.
-6. **Try auth** (optional, once migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
-   in `.env.local`, restart `npm run dev`, then sign up / sign in / sign out. Remember the
-   data pages still use the local store.
+   - or by pasting each file into the dashboard *SQL Editor* and running it, in order (`001`, `002`, `003`).
+6. **Try it** (once all migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
+   in `.env.local` and restart `npm run dev`. Accounts and all data now live in the project.
 7. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
    with a published dev-only password. Don't run `supabase db reset --linked` or
    `supabase db push --include-seed` against a hosted project: both load the seed.
@@ -174,6 +190,9 @@ friends-only and private decks, a fork, comments and favorites.
   Next.js adds the nonce to its own scripts. This works because every page is dynamic (the root layout
   reads the session). `style-src` still allows `'unsafe-inline'` for component style attributes.
   If you add a third-party script or a browser-side API call, update `buildCsp()`.
+  The proxy skips only `_next/static`, `_next/image`, the favicon and the files in `public/`
+  (listed by name), so every HTML response, including a 404 for `/nope.png`, gets the CSP.
+  **Adding a file to `public/`? Add it to the matcher in `src/proxy.ts`** (a test checks).
 
 ## Scripts
 
@@ -183,7 +202,7 @@ npm run build      # production build
 npm run start      # serve production build on 3847
 npm run lint
 npm run typecheck
-npm test           # vitest unit tests (auth, confirm route, cookies, headers, backend switch, public profiles)
+npm test           # vitest unit tests (auth, confirm route, cookies, headers, backend switch, public profiles, data adapters, friend rules)
 ```
 
 ## Core flows
@@ -202,7 +221,7 @@ npm test           # vitest unit tests (auth, confirm route, cookies, headers, b
 - `src/components` — UI for builder, compare, friends, comments
 - `src/lib/actions` — `"use server"` mutations only (every export is a callable action, named `*Action`)
 - `src/lib/queries`, `src/lib/auth/require-user.ts` — server-only read helpers and `requireUser()` (`import "server-only"`, never callable as actions)
-- `src/lib/data` — local JSON persistence
+- `src/lib/data` — data layer: `getRepository()`, the local JSON store adapter and the Supabase adapter
 - `src/lib/scryfall` — Scryfall helpers
 - `supabase/migrations`: relational schema and RLS policies
 - `supabase/seed.sql`, `supabase/tests`: local seed data and pgTAP RLS checks

@@ -12,11 +12,12 @@
  * Supabase mode also requires SPELLBRANCH_SITE_URL (confirmation links and
  * the /auth/confirm Origin check depend on it).
  *
- * NOTE: as of this change only auth/session use Supabase; the data actions
- * still read and write the local store (Supabase data layer is a follow-up).
- * That hybrid isn't the reviewed authorization model (no RLS on app data, and
- * the JSON store is per-instance on serverless hosts), so production refuses
- * to start in Supabase mode unless SPELLBRANCH_ALLOW_HYBRID=1 is set.
+ * Auth and data (decks, cards, friends, favorites, comments) both use
+ * Supabase in this mode (src/lib/data/supabase.ts, under RLS). Production
+ * still refuses to run in Supabase mode unless SPELLBRANCH_ALLOW_HYBRID=1:
+ * auth rate limiting (review M1) is open and the data layer hasn't been
+ * tested against a live project yet. The variable keeps its old name so
+ * existing setups don't change.
  */
 
 export type Backend = "local" | "supabase";
@@ -55,8 +56,8 @@ export function getBackend(env: Env = process.env): Backend {
     }
     if (env.NODE_ENV === "production" && env.SPELLBRANCH_ALLOW_HYBRID?.trim() !== "1") {
       throw new Error(
-        "SPELLBRANCH_BACKEND=supabase is auth-only for now: decks, friends, favorites and comments still use the local JSON store. " +
-          "Refusing to run this hybrid in production. Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
+        "SPELLBRANCH_BACKEND=supabase is not cleared for production yet (auth rate limiting, review M1, is still open). " +
+          "Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
       );
     }
     return "supabase";
