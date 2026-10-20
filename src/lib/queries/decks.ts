@@ -3,6 +3,7 @@ import "server-only";
 import { requireUser } from "@/lib/auth/require-user";
 import { getSessionUser } from "@/lib/auth/session";
 import { readStore } from "@/lib/data/store";
+import { toPublicProfile } from "@/lib/queries/profiles";
 import {
   canCommentOnDeck,
   canEditDeck,
@@ -16,16 +17,7 @@ import type { Deck, DeckWithMeta } from "@/lib/types";
 
 function publicProfile(store: Awaited<ReturnType<typeof readStore>>, id: string) {
   const u = store.users.find((x) => x.id === id);
-  if (!u) return undefined;
-  return {
-    id: u.id,
-    email: u.email,
-    username: u.username,
-    displayName: u.displayName,
-    bio: u.bio,
-    avatarUrl: u.avatarUrl,
-    createdAt: u.createdAt,
-  };
+  return u ? toPublicProfile(u) : undefined;
 }
 
 function decorateDeck(store: Awaited<ReturnType<typeof readStore>>, deck: Deck): DeckWithMeta {

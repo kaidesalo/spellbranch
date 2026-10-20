@@ -6,10 +6,11 @@ import type {
   DeckCard,
   FavoriteCard,
   Friendship,
-  Profile,
+  PublicProfile,
 } from "@/lib/types";
 
-export interface LocalUser extends Profile {
+export interface LocalUser extends PublicProfile {
+  email: string;
   passwordHash: string;
 }
 

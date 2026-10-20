@@ -10,9 +10,9 @@ import {
   searchUsersAction,
   sendFriendRequestAction,
 } from "@/lib/actions/friends";
-import type { Friendship, Profile } from "@/lib/types";
+import type { Friendship, PublicProfile } from "@/lib/types";
 
-type FriendRow = { friendship: Friendship; profile: Profile };
+type FriendRow = { friendship: Friendship; profile: PublicProfile };
 
 export function FriendsPanel({
   friends,
@@ -24,7 +24,7 @@ export function FriendsPanel({
   outgoing: FriendRow[];
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Profile[]>([]);
+  const [results, setResults] = useState<PublicProfile[]>([]);
   const [pending, startTransition] = useTransition();
 
   function search() {
