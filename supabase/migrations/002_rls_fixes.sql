@@ -15,7 +15,14 @@
 --   6. fork_deck(source uuid): security-invoker helper that copies a deck + cards.
 --   7. Hardening: security-definer functions use search_path = '';
 --      is_friend() only answers for the calling user; table/function grants
---      tightened (no TRUNCATE for API roles, no writes for anon).
+--      tightened (no TRUNCATE/MAINTAIN for API roles, no writes for anon) and
+--      default privileges no longer auto-grant future objects to anon.
+--   8. comments: author or deck owner may delete.
+--   9. URL hygiene: avatar_url must be https; card image_uri must be a
+--      https://cards.scryfall.io/ URL.
+--
+-- Security review fixes (PR #1 review, F1-F4 + F6-F9) are folded in here
+-- rather than in a 003, since no project has this migration applied yet.
 
 -- ---------------------------------------------------------------------------
 -- 0. Helper functions (hardened re-definitions)
@@ -100,12 +107,24 @@ create policy "Addressee responds to friendship"
 
 -- Only the status column is updatable through the API, so the addressee cannot
 -- rewrite requester_id/addressee_id to forge a friendship with someone else.
--- (Re-sending after a decline = delete the old row, insert a new pending one.)
 revoke update on public.friendships from anon, authenticated;
 grant update (status) on public.friendships to authenticated;
 
--- "Participants delete friendship" from 001 is kept: requester can cancel,
--- either side can unfriend.
+-- Deletes (review F1): the requester may cancel a pending request or unfriend
+-- an accepted one, but may NOT delete a declined row -- otherwise "decline"
+-- has no effect (delete + re-send loop). The addressee may delete any row
+-- (unfriend, or clear a declined request to allow a fresh one later).
+drop policy if exists "Participants delete friendship" on public.friendships;
+drop policy if exists "Requester cancels or unfriends" on public.friendships;
+drop policy if exists "Addressee deletes friendship" on public.friendships;
+create policy "Requester cancels or unfriends"
+  on public.friendships for delete
+  to authenticated
+  using ((select auth.uid()) = requester_id and status in ('pending', 'accepted'));
+create policy "Addressee deletes friendship"
+  on public.friendships for delete
+  to authenticated
+  using ((select auth.uid()) = addressee_id);
 
 -- ---------------------------------------------------------------------------
 -- 2. Profiles: drop email, add public read path
@@ -186,10 +205,9 @@ begin
   if requested ~ '^[A-Za-z0-9_]{3,24}$' then
     base := requested;
   else
-    base := regexp_replace(split_part(coalesce(new.email, ''), '@', 1), '[^A-Za-z0-9_]', '', 'g');
-    if char_length(base) < 3 then
-      base := 'player';
-    end if;
+    -- Never derive a public username from the email address (review F2):
+    -- usernames are readable by other users (and anon, behind public content).
+    base := 'player_' || substr(md5(gen_random_uuid()::text), 1, 6);
   end if;
   base := left(base, 24);
   candidate := base;
@@ -244,23 +262,31 @@ create trigger decks_set_updated_at
 -- 5. Fork / preferred-branch integrity
 -- ---------------------------------------------------------------------------
 
--- SECURITY DEFINER so it can see the source deck / branch even when the caller
--- can't (e.g. a private branch owned by someone else). Fork permission is only
--- enforced for API callers (anon/authenticated JWTs); service_role and direct
--- postgres sessions (migrations, seed) are trusted. preferred_branch_id is
--- always checked. Unchanged values on UPDATE are not re-checked, so editing a
--- branch still works after its source stops allowing forks.
+-- SECURITY INVOKER (review F3): every lookup runs under the caller's RLS, so
+-- a deck the caller can't see is indistinguishable from one that doesn't
+-- exist (single 42501 for both), and a preferred branch must be a fork the
+-- caller can see. Trust is "does the current DB role already bypass RLS on
+-- decks" (BYPASSRLS / superuser, e.g. service_role, or a member of the table
+-- owner role, e.g. postgres running migrations/seed), not the JWT role claim.
+-- Unchanged values on UPDATE are not re-checked, so editing a branch still
+-- works after its source stops allowing forks.
 create or replace function public.enforce_deck_links()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
   src public.decks;
   caller uuid := auth.uid();
-  is_api_caller boolean := caller is not null
-    or coalesce(auth.role(), '') in ('anon', 'authenticated');
+  trusted boolean :=
+    coalesce((select r.rolbypassrls or r.rolsuper
+              from pg_catalog.pg_roles r where r.rolname = current_user), false)
+    or pg_catalog.pg_has_role(
+         current_user,
+         (select c.relowner from pg_catalog.pg_class c
+          where c.oid = 'public.decks'::pg_catalog.regclass),
+         'MEMBER');
 begin
   if new.forked_from_id is not null
      and (tg_op = 'INSERT' or new.forked_from_id is distinct from old.forked_from_id) then
@@ -268,30 +294,32 @@ begin
       raise exception 'A deck cannot be forked from itself' using errcode = '23514';
     end if;
 
-    select * into src from public.decks where id = new.forked_from_id;
-    if not found then
+    if not trusted then
+      select * into src from public.decks where id = new.forked_from_id;  -- RLS applies
+      if not (
+        found
+        and caller is not null
+        and (src.owner_id = caller or (src.allow_forks and public.can_view_deck(src, caller)))
+      ) then
+        -- Same error whether the source is missing or merely invisible.
+        raise exception 'You are not allowed to fork this deck' using errcode = '42501';
+      end if;
+    elsif not exists (select 1 from public.decks where id = new.forked_from_id) then
       raise exception 'Source deck not found' using errcode = '23503';
-    end if;
-
-    if is_api_caller and not (
-      caller is not null
-      and (
-        src.owner_id = caller
-        or (src.allow_forks and public.can_view_deck(src, caller))
-      )
-    ) then
-      raise exception 'You are not allowed to fork this deck' using errcode = '42501';
     end if;
   end if;
 
   if new.preferred_branch_id is not null
      and (tg_op = 'INSERT' or new.preferred_branch_id is distinct from old.preferred_branch_id) then
-    if not exists (
-      select 1 from public.decks b
+    -- A brand-new deck has no forks yet. Rejecting preferred_branch_id on API
+    -- INSERTs also closes the "reuse someone else's deck id" probe (BEFORE
+    -- triggers run before the primary-key check).
+    if (not trusted and tg_op = 'INSERT') or not exists (
+      select 1 from public.decks b                       -- RLS applies: must be visible
       where b.id = new.preferred_branch_id
         and b.forked_from_id = new.id
     ) then
-      raise exception 'Preferred branch must be a fork of this deck' using errcode = '23514';
+      raise exception 'Preferred branch must be a visible fork of this deck' using errcode = '23514';
     end if;
   end if;
 
@@ -311,7 +339,9 @@ create trigger decks_enforce_links
 -- SECURITY INVOKER: runs with the caller's RLS. The source must be visible to
 -- the caller, the branch insert goes through the decks insert policy and
 -- enforce_deck_links(), and card copies go through the deck_cards policies.
--- Mirrors forkDeckAction: public sources become friends-only branches.
+-- Public sources become friends-only, forkable branches (like forkDeckAction).
+-- Forks of friends-only/private sources start private and non-forkable
+-- (review F4), so a friend's fork doesn't silently widen the audience.
 create or replace function public.fork_deck(source uuid)
 returns uuid
 language plpgsql
@@ -337,8 +367,8 @@ begin
     src.name || ' (branch)',
     src.format,
     src.notes,
-    case when src.visibility = 'public' then 'friends' else src.visibility end,
-    true,
+    case when src.visibility = 'public' then 'friends' else 'private' end,
+    src.visibility = 'public',
     src.id
   )
   returning id into new_id;
@@ -352,6 +382,39 @@ begin
   return new_id;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 6b. Comments: author or deck owner may delete (review F7)
+-- ---------------------------------------------------------------------------
+
+drop policy if exists "Authors or deck owners delete comments" on public.comments;
+create policy "Authors or deck owners delete comments"
+  on public.comments for delete
+  to authenticated
+  using (
+    (select auth.uid()) = author_id
+    or exists (
+      select 1 from public.decks d
+      where d.id = comments.deck_id and d.owner_id = (select auth.uid())
+    )
+  );
+
+-- ---------------------------------------------------------------------------
+-- 6c. URL hygiene for user-supplied image URLs (review F8)
+-- ---------------------------------------------------------------------------
+-- These render to anon visitors on public decks/profiles: no http tracking
+-- pixels, no javascript:/data: schemes. Tighten avatar_url to a storage host
+-- once avatar uploads exist.
+
+alter table public.profiles drop constraint if exists profiles_avatar_url_https;
+alter table public.profiles add constraint profiles_avatar_url_https
+  check (avatar_url is null or avatar_url ~ '^https://');
+alter table public.deck_cards drop constraint if exists deck_cards_image_uri_scryfall;
+alter table public.deck_cards add constraint deck_cards_image_uri_scryfall
+  check (image_uri is null or image_uri ~ '^https://cards\.scryfall\.io/');
+alter table public.favorite_cards drop constraint if exists favorite_cards_image_uri_scryfall;
+alter table public.favorite_cards add constraint favorite_cards_image_uri_scryfall
+  check (image_uri is null or image_uri ~ '^https://cards\.scryfall\.io/');
 
 -- ---------------------------------------------------------------------------
 -- 7. Grants hardening
@@ -380,3 +443,39 @@ grant execute on function public.fork_deck(uuid) to authenticated;
 
 -- is_friend / can_view_deck stay executable: RLS policies call them as the
 -- requesting role. is_friend only answers for the caller (see above).
+
+-- PG17+ MAINTAIN (VACUUM/ANALYZE/LOCK ... ACCESS EXCLUSIVE, etc.) is not needed
+-- by API roles (review F6). Guarded so this file still runs on PG < 17.
+do $$
+begin
+  if current_setting('server_version_num')::int >= 170000 then
+    execute 'revoke maintain on public.profiles, public.friendships, public.favorite_cards,
+               public.decks, public.deck_cards, public.comments from anon, authenticated';
+  end if;
+end $$;
+
+-- Default privileges (review F6): Supabase's defaults grant ALL on every new
+-- table/function/sequence in public to anon/authenticated. Make future objects
+-- created by postgres (i.e. by our migrations) closed by default; each new
+-- migration must grant what it needs explicitly. anon keeps SELECT on future
+-- tables (RLS still applies); authenticated keeps SELECT/INSERT/UPDATE/DELETE.
+-- NOTE: this only changes defaults for role postgres. Check `\ddp` on the real
+-- project (other roles such as supabase_admin may carry their own defaults),
+-- and see `auto_expose_new_tables` in config.toml.
+alter default privileges for role postgres in schema public
+  revoke truncate, references, trigger on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke insert, update, delete on tables from anon;
+alter default privileges for role postgres in schema public
+  revoke usage, update on sequences from anon;
+alter default privileges for role postgres in schema public
+  revoke execute on functions from anon, authenticated;
+alter default privileges for role postgres
+  revoke execute on functions from public;
+do $$
+begin
+  if current_setting('server_version_num')::int >= 170000 then
+    execute 'alter default privileges for role postgres in schema public
+               revoke maintain on tables from anon, authenticated';
+  end if;
+end $$;
