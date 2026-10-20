@@ -209,9 +209,10 @@ select ok(
 
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
   ('a0000000-0000-4000-8000-00000000000a', 'authenticated', 'authenticated', 'xavier.y+test@example.test', '{"username":"bad name"}');
-select is(
-  (select username from public.profiles where id = 'a0000000-0000-4000-8000-00000000000a'),
-  'xavierytest', 'handle_new_user: invalid requested username falls back to sanitised email prefix');
+select ok(
+  (select username ~ '^player_[0-9a-f]{6}$' and username !~* 'xavier'
+   from public.profiles where id = 'a0000000-0000-4000-8000-00000000000a'),
+  'handle_new_user: invalid requested username falls back to player_xxxxxx (not the email prefix)');
 
 -- uma comments on a public deck (so anon may see uma's public profile below)
 set local role authenticated;

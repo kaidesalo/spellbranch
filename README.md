@@ -68,14 +68,20 @@ How the switch works (`src/lib/supabase/config.ts`):
 
 What exists in `supabase/`:
 - `migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
-- `migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper)
+- `migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper, comment deletion, URL checks, grants/default privileges)
 - `seed.sql`: local-only test data
-- `tests/rls_checks.sql`: pgTAP checks for the policies
+- `tests/rls_checks.sql`, `tests/review_fixes.sql`: pgTAP checks for the policies and the security-review fixes
 
 Schema notes for the data-layer PR:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
 - Logged-out pages should read names from `public.public_profiles` (id, username, display_name, avatar_url).
-- Friend requests: only the addressee can change `status`. To re-send after a decline, delete the old row and insert a new `pending` one.
+- Friend requests: only the addressee can change `status` (`accepted` / `declined`). The requester can delete
+  the row only while it's `pending` (cancel) or `accepted` (unfriend); a `declined` row stays, which blocks
+  re-sending. The addressee can delete any row (unfriend, or clear a declined request so a new one is possible).
+- Comments: the author or the deck owner can delete a comment.
+- Image URLs: `profiles.avatar_url` must be `https://…`; card `image_uri` must be `https://cards.scryfall.io/…` (or null).
+- Default usernames: signups without a valid `username` in metadata get `player_xxxxxx` (never the email prefix).
+- Forks of friends-only/private decks start `private` with forks off; forks of public decks start friends-only.
 - Forking: call `select fork_deck('<deck id>')`. It checks permissions and copies the cards.
 
 ### Setting up a Supabase project
@@ -100,13 +106,20 @@ Schema notes for the data-layer PR:
      npx supabase link --project-ref <your-project-ref>
      npx supabase db push
      ```
-     `db push` applies only `supabase/migrations/` and does **not** load `seed.sql`.
+     Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
    - or by pasting each file into the dashboard *SQL Editor* and running it, `001` first.
 5. **Try auth** (optional, once migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
    in `.env.local`, restart `npm run dev`, then sign up / sign in / sign out. Remember the
    data pages still use the local store.
-6. **Don't load `seed.sql` on a hosted project.** It creates test accounts with a
-   published dev-only password.
+6. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
+   with a published dev-only password. Don't run `supabase db reset --linked` or
+   `supabase db push --include-seed` against a hosted project: both load the seed.
+   `seed.sql` aborts if the database already has any non-`@example.test` user, but a brand-new
+   project with no users would not trip that guard.
+7. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
+   from being auto-granted to `anon` (and functions to `authenticated`). Run `\ddp` in `psql` (or
+   query `pg_default_acl`) on the project to confirm nothing else still grants them, and grant new
+   tables/functions explicitly in future migrations.
 
 ### Local Supabase (Docker)
 

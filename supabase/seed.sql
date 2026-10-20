@@ -1,7 +1,10 @@
 -- Spellbranch local seed data (DEV ONLY)
 --
 -- Loaded by `supabase db reset` / `supabase start` (see [db.seed] in config.toml).
--- Never run this against a hosted/production project.
+-- Never run this against a hosted/production project. Note that
+-- `supabase db reset --linked` and `supabase db push --include-seed` DO run it
+-- against the linked hosted project; the guard below aborts in that case if
+-- the project has any real users.
 --
 -- Test accounts (fake emails, dev-only password for all three):
 --   alice@example.test / spellbranch-dev-only
@@ -18,6 +21,19 @@
 --   alice: public (forks on), friends-only, private, public (forks off)
 --   bob:   fork of alice's public deck (set as alice's preferred branch)
 --   carol: public deck
+
+-- Guard (review F9): refuse to run on a database that has any non-seed
+-- users, e.g. a hosted project. Seed accounts all use @example.test.
+-- (A brand-new hosted project with zero users still passes; see README.)
+do $$
+begin
+  if exists (
+    select 1 from auth.users
+    where coalesce(email, '') not like '%@example.test'
+  ) then
+    raise exception 'seed.sql: refusing to run on a database with non-seed users (hosted project?)';
+  end if;
+end $$;
 
 -- pgcrypto lives in the "extensions" schema on Supabase.
 do $$
