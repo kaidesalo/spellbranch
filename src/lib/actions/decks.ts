@@ -2,34 +2,33 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
+import type { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
+import {
+  cardInputSchema,
+  check,
+  deckSchema,
+  idSchema,
+  isFormData,
+  quantitySchema,
+} from "@/lib/actions/schemas";
 
 export type ActionResult = { error?: string; success?: boolean; id?: string };
 
-const deckSchema = z.object({
-  name: z.string().min(1, "Deck name is required").max(80),
-  format: z.enum([
-    "commander",
-    "standard",
-    "modern",
-    "pioneer",
-    "legacy",
-    "pauper",
-    "casual",
-  ]),
-  notes: z.string().max(2000).optional().default(""),
-  visibility: z.enum(["private", "friends", "public"]),
-  allowForks: z.boolean(),
-});
-
-function parseDeckForm(formData: FormData) {
+function parseDeckForm(formData: unknown) {
+  if (!isFormData(formData)) {
+    return { success: false as const, error: { issues: [{ message: "Invalid deck" }] } };
+  }
+  const text = (key: string) => {
+    const v = formData.get(key);
+    return typeof v === "string" ? v : undefined;
+  };
   return deckSchema.safeParse({
-    name: formData.get("name"),
-    format: formData.get("format"),
-    notes: formData.get("notes") ?? "",
-    visibility: formData.get("visibility"),
+    name: text("name"),
+    format: text("format"),
+    notes: text("notes") ?? "",
+    visibility: text("visibility"),
     allowForks: formData.get("allowForks") === "on" || formData.get("allowForks") === "true",
   });
 }
@@ -61,6 +60,8 @@ export async function updateDeckMetaAction(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
   const parsed = parseDeckForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid deck" };
@@ -82,6 +83,8 @@ export async function updateDeckMetaAction(
 
 export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
 
   try {
     await getRepository().deleteDeck(user.id, deckId);
@@ -94,22 +97,13 @@ export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   redirect("/decks");
 }
 
-const cardInputSchema = z.object({
-  scryfallId: z.string().min(1),
-  cardName: z.string().min(1),
-  imageUri: z.string().nullable().optional(),
-  manaCost: z.string().nullable().optional(),
-  typeLine: z.string().min(1),
-  colors: z.array(z.string()).optional().default([]),
-  oracleText: z.string().nullable().optional(),
-  quantity: z.number().int().min(1).max(99).optional().default(1),
-});
-
 export async function addCardToDeckAction(
   deckId: string,
-  input: z.infer<typeof cardInputSchema>,
+  input: z.input<typeof cardInputSchema>,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
   const parsed = cardInputSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid card" };
@@ -140,9 +134,12 @@ export async function updateCardQuantityAction(
   quantity: number,
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
-    return { error: "Quantity must be between 0 and 99" };
-  }
+  const ids = check(idSchema, deckId, "Deck not found");
+  if (!ids.ok) return { error: ids.error };
+  const card = check(idSchema, cardId, "Card not found in deck");
+  if (!card.ok) return { error: card.error };
+  const qty = check(quantitySchema, quantity, "Quantity must be between 0 and 99");
+  if (!qty.ok) return { error: qty.error };
 
   try {
     await getRepository().setCardQuantity(user.id, deckId, cardId, quantity);
@@ -163,6 +160,8 @@ export async function removeCardFromDeckAction(
 
 export async function forkDeckAction(deckId: string): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, deckId, "You are not allowed to fork this deck");
+  if (!id.ok) return { error: id.error };
   let newId: string;
 
   try {
@@ -181,6 +180,10 @@ export async function setPreferredBranchAction(
   branchId: string | null,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const source = check(idSchema, sourceDeckId, "Deck not found");
+  if (!source.ok) return { error: source.error };
+  const branch = check(idSchema.nullable(), branchId, "Branch does not belong to this deck");
+  if (!branch.ok) return { error: branch.error };
 
   try {
     await getRepository().setPreferredBranch(user.id, sourceDeckId, branchId);

@@ -1,19 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
+import type { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
+import { check, favoriteSchema, idSchema } from "@/lib/actions/schemas";
 
 export type ActionResult = { error?: string; success?: boolean };
-
-const favoriteSchema = z.object({
-  scryfallId: z.string().min(1),
-  cardName: z.string().min(1),
-  imageUri: z.string().nullable().optional(),
-  manaCost: z.string().nullable().optional(),
-  typeLine: z.string().nullable().optional(),
-});
 
 export async function addFavoriteAction(
   input: z.infer<typeof favoriteSchema>,
@@ -44,6 +37,8 @@ export async function removeFavoriteAction(
   favoriteId: string,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, favoriteId, "Favorite not found");
+  if (!id.ok) return { error: id.error };
 
   try {
     await getRepository().removeFavorite(user.id, favoriteId);

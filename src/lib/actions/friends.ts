@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
+import { FRIEND_MESSAGES } from "@/lib/data/friend-rules";
+import { check, idSchema, usernameQuerySchema } from "@/lib/actions/schemas";
+import { z } from "zod";
 import type { PublicProfile } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean };
@@ -14,9 +17,10 @@ export type ActionResult = { error?: string; success?: boolean };
  */
 export async function findProfileAction(username: string): Promise<PublicProfile[]> {
   const user = await requireUser();
-  if (typeof username !== "string" || !username.trim()) return [];
+  const q = check(usernameQuerySchema, username, "");
+  if (!q.ok || !q.data.trim()) return [];
   try {
-    return await getRepository().findProfile(user.id, username);
+    return await getRepository().findProfile(user.id, q.data);
   } catch (err) {
     userMessage(err, "");
     return [];
@@ -27,6 +31,8 @@ export async function sendFriendRequestAction(
   addresseeId: string,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, addresseeId, FRIEND_MESSAGES.notFound);
+  if (!id.ok) return { error: id.error };
 
   try {
     await getRepository().sendFriendRequest(user.id, addresseeId);
@@ -44,9 +50,13 @@ export async function respondFriendRequestAction(
   accept: boolean,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, friendshipId, FRIEND_MESSAGES.requestNotFound);
+  if (!id.ok) return { error: id.error };
+  const decision = check(z.boolean("Invalid request"), accept, "Invalid request");
+  if (!decision.ok) return { error: decision.error };
 
   try {
-    await getRepository().respondFriendRequest(user.id, friendshipId, accept === true);
+    await getRepository().respondFriendRequest(user.id, friendshipId, decision.data);
   } catch (err) {
     return { error: userMessage(err, "Could not update request") };
   }
@@ -60,6 +70,8 @@ export async function removeFriendAction(
   friendshipId: string,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, friendshipId, FRIEND_MESSAGES.requestNotFound);
+  if (!id.ok) return { error: id.error };
 
   try {
     await getRepository().removeFriendship(user.id, friendshipId);
