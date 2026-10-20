@@ -9,7 +9,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(36);
+select plan(40);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
@@ -91,6 +91,29 @@ select lives_ok(format($$insert into public.decks (owner_id,name,format,visibili
 reset role;
 set local "request.jwt.claims" = '';
 select lives_ok(format($$update public.decks set preferred_branch_id=%L where id='c2000000-0000-4000-8000-000000000002'$$,(select id from f_friends)),'F3: postgres (migrations/seed) still trusted');
+-- N1 (re-review of 75c3c9f, based on Cipher's cipher_head #54): a SECURITY
+-- DEFINER function owned by the migration owner runs the trigger with
+-- current_user = postgres. With an end-user identity present it must NOT be
+-- trusted, so allow_forks / visibility still apply.
+insert into public.decks (id, owner_id, name, format, notes, visibility, allow_forks) values
+ ('c2000000-0000-4000-8000-000000000003','c0000000-0000-4000-8000-000000000001','Ann no forks','modern','','public',false);
+create function public.zz_definer_fork(src uuid) returns void language sql security definer set search_path = '' as
+  $f$ insert into public.decks (owner_id,name,format,visibility,forked_from_id) values (auth.uid(),'via definer','modern','private',src) $f$;
+create function public.zz_definer_link(branch uuid) returns void language sql security definer set search_path = '' as
+  $f$ insert into public.decks (owner_id,name,format,visibility,preferred_branch_id) values (auth.uid(),'via definer','modern','private',branch) $f$;
+grant execute on function public.zz_definer_fork(uuid), public.zz_definer_link(uuid) to authenticated;
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
+select throws_ok(format($$select public.zz_definer_fork(%L)$$,(select id from f_friends)),'42501',null,
+  'N1: definer function (owned by postgres) cannot fork a private, non-forkable deck for an API user');
+select throws_ok($$select public.zz_definer_fork('c2000000-0000-4000-8000-000000000003')$$,'42501',null,
+  'N1: definer function cannot fork a public deck with allow_forks=false');
+select throws_ok(format($$select public.zz_definer_link(%L)$$,(select id from f_public)),'23514',null,
+  'N1: definer function cannot insert a deck with a preferred_branch_id link');
+select lives_ok($$select public.zz_definer_fork('c2000000-0000-4000-8000-000000000001')$$,
+  'N1: definer function can still fork a public, forkable deck');
+reset role;
+set local "request.jwt.claims" = '';
 select ok(not has_table_privilege('anon','public.decks','MAINTAIN'),'F6: MAINTAIN revoked');
 select ok(not has_function_privilege('anon','public.find_profile(text)','EXECUTE')
       and has_function_privilege('authenticated','public.find_profile(text)','EXECUTE'),'F5: find_profile() callable by authenticated only');

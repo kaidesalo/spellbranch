@@ -117,6 +117,9 @@ grant update (status) on public.friendships to authenticated;
 -- an accepted one, but may NOT delete a declined row -- otherwise "decline"
 -- has no effect (delete + re-send loop). The addressee may delete any row
 -- (unfriend, or clear a declined request to allow a fresh one later).
+-- Soft block: the addressee may also flip an accepted row to 'declined'. The
+-- requester then can neither delete the row nor re-send (unique pair index),
+-- so this acts as a soft block until the addressee deletes the row.
 drop policy if exists "Participants delete friendship" on public.friendships;
 drop policy if exists "Requester cancels or unfriends" on public.friendships;
 drop policy if exists "Addressee deletes friendship" on public.friendships;
@@ -219,9 +222,14 @@ grant execute on function public.find_profile(text) to authenticated;
 
 -- username_available(candidate): sign-up check (runs before login, so anon may
 -- call it). Same format rule as profiles_username_format; invalid input ->
--- false. Exact case-insensitive equality only, returns just a boolean. This
--- reveals whether an exact username exists -- the same signal a "username
--- taken" sign-up error gives -- but nothing else, and can't enumerate.
+-- false. Exact case-insensitive equality only, returns just a boolean. It
+-- reveals whether one exact username exists per request (no listing or
+-- prefix search), but it lets anon check names one unauthenticated request at
+-- a time, which is a cheaper oracle than the old sign-up flow: sign-up never
+-- errored on a taken name, handle_new_user just added a suffix, so probing
+-- used to cost an account per guess. Low impact (a hit yields no id/profile).
+-- Planned follow-up: once the app is wired up, call this from a rate-limited
+-- Next.js route / server action and `revoke execute ... from anon`.
 -- handle_new_user still resolves races (unique index + suffix retry).
 create or replace function public.username_available(candidate text)
 returns boolean
@@ -338,6 +346,11 @@ create trigger decks_set_updated_at
 -- caller can see. Trust is "does the current DB role already bypass RLS on
 -- decks" (BYPASSRLS / superuser, e.g. service_role, or a member of the table
 -- owner role, e.g. postgres running migrations/seed), not the JWT role claim.
+-- Trust also requires that there is no end-user identity (auth.uid() is null,
+-- review N1): inside a SECURITY DEFINER function owned by postgres,
+-- current_user is the owner, so without this an API user calling such a
+-- function would skip the allow_forks/visibility checks. service_role
+-- without a sub, migrations and seed are still trusted.
 -- Unchanged values on UPDATE are not re-checked, so editing a branch still
 -- works after its source stops allowing forks.
 create or replace function public.enforce_deck_links()
@@ -349,14 +362,15 @@ as $$
 declare
   src public.decks;
   caller uuid := auth.uid();
-  trusted boolean :=
+  trusted boolean := (
     coalesce((select r.rolbypassrls or r.rolsuper
               from pg_catalog.pg_roles r where r.rolname = current_user), false)
     or pg_catalog.pg_has_role(
          current_user,
          (select c.relowner from pg_catalog.pg_class c
           where c.oid = 'public.decks'::pg_catalog.regclass),
-         'MEMBER');
+         'MEMBER')
+  ) and caller is null;
 begin
   if new.forked_from_id is not null
      and (tg_op = 'INSERT' or new.forked_from_id is distinct from old.forked_from_id) then
@@ -529,6 +543,9 @@ end $$;
 -- created by postgres (i.e. by our migrations) closed by default; each new
 -- migration must grant what it needs explicitly. anon keeps SELECT on future
 -- tables (RLS still applies); authenticated keeps SELECT/INSERT/UPDATE/DELETE.
+-- The final `revoke execute on functions from public` has no `in schema`, so
+-- it applies to functions postgres creates in ANY schema (e.g. a future
+-- `private` schema for F10, or auth hooks): those need explicit grants too.
 -- NOTE: this only changes defaults for role postgres. Check `\ddp` on the real
 -- project (other roles such as supabase_admin may carry their own defaults),
 -- and see `auto_expose_new_tables` in config.toml.
