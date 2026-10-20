@@ -7,6 +7,9 @@
 --   2. profiles: email column removed (auth.users already stores it); anon gets a
 --      narrow read path (id, username, display_name, avatar_url) limited to
 --      people behind public content, exposed via public.public_profiles.
+--      Signed-in users no longer read every profile: only themselves, people
+--      they share a friendship row with, and authors of decks/comments they
+--      can see. Finding someone new = find_profile(username), exact match.
 --   3. usernames: format check + case-insensitive uniqueness; handle_new_user
 --      sanitises the requested username and falls back to a unique one.
 --   4. decks.updated_at maintained by trigger.
@@ -157,10 +160,31 @@ create policy "Anon reads profiles behind public content"
 revoke all on public.profiles from anon;
 grant select (id, username, display_name, avatar_url) on public.profiles to anon;
 
+-- Signed-in users (review F5): no directory browsing. A profile is readable
+-- if it is your own, you share a friendship row with them (any status, so
+-- friend lists and pending/declined requests render), or they own a deck or
+-- wrote a comment that you can see (the decks/comments subqueries run under
+-- your own RLS). Everyone else is reachable only via find_profile() below.
+drop policy if exists "Profiles are viewable by authenticated users" on public.profiles;
+drop policy if exists "Authenticated read related profiles" on public.profiles;
+create policy "Authenticated read related profiles"
+  on public.profiles for select
+  to authenticated
+  using (
+    id = (select auth.uid())
+    or exists (
+      select 1 from public.friendships f
+      where (f.requester_id = profiles.id and f.addressee_id = (select auth.uid()))
+         or (f.addressee_id = profiles.id and f.requester_id = (select auth.uid()))
+    )
+    or exists (select 1 from public.decks d where d.owner_id = profiles.id)       -- decks I can see
+    or exists (select 1 from public.comments c where c.author_id = profiles.id)   -- comments I can see
+  );
+
 -- Safe projection for UI that may render for logged-out visitors.
 -- security_invoker: the caller's RLS + column grants apply (not a definer view).
-drop view if exists public.public_profiles;
-create view public.public_profiles
+-- create or replace (not drop + create): find_profile() returns this row type.
+create or replace view public.public_profiles
   with (security_invoker = true)
 as
   select id, username, display_name, avatar_url
@@ -168,6 +192,52 @@ as
 
 revoke all on public.public_profiles from anon, authenticated;
 grant select on public.public_profiles to anon, authenticated;
+
+-- find_profile(username): look someone up to send a friend request (review F5).
+-- Case-insensitive EXACT match on the whole username: plain equality on
+-- lower() (served by profiles_username_lower_uidx), never LIKE/ILIKE/regex
+-- matching, so '%' and '_' can't widen the match. Returns at most one row
+-- with only the public columns. Input that can't be a valid username returns
+-- nothing. SECURITY DEFINER so it can see profiles the caller's RLS hides;
+-- authenticated callers only. Rate limiting (if needed) belongs in the app.
+create or replace function public.find_profile(username text)
+returns setof public.public_profiles
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id, p.username, p.display_name, p.avatar_url
+  from public.profiles p
+  where (select auth.uid()) is not null
+    and find_profile.username ~ '^[A-Za-z0-9_]{3,24}$'
+    and lower(p.username) = lower(find_profile.username)
+  limit 1;
+$$;
+revoke execute on function public.find_profile(text) from public, anon;
+grant execute on function public.find_profile(text) to authenticated;
+
+-- username_available(candidate): sign-up check (runs before login, so anon may
+-- call it). Same format rule as profiles_username_format; invalid input ->
+-- false. Exact case-insensitive equality only, returns just a boolean. This
+-- reveals whether an exact username exists -- the same signal a "username
+-- taken" sign-up error gives -- but nothing else, and can't enumerate.
+-- handle_new_user still resolves races (unique index + suffix retry).
+create or replace function public.username_available(candidate text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(candidate ~ '^[A-Za-z0-9_]{3,24}$', false)
+    and not exists (
+      select 1 from public.profiles p
+      where lower(p.username) = lower(candidate)
+    );
+$$;
+revoke execute on function public.username_available(text) from public;
+grant execute on function public.username_available(text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 3. Usernames
