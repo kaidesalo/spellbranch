@@ -173,7 +173,8 @@ npm test           # vitest unit tests (redirect sanitizer, backend switch, AUTH
 
 - `src/app` — routes (dashboard, decks, friends, favorites, profile)
 - `src/components` — UI for builder, compare, friends, comments
-- `src/lib/actions` — server actions with permission checks
+- `src/lib/actions` — `"use server"` mutations only (every export is a callable action, named `*Action`)
+- `src/lib/queries`, `src/lib/auth/require-user.ts` — server-only read helpers and `requireUser()` (`import "server-only"`, never callable as actions)
 - `src/lib/data` — local JSON persistence
 - `src/lib/scryfall` — Scryfall helpers
 - `supabase/migrations`: relational schema and RLS policies

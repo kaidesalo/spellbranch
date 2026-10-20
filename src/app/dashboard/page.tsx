@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { GitBranch, Layers3, Plus, Users } from "lucide-react";
-import { requireUser } from "@/lib/actions/auth";
-import { listMyBranches, listVisibleDecks } from "@/lib/actions/decks";
-import { getFriendsData } from "@/lib/actions/friends";
+import { requireUser } from "@/lib/auth/require-user";
+import { listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
+import { getFriendsData } from "@/lib/queries/friends";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DeckCardSummary } from "@/components/decks/deck-card-summary";

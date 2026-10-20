@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
-import { requireUser } from "@/lib/actions/auth";
-import { readStore, updateStore } from "@/lib/data/store";
+import { requireUser } from "@/lib/auth/require-user";
+import { updateStore } from "@/lib/data/store";
 
 export type ActionResult = { error?: string; success?: boolean };
 
@@ -15,14 +15,6 @@ const favoriteSchema = z.object({
   manaCost: z.string().nullable().optional(),
   typeLine: z.string().nullable().optional(),
 });
-
-export async function listFavorites() {
-  const user = await requireUser();
-  const store = await readStore();
-  return store.favorites
-    .filter((f) => f.userId === user.id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
 
 export async function addFavoriteAction(
   input: z.infer<typeof favoriteSchema>,
@@ -67,12 +59,4 @@ export async function removeFavoriteAction(
 
   revalidatePath("/favorites");
   return { success: true };
-}
-
-export async function isFavorite(scryfallId: string) {
-  const user = await requireUser();
-  const store = await readStore();
-  return store.favorites.some(
-    (f) => f.userId === user.id && f.scryfallId === scryfallId,
-  );
 }

@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/actions/auth";
+import { requireUser } from "@/lib/auth/require-user";
 import { readStore } from "@/lib/data/store";
 import { getSupabaseProfileBio } from "@/lib/auth/session";
 import { isSupabaseConfigured } from "@/lib/supabase/config";

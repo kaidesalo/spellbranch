@@ -2,31 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
-import { requireUser } from "@/lib/actions/auth";
+import { requireUser } from "@/lib/auth/require-user";
 import { readStore, updateStore } from "@/lib/data/store";
-import type { Friendship, Profile } from "@/lib/types";
+import { toPublicProfile } from "@/lib/queries/profiles";
 
 export type ActionResult = { error?: string; success?: boolean };
-
-function toPublicProfile(user: {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  bio: string;
-  avatarUrl: string | null;
-  createdAt: string;
-}): Profile {
-  return {
-    id: user.id,
-    email: user.email,
-    username: user.username,
-    displayName: user.displayName,
-    bio: user.bio,
-    avatarUrl: user.avatarUrl,
-    createdAt: user.createdAt,
-  };
-}
 
 export async function searchUsersAction(query: string) {
   const user = await requireUser();
@@ -134,41 +114,4 @@ export async function removeFriendAction(
 
   revalidatePath("/friends");
   return { success: true };
-}
-
-export async function getFriendsData() {
-  const user = await requireUser();
-  const store = await readStore();
-
-  const accepted = store.friendships.filter(
-    (f) =>
-      f.status === "accepted" &&
-      (f.requesterId === user.id || f.addresseeId === user.id),
-  );
-
-  const pendingIncoming = store.friendships.filter(
-    (f) => f.status === "pending" && f.addresseeId === user.id,
-  );
-
-  const pendingOutgoing = store.friendships.filter(
-    (f) => f.status === "pending" && f.requesterId === user.id,
-  );
-
-  const profileMap = new Map(
-    store.users.map((u) => [u.id, toPublicProfile(u)]),
-  );
-
-  const withOther = (f: Friendship) => {
-    const otherId = f.requesterId === user.id ? f.addresseeId : f.requesterId;
-    return {
-      friendship: f,
-      profile: profileMap.get(otherId)!,
-    };
-  };
-
-  return {
-    friends: accepted.map(withOther).filter((x) => x.profile),
-    incoming: pendingIncoming.map(withOther).filter((x) => x.profile),
-    outgoing: pendingOutgoing.map(withOther).filter((x) => x.profile),
-  };
 }

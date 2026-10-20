@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCompareData, getDeckById } from "@/lib/actions/decks";
+import { getCompareData, getDeckById } from "@/lib/queries/decks";
 import { CompareView } from "@/components/decks/compare-view";
 import { Button } from "@/components/ui/button";
 

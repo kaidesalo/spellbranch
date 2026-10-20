@@ -4,11 +4,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import {
-  clearSessionCookie,
-  getSessionUser,
-  setSessionCookie,
-} from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/require-user";
+import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
@@ -154,12 +151,6 @@ export async function signOutAction() {
   }
   await clearSessionCookie();
   redirect("/");
-}
-
-export async function requireUser() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  return user;
 }
 
 export async function updateProfileAction(

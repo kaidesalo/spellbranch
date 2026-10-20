@@ -1,12 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/lib/actions/auth";
-import {
-  canUserEdit,
-  deleteDeckAction,
-  getDeckById,
-  updateDeckMetaAction,
-} from "@/lib/actions/decks";
+import { requireUser } from "@/lib/auth/require-user";
+import { deleteDeckAction, updateDeckMetaAction } from "@/lib/actions/decks";
+import { canUserEdit, getDeckById } from "@/lib/queries/decks";
 import { DeckForm } from "@/components/decks/deck-form";
 import { Button } from "@/components/ui/button";
 

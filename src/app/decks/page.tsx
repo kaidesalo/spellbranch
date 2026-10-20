@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { requireUser } from "@/lib/actions/auth";
-import { listMyBranches, listVisibleDecks } from "@/lib/actions/decks";
+import { requireUser } from "@/lib/auth/require-user";
+import { listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

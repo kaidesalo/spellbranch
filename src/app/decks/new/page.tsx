@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/actions/auth";
+import { requireUser } from "@/lib/auth/require-user";
 import { createDeckAction } from "@/lib/actions/decks";
 import { DeckForm } from "@/components/decks/deck-form";
 

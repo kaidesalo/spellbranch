@@ -1,5 +1,5 @@
-import { requireUser } from "@/lib/actions/auth";
-import { getFriendsData } from "@/lib/actions/friends";
+import { requireUser } from "@/lib/auth/require-user";
+import { getFriendsData } from "@/lib/queries/friends";
 import { FriendsPanel } from "@/components/friends/friends-panel";
 
 export default async function FriendsPage() {

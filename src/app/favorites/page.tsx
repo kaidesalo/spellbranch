@@ -1,6 +1,7 @@
 import Image from "next/image";
-import { requireUser } from "@/lib/actions/auth";
-import { listFavorites, removeFavoriteAction } from "@/lib/actions/favorites";
+import { requireUser } from "@/lib/auth/require-user";
+import { removeFavoriteAction } from "@/lib/actions/favorites";
+import { listFavorites } from "@/lib/queries/favorites";
 import { Button } from "@/components/ui/button";
 
 export default async function FavoritesPage() {
