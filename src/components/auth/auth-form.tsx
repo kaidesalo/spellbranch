@@ -18,6 +18,7 @@ export function AuthForm({
   action: (formData: FormData) => Promise<AuthResult>;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -27,9 +28,11 @@ export function AuthForm({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         setError(null);
+        setMessage(null);
         startTransition(async () => {
           const result = await action(formData);
           if (result?.error) setError(result.error);
+          else if (result?.message) setMessage(result.message);
         });
       }}
     >
@@ -79,14 +82,21 @@ export function AuthForm({
           type="password"
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           required
-          minLength={6}
-          placeholder="At least 6 characters"
+          {...(mode === "signup"
+            ? { minLength: 8, maxLength: 72, placeholder: "At least 8 characters" }
+            : {})}
         />
       </div>
 
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {message && (
+        <Alert>
+          <AlertDescription>{message}</AlertDescription>
         </Alert>
       )}
 

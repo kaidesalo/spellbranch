@@ -11,9 +11,12 @@ export type Visibility = "private" | "friends" | "public";
 
 export type FriendshipStatus = "pending" | "accepted" | "declined";
 
-export interface Profile {
+/**
+ * Another user's profile as the UI sees it. Deliberately has no `email`:
+ * only the signed-in user's own SessionUser carries an email address.
+ */
+export interface PublicProfile {
   id: string;
-  email: string;
   username: string;
   displayName: string;
   bio: string;
@@ -84,7 +87,7 @@ export interface SessionUser {
 }
 
 export interface DeckWithMeta extends Deck {
-  owner?: Profile;
+  owner?: PublicProfile;
   cards?: DeckCard[];
   cardCount?: number;
   forkCount?: number;

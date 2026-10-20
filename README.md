@@ -33,7 +33,7 @@ npm run dev
 
 Open [http://localhost:3847](http://localhost:3847).
 
-Accounts and decks persist in `.data/store.json` (the app does not use Supabase yet; see below).
+Accounts and decks persist in `.data/store.json` by default (see *Supabase status* below).
 
 ## Environment variables
 
@@ -41,28 +41,44 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 
 | Variable | Purpose |
 | --- | --- |
-| `AUTH_SECRET` | Signs local session cookies (required in production) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (optional, not used by the app yet) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key both work here (optional, not used yet) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret / service-role key for admin scripts only; server-side, never `NEXT_PUBLIC_` (optional) |
+| `AUTH_SECRET` | Signs local-backend session cookies. **Required in production** with the local backend (the app throws without it); dev falls back to an insecure dev-only secret with a warning. |
+| `SPELLBRANCH_BACKEND` | `local` (default) or `supabase`. Keys alone never switch the backend. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
+| `SPELLBRANCH_SITE_URL` | The app's public origin, e.g. `http://localhost:3847`. **Required with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it): sign-up confirmation emails redirect to `<site>/auth/confirm`, and the confirm POST checks `Origin` against it. Optional in local mode |
+| `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase` while data is still in the local JSON store. Without it, production refuses to start in that mode. Not for shared deploys |
 
 ## Supabase status
 
-**The app does not talk to Supabase yet.** Every route still uses the local JSON
-store (`.data/store.json`) and local JWT cookie sessions, whether or not the
-Supabase variables are set. What exists today:
+| Piece | Status |
+| --- | --- |
+| Schema, RLS, seed, pgTAP checks (`supabase/`) | Done |
+| Auth: sign-up/in/out, session refresh (`src/proxy.ts`), `/auth/confirm`, profile edit | Done, behind `SPELLBRANCH_BACKEND=supabase` |
+| Data (decks, cards, friends, favorites, comments in `src/lib/actions`) | **Still the local JSON store**: Supabase data layer is the next PR |
 
-- `supabase/migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
-- `supabase/migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper, comment deletion, URL checks, grants/default privileges)
-- `supabase/seed.sql`: local-only test data
-- `supabase/tests/rls_checks.sql`, `supabase/tests/review_fixes.sql`: pgTAP checks for the policies and the security-review fixes
-- `src/lib/supabase/{client,server}.ts`: `@supabase/ssr` clients, not wired in yet
+**`SPELLBRANCH_BACKEND=supabase` is not a usable mode yet.** Accounts and sessions come
+from Supabase, but decks, friends, favorites and comments are still read from and written to
+`.data/store.json`, keyed by the Supabase user id. Use it only to test auth against a project
+with the migrations applied. Leave `SPELLBRANCH_BACKEND` unset (local) for normal development.
+`NODE_ENV=production` (`next build` / `next start`) throws in this mode unless
+`SPELLBRANCH_ALLOW_HYBRID=1` is set, until the data-layer PR lands.
 
-Planned follow-ups: Supabase Auth with `@supabase/ssr` (session refresh in `src/proxy.ts`,
-sign-in/up/out, `/auth/confirm`), then a Supabase-backed data layer behind the server
-actions in `src/lib/actions`.
+How the switch works (`src/lib/supabase/config.ts`):
+- unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`)
+- `supabase` + real URL/key → Supabase Auth via `@supabase/ssr` cookies. Identity always comes from `supabase.auth.getClaims()` (verified JWT), never `getSession()`.
+  The auth cookies are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production
+  (`src/lib/supabase/cookie-options.ts`, shared by the server and proxy clients). Because they're
+  HttpOnly there is deliberately no browser Supabase client; all Supabase calls happen on the server.
+- `supabase` with missing/placeholder keys, without `SPELLBRANCH_SITE_URL`, or in production without `SPELLBRANCH_ALLOW_HYBRID=1`, or any other value → the app throws a clear configuration error
 
-Schema notes for that work:
+What exists in `supabase/`:
+- `migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
+- `migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper, comment deletion, URL checks, grants/default privileges)
+- `seed.sql`: local-only test data
+- `tests/rls_checks.sql`, `tests/review_fixes.sql`: pgTAP checks for the policies and the security-review fixes
+
+Schema notes for the data-layer PR:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
 - Logged-out pages should read names from `public.public_profiles` (id, username, display_name, avatar_url).
 - Profiles aren't a directory: a signed-in user can read their own profile, people they share a friendship row
@@ -92,9 +108,25 @@ Schema notes for that work:
 3. **Configure auth URLs** in *Authentication → URL Configuration*:
    - Site URL: `http://localhost:3847`
    - Redirect URLs: `http://localhost:3847/auth/confirm`
-   (Add your production URL + `/auth/confirm` later.) For early development you can turn off
-   *Confirm email* under *Authentication → Providers → Email*.
-4. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
+   (Add your production URL + `/auth/confirm` later.)
+   **Keep *Confirm email* ON** (*Authentication → Providers → Email*) for every hosted project.
+   With it off, Supabase reports "already registered" for existing emails. The app maps that to
+   the same "Check your email" reply as a new sign-up, but confirmations are what keep sign-up
+   from being an account-enumeration oracle (and from signing people in on unverified addresses).
+   Only the local Docker stack (`supabase/config.toml`) runs with confirmations off.
+   Edit *Authentication → Emails → Confirm signup* so the link is
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
+   (the route also accepts the default `?code=` redirect when the link is opened in the same
+   browser that signed up). Opening a `token_hash` link shows a **Confirm** button; only that
+   POST (checked against `SPELLBRANCH_SITE_URL`'s origin) uses the token, so mail scanners and
+   cross-site links can't consume it or sign anyone in.
+4. **Password policy** (dashboard *Authentication* settings: the Email provider and Attack Protection pages).
+   Hosted projects don't read `supabase/config.toml`, so set these in the dashboard to match it:
+   - Minimum password length **8** (the sign-up form enforces 8 too).
+   - **Secure password change** on (re-authentication required to change a password).
+   - **Leaked password protection** on (HaveIBeenPwned check; Kaide: turn this on in the
+     dashboard; Supabase offers it on the Pro plan and above, and it can't be set from the repo).
+5. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
    - with the CLI (no global install needed):
      ```bash
      npx supabase login
@@ -103,12 +135,15 @@ Schema notes for that work:
      ```
      Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
    - or by pasting each file into the dashboard *SQL Editor* and running it, `001` first.
-5. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
+6. **Try auth** (optional, once migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
+   in `.env.local`, restart `npm run dev`, then sign up / sign in / sign out. Remember the
+   data pages still use the local store.
+7. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
    with a published dev-only password. Don't run `supabase db reset --linked` or
    `supabase db push --include-seed` against a hosted project: both load the seed.
    `seed.sql` aborts if the database already has any non-`@example.test` user, but a brand-new
    project with no users would not trip that guard.
-6. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
+8. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
    from being auto-granted to `anon` (and functions to `authenticated`). Run `\ddp` in `psql` (or
    query `pg_default_acl`) on the project to confirm nothing else still grants them, and grant new
    tables/functions explicitly in future migrations. The `revoke execute ... from public` default
@@ -128,6 +163,18 @@ Seeded accounts (local only, dev-only password `spellbranch-dev-only`):
 friends; Carol has a pending request to Alice. The seed also includes public,
 friends-only and private decks, a fork, comments and favorites.
 
+## Security headers
+
+- `next.config.ts`: `poweredByHeader: false`; every response gets `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin` (`same-origin` on `/auth/confirm`),
+  `X-Frame-Options: DENY`, a restrictive `Permissions-Policy`, and HSTS in production
+  (`src/lib/security/headers.ts`).
+- `src/proxy.ts`: a per-request nonce CSP: `script-src 'self' 'nonce-…' 'strict-dynamic'`, Scryfall
+  hosts in `img-src`, `connect-src 'self'`, `frame-ancestors 'none'`, `form-action 'self'`.
+  Next.js adds the nonce to its own scripts. This works because every page is dynamic (the root layout
+  reads the session). `style-src` still allows `'unsafe-inline'` for component style attributes.
+  If you add a third-party script or a browser-side API call, update `buildCsp()`.
+
 ## Scripts
 
 ```bash
@@ -136,6 +183,7 @@ npm run build      # production build
 npm run start      # serve production build on 3847
 npm run lint
 npm run typecheck
+npm test           # vitest unit tests (auth, confirm route, cookies, headers, backend switch, public profiles)
 ```
 
 ## Core flows
@@ -152,7 +200,8 @@ npm run typecheck
 
 - `src/app` — routes (dashboard, decks, friends, favorites, profile)
 - `src/components` — UI for builder, compare, friends, comments
-- `src/lib/actions` — server actions with permission checks
+- `src/lib/actions` — `"use server"` mutations only (every export is a callable action, named `*Action`)
+- `src/lib/queries`, `src/lib/auth/require-user.ts` — server-only read helpers and `requireUser()` (`import "server-only"`, never callable as actions)
 - `src/lib/data` — local JSON persistence
 - `src/lib/scryfall` — Scryfall helpers
 - `supabase/migrations`: relational schema and RLS policies

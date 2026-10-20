@@ -2,13 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GitBranch, GitCompareArrows, Settings2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
-import {
-  canUserEdit,
-  canUserFork,
-  forkDeckAction,
-  getDeckById,
-} from "@/lib/actions/decks";
-import { listComments } from "@/lib/actions/comments";
+import { forkDeckAction } from "@/lib/actions/decks";
+import { canUserEdit, canUserFork, getDeckById } from "@/lib/queries/decks";
+import { listComments } from "@/lib/queries/comments";
 import { visibilityLabel } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
