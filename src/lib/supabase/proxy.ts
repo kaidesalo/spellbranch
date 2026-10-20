@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv, isSupabaseConfigured } from "@/lib/supabase/config";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 /**
  * Refreshes the Supabase auth session on each matched request so Server
@@ -19,6 +20,8 @@ export async function updateSession(request: NextRequest) {
 
   // New client per request (never module-global).
   const supabase = createServerClient(url, key, {
+    // Must match src/lib/supabase/server.ts (same shared constant).
+    cookieOptions: { ...SUPABASE_COOKIE_OPTIONS },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -26,6 +29,7 @@ export async function updateSession(request: NextRequest) {
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
+        // Pass `options` through untouched: it carries HttpOnly/Secure/etc.
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options),
         );

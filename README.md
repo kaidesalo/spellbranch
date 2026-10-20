@@ -64,6 +64,9 @@ with the migrations applied. Leave `SPELLBRANCH_BACKEND` unset (local) for norma
 How the switch works (`src/lib/supabase/config.ts`):
 - unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`)
 - `supabase` + real URL/key → Supabase Auth via `@supabase/ssr` cookies. Identity always comes from `supabase.auth.getClaims()` (verified JWT), never `getSession()`.
+  The auth cookies are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production
+  (`src/lib/supabase/cookie-options.ts`, shared by the server and proxy clients). Because they're
+  HttpOnly there is deliberately no browser Supabase client; all Supabase calls happen on the server.
 - `supabase` with missing/placeholder keys, or any other value → the app throws a clear configuration error
 
 What exists in `supabase/`:
