@@ -183,7 +183,7 @@ npm run build      # production build
 npm run start      # serve production build on 3847
 npm run lint
 npm run typecheck
-npm test           # vitest unit tests (redirect sanitizer, backend switch, AUTH_SECRET)
+npm test           # vitest unit tests (auth, confirm route, cookies, headers, backend switch, public profiles)
 ```
 
 ## Core flows
