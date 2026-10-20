@@ -21,7 +21,7 @@ Social Magic: The Gathering deck building for friends. Create decks, search Scry
 - Tailwind CSS + shadcn/ui
 - Scryfall API for card data
 - Supabase (optional): Auth + data under RLS, with schema, seed and pgTAP checks
-- Local JSON store (default) so the app runs without Supabase credentials
+- Local JSON store (default) so the app runs without Supabase credentials (development and demos only)
 
 ## Quick start
 
@@ -35,6 +35,13 @@ Open [http://localhost:3847](http://localhost:3847).
 
 Accounts and decks persist in `.data/store.json` by default (see *Supabase status* below).
 
+**The local store is for development and demos only.** It is one JSON file in one Node
+process: writes are atomic (temp file, fsync, rename) and serialized inside the process, and an
+unreadable file makes the app fail instead of being replaced, but several instances or serverless
+functions must never share it. A production build (`NODE_ENV=production`, i.e. `next build` /
+`next start`) refuses to run on it unless `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1` is set, e.g.
+for a single-process demo: `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1 npm run start`.
+
 ## Environment variables
 
 Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
@@ -47,6 +54,7 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
 | `SPELLBRANCH_SITE_URL` | The app's public origin, e.g. `http://localhost:3847`. **Required with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it): sign-up confirmation emails redirect to `<site>/auth/confirm`, and the confirm POST checks `Origin` against it. Optional in local mode |
+| `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION` | Set to `1` to let a **production** build run on the local JSON store (single-process demos only). Without it, production refuses local mode. Not for shared deploys |
 | `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase`. Without it, production refuses to run in that mode until auth rate limiting (review M1) is done and the data layer has been tested on a live project. The name is historical (it dates from the auth-only hybrid). Not for shared deploys |
 
 ## Supabase status
@@ -67,7 +75,15 @@ layer has been tried on a live project.
 How data access works (`src/lib/data`):
 - `getRepository()` (`index.ts`) picks the backend with `getBackend()`. Queries
   (`src/lib/queries/*`) and actions (`src/lib/actions/*`) only talk to that interface (`types.ts`).
-- `local.ts`: the JSON store, permissions checked in app code (`src/lib/permissions.ts`).
+- `local.ts`: the JSON store (`store.ts`), permissions checked in app code
+  (`src/lib/permissions.ts`) with the same results as RLS: only branches and source decks the
+  viewer may see are returned, and forks follow the `fork_deck()` rule (a fork of a public deck is
+  friends-only and forkable; a fork of a friends-only or private deck starts private and locked).
+- A preferred branch the viewer can't see is reported as `null` in both modes, so the deck and
+  compare pages fall back to a visible branch (or show no Compare link) instead of a 404.
+- Server actions check every argument with zod (`src/lib/actions/schemas.ts`): ids must be
+  UUIDs, text has the length limits in `src/lib/data/limits.ts`, which `003_length_limits.sql`
+  also enforces in the database.
 - `supabase.ts`: the request-scoped server client (the user's own session, or anon when signed
   out); RLS decides what is visible. No service-role key anywhere. Other users' names come from
   `public_profiles`; the signed-in user's email only from the session. Forks use
@@ -81,7 +97,7 @@ How data access works (`src/lib/data`):
 - Friend search is by **exact username** (case-insensitive), in both modes.
 
 How the switch works (`src/lib/supabase/config.ts`):
-- unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`)
+- unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`); in production only with `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1`
 - `supabase` + real URL/key → Supabase Auth via `@supabase/ssr` cookies. Identity always comes from `supabase.auth.getClaims()` (verified JWT), never `getSession()`.
   The auth cookies are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production
   (`src/lib/supabase/cookie-options.ts`, shared by the server and proxy clients). Because they're
@@ -91,9 +107,13 @@ How the switch works (`src/lib/supabase/config.ts`):
 What exists in `supabase/`:
 - `migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
 - `migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper, comment deletion, URL checks, grants/default privileges)
-- `migrations/003_profile_bio_limit.sql`: `profiles.bio` at most 280 characters (safe to re-run)
+- `migrations/003_length_limits.sql`: length limits (bio 280; deck name 1–80, notes 2000; card and
+  favorite fields: Scryfall id 64, name 200, type line 200, mana cost 100, oracle text 4000, image
+  URL 512, colors W/U/B/R/G only). Existing over-limit values are trimmed first, so it can't abort
+  on old data. Also adds `restart_friend_request()`, which clears a declined request and sends one
+  back in one transaction. Safe to re-run
 - `seed.sql`: local-only test data
-- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`: pgTAP checks for the policies, the security-review fixes and the bio limit
+- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`, `tests/length_limits.sql`: pgTAP checks for the policies, the security-review fixes, the length limits and `restart_friend_request()`
 
 Schema notes for the data-layer PR:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
@@ -143,7 +163,7 @@ Schema notes for the data-layer PR:
    - **Secure password change** on (re-authentication required to change a password).
    - **Leaked password protection** on (HaveIBeenPwned check; Kaide: turn this on in the
      dashboard; Supabase offers it on the Pro plan and above, and it can't be set from the repo).
-5. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
+5. **Apply the migrations in order** (`001_initial.sql`, `002_rls_fixes.sql`, then `003_length_limits.sql`), either:
    - with the CLI (no global install needed):
      ```bash
      npx supabase login
@@ -199,10 +219,10 @@ friends-only and private decks, a fork, comments and favorites.
 ```bash
 npm run dev        # http://localhost:3847
 npm run build      # production build
-npm run start      # serve production build on 3847
+npm run start      # serve production build on 3847 (local store: needs SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1)
 npm run lint
 npm run typecheck
-npm test           # vitest unit tests (auth, confirm route, cookies, headers, backend switch, public profiles, data adapters, friend rules)
+npm test           # vitest unit tests (auth, confirm route, cookies, headers, backend switch, public profiles, data adapters, friend rules, local store, action validation, limits)
 ```
 
 ## Core flows
