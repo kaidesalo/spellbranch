@@ -11,9 +11,15 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
 
-const credentialsSchema = z.object({
+/** Keep in sync with supabase/config.toml `minimum_password_length`. */
+const MIN_PASSWORD_LENGTH = 8;
+
+const signUpSchema = z.object({
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z
+    .string()
+    .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+    .max(72, "Password must be 72 characters or fewer"),
   username: z
     .string()
     .min(3, "Username must be at least 3 characters")
@@ -23,10 +29,27 @@ const credentialsSchema = z.object({
   displayName: z.string().min(1).max(48).optional(),
 });
 
+// Sign-in deliberately doesn't enforce the sign-up length rule, so accounts
+// created under the old 6-character minimum can still log in.
+const signInSchema = z.object({
+  email: z.string().email("Enter a valid email"),
+  password: z.string().min(1, "Enter your password"),
+});
+
+/**
+ * L2: what sign-up returns when Supabase needs email confirmation, and ALSO
+ * when the email is already registered, so the form can't be used to check
+ * which addresses have accounts.
+ */
+const SIGN_UP_CHECK_EMAIL: AuthResult = {
+  success: true,
+  message: "Check your email to confirm your account.",
+};
+
 export type AuthResult = { error?: string; success?: boolean; message?: string };
 
 export async function signUpAction(formData: FormData): Promise<AuthResult> {
-  const parsed = credentialsSchema.safeParse({
+  const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
     username: formData.get("username"),
@@ -95,7 +118,7 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
 }
 
 export async function signInAction(formData: FormData): Promise<AuthResult> {
-  const parsed = credentialsSchema.safeParse({
+  const parsed = signInSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
@@ -225,7 +248,9 @@ async function supabaseSignUp(input: {
 
   if (error) {
     if (error.code === "user_already_exists" || error.code === "email_exists") {
-      return { error: "An account with this email already exists" };
+      // Only reachable with confirmations OFF. Answer exactly like a fresh
+      // sign-up so the response doesn't reveal that the email is registered.
+      return { ...SIGN_UP_CHECK_EMAIL };
     }
     if (error.code === "weak_password") {
       return { error: error.message || "Password is too weak" };
@@ -239,8 +264,5 @@ async function supabaseSignUp(input: {
   // Email confirmation is on: no session until the link in the email is used.
   // (Supabase also returns this, without an error, for an already-registered
   // email so the form can't be used to probe which emails have accounts.)
-  return {
-    success: true,
-    message: "Check your email for a confirmation link to finish signing up.",
-  };
+  return { ...SIGN_UP_CHECK_EMAIL };
 }

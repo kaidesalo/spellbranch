@@ -105,13 +105,23 @@ Schema notes for the data-layer PR:
 3. **Configure auth URLs** in *Authentication → URL Configuration*:
    - Site URL: `http://localhost:3847`
    - Redirect URLs: `http://localhost:3847/auth/confirm`
-   (Add your production URL + `/auth/confirm` later.) For early development you can turn off
-   *Confirm email* under *Authentication → Providers → Email*.
-   If confirmation stays on, edit *Authentication → Emails → Confirm signup* so the link is
+   (Add your production URL + `/auth/confirm` later.)
+   **Keep *Confirm email* ON** (*Authentication → Providers → Email*) for every hosted project.
+   With it off, Supabase reports "already registered" for existing emails. The app maps that to
+   the same "Check your email" reply as a new sign-up, but confirmations are what keep sign-up
+   from being an account-enumeration oracle (and from signing people in on unverified addresses).
+   Only the local Docker stack (`supabase/config.toml`) runs with confirmations off.
+   Edit *Authentication → Emails → Confirm signup* so the link is
    `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
    (the route also accepts the default `?code=` redirect when `SPELLBRANCH_SITE_URL` is set and
    the link is opened in the same browser that signed up).
-4. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
+4. **Password policy** (dashboard *Authentication* settings: the Email provider and Attack Protection pages).
+   Hosted projects don't read `supabase/config.toml`, so set these in the dashboard to match it:
+   - Minimum password length **8** (the sign-up form enforces 8 too).
+   - **Secure password change** on (re-authentication required to change a password).
+   - **Leaked password protection** on (HaveIBeenPwned check; Kaide: turn this on in the
+     dashboard; Supabase offers it on the Pro plan and above, and it can't be set from the repo).
+5. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
    - with the CLI (no global install needed):
      ```bash
      npx supabase login
@@ -120,15 +130,15 @@ Schema notes for the data-layer PR:
      ```
      Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
    - or by pasting each file into the dashboard *SQL Editor* and running it, `001` first.
-5. **Try auth** (optional, once migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
+6. **Try auth** (optional, once migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
    in `.env.local`, restart `npm run dev`, then sign up / sign in / sign out. Remember the
    data pages still use the local store.
-6. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
+7. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
    with a published dev-only password. Don't run `supabase db reset --linked` or
    `supabase db push --include-seed` against a hosted project: both load the seed.
    `seed.sql` aborts if the database already has any non-`@example.test` user, but a brand-new
    project with no users would not trip that guard.
-7. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
+8. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
    from being auto-granted to `anon` (and functions to `authenticated`). Run `\ddp` in `psql` (or
    query `pg_default_acl`) on the project to confirm nothing else still grants them, and grant new
    tables/functions explicitly in future migrations. The `revoke execute ... from public` default

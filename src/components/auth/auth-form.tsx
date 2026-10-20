@@ -82,8 +82,9 @@ export function AuthForm({
           type="password"
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           required
-          minLength={6}
-          placeholder="At least 6 characters"
+          {...(mode === "signup"
+            ? { minLength: 8, maxLength: 72, placeholder: "At least 8 characters" }
+            : {})}
         />
       </div>
 
