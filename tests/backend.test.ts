@@ -71,10 +71,8 @@ describe("L6: production guard for the auth-only Supabase mode", () => {
     );
   });
 
-  it("does not affect development or the local backend", () => {
+  it("does not affect development", () => {
     expect(getBackend({ ...supa, NODE_ENV: "development" })).toBe("supabase");
-    expect(getBackend({ ...keys, NODE_ENV: "production" })).toBe("local");
-    expect(getBackend({ NODE_ENV: "production", SPELLBRANCH_BACKEND: "local" })).toBe("local");
   });
 
   it("requires SPELLBRANCH_SITE_URL in supabase mode", () => {
@@ -94,5 +92,38 @@ describe("L6: production guard for the auth-only Supabase mode", () => {
     expect(parseSiteUrl("https://spellbranch.example/")).toBe("https://spellbranch.example");
     expect(parseSiteUrl("http://localhost:3847/some/path")).toBe("http://localhost:3847");
     expect(getSiteOrigin({})).toBeNull();
+  });
+});
+
+describe("H1: local mode is refused in production unless explicitly allowed", () => {
+  const LOCAL_FLAG = "SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION";
+
+  it("throws for the default and explicit local backend under NODE_ENV=production", () => {
+    expect(() => getBackend({ NODE_ENV: "production" })).toThrow(/development and demos only/);
+    expect(() => getBackend({ ...keys, NODE_ENV: "production" })).toThrow(new RegExp(LOCAL_FLAG));
+    expect(() => getBackend({ NODE_ENV: "production", SPELLBRANCH_BACKEND: "local" })).toThrow(new RegExp(LOCAL_FLAG));
+  });
+
+  it("only the exact value 1 (trimmed) opts in", () => {
+    expect(getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toBe("local");
+    expect(getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: " 1 " })).toBe("local");
+    for (const v of ["true", "yes", "0", ""]) {
+      expect(() => getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: v })).toThrow(new RegExp(LOCAL_FLAG));
+    }
+  });
+
+  it("development and test are unaffected", () => {
+    expect(getBackend({ NODE_ENV: "development" })).toBe("local");
+    expect(getBackend({ NODE_ENV: "test" })).toBe("local");
+    expect(getBackend({})).toBe("local");
+  });
+
+  it("doesn't block the `next build` step (NEXT_PHASE=phase-production-build), only serving", () => {
+    expect(getBackend({ NODE_ENV: "production", NEXT_PHASE: "phase-production-build" })).toBe("local");
+    expect(() => getBackend({ NODE_ENV: "production", NEXT_PHASE: "phase-production-server" })).toThrow(new RegExp(LOCAL_FLAG));
+  });
+
+  it("the local flag doesn't unlock Supabase mode in production", () => {
+    expect(() => getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toThrow(/SPELLBRANCH_ALLOW_HYBRID/);
   });
 });

@@ -12,16 +12,24 @@ export type Visibility = "private" | "friends" | "public";
 export type FriendshipStatus = "pending" | "accepted" | "declined";
 
 /**
- * Another user's profile as the UI sees it. Deliberately has no `email`:
- * only the signed-in user's own SessionUser carries an email address.
+ * Another user's profile as the UI sees it: exactly the columns of the
+ * `public.public_profiles` view and of `find_profile()` in Supabase mode.
+ * Deliberately has no `email` (only the signed-in user's own SessionUser
+ * carries one), and no `bio`/`createdAt` (not needed to render a name).
  */
 export interface PublicProfile {
   id: string;
   username: string;
   displayName: string;
-  bio: string;
   avatarUrl: string | null;
-  createdAt: string;
+}
+
+/** The signed-in user's own editable profile (profile page). */
+export interface OwnProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  bio: string;
 }
 
 export interface Friendship {

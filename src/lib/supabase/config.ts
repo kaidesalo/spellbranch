@@ -12,11 +12,17 @@
  * Supabase mode also requires SPELLBRANCH_SITE_URL (confirmation links and
  * the /auth/confirm Origin check depend on it).
  *
- * NOTE: as of this change only auth/session use Supabase; the data actions
- * still read and write the local store (Supabase data layer is a follow-up).
- * That hybrid isn't the reviewed authorization model (no RLS on app data, and
- * the JSON store is per-instance on serverless hosts), so production refuses
- * to start in Supabase mode unless SPELLBRANCH_ALLOW_HYBRID=1 is set.
+ * Auth and data (decks, cards, friends, favorites, comments) both use
+ * Supabase in this mode (src/lib/data/supabase.ts, under RLS). Production
+ * still refuses to run in Supabase mode unless SPELLBRANCH_ALLOW_HYBRID=1:
+ * auth rate limiting (review M1) is open and the data layer hasn't been
+ * tested against a live project yet. The variable keeps its old name so
+ * existing setups don't change.
+ *
+ * Local mode is for development and demos only (single process, one JSON
+ * file). Production refuses it unless SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1
+ * (Cipher PR #3 review, H1). Both guards only look at NODE_ENV, so `next dev`
+ * or a custom non-"production" NODE_ENV is not blocked.
  */
 
 export type Backend = "local" | "supabase";
@@ -37,10 +43,28 @@ export function hasSupabaseKeys(env: Env = process.env): boolean {
   );
 }
 
+/**
+ * True when serving in production. `next build` also runs with
+ * NODE_ENV=production and prerenders a few pages (e.g. /_not-found) through
+ * the layout; NEXT_PHASE marks that build step, which serves nobody, so the
+ * local-mode guard waits for `next start`.
+ */
+export function isProductionRuntime(env: Env = process.env): boolean {
+  return env.NODE_ENV === "production" && env.NEXT_PHASE !== "phase-production-build";
+}
+
 export function getBackend(env: Env = process.env): Backend {
   const requested = (env.SPELLBRANCH_BACKEND ?? "").trim().toLowerCase();
 
-  if (requested === "" || requested === "local") return "local";
+  if (requested === "" || requested === "local") {
+    if (isProductionRuntime(env) && env.SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION?.trim() !== "1") {
+      throw new Error(
+        "The local JSON store backend is for development and demos only and is disabled in production. " +
+          "Use SPELLBRANCH_BACKEND=supabase, or set SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1 for a single-process demo.",
+      );
+    }
+    return "local";
+  }
 
   if (requested === "supabase") {
     if (!hasSupabaseKeys(env)) {
@@ -55,8 +79,8 @@ export function getBackend(env: Env = process.env): Backend {
     }
     if (env.NODE_ENV === "production" && env.SPELLBRANCH_ALLOW_HYBRID?.trim() !== "1") {
       throw new Error(
-        "SPELLBRANCH_BACKEND=supabase is auth-only for now: decks, friends, favorites and comments still use the local JSON store. " +
-          "Refusing to run this hybrid in production. Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
+        "SPELLBRANCH_BACKEND=supabase is not cleared for production yet (auth rate limiting, review M1, is still open). " +
+          "Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
       );
     }
     return "supabase";

@@ -7,6 +7,8 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireUser } from "@/lib/auth/require-user";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
+import { LIMITS } from "@/lib/data/limits";
+import { isFormData } from "@/lib/actions/schemas";
 import { getSiteOrigin, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
@@ -49,6 +51,7 @@ const SIGN_UP_CHECK_EMAIL: AuthResult = {
 export type AuthResult = { error?: string; success?: boolean; message?: string };
 
 export async function signUpAction(formData: FormData): Promise<AuthResult> {
+  if (!isFormData(formData)) return { error: "Invalid input" };
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -118,6 +121,7 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
 }
 
 export async function signInAction(formData: FormData): Promise<AuthResult> {
+  if (!isFormData(formData)) return { error: "Invalid input" };
   const parsed = signInSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -180,14 +184,19 @@ export async function updateProfileAction(
   formData: FormData,
 ): Promise<AuthResult> {
   const user = await requireUser();
-  const displayName = String(formData.get("displayName") ?? "").trim();
-  const bio = String(formData.get("bio") ?? "").trim();
+  if (!isFormData(formData)) return { error: "Invalid input" };
+  const field = (key: string) => {
+    const v = formData.get(key);
+    return typeof v === "string" ? v.trim() : "";
+  };
+  const displayName = field("displayName");
+  const bio = field("bio");
 
   if (!displayName || displayName.length > 48) {
     return { error: "Display name must be 1–48 characters" };
   }
-  if (bio.length > 280) {
-    return { error: "Bio must be 280 characters or fewer" };
+  if (bio.length > LIMITS.bio) {
+    return { error: `Bio must be ${LIMITS.bio} characters or fewer` };
   }
 
   if (isSupabaseConfigured()) {

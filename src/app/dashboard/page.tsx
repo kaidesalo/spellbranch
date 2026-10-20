@@ -3,17 +3,22 @@ import { GitBranch, Layers3, Plus, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
 import { listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { getFriendsData } from "@/lib/queries/friends";
+import { getRequestedUsername } from "@/lib/auth/session";
+import { usernameChangedNotice } from "@/lib/auth/username-notice";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DeckCardSummary } from "@/components/decks/deck-card-summary";
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [decks, branches, friendsData] = await Promise.all([
+  const [decks, branches, friendsData, requestedUsername] = await Promise.all([
     listVisibleDecks("mine"),
     listMyBranches(),
     getFriendsData(),
+    getRequestedUsername(),
   ]);
+  const usernameNotice = usernameChangedNotice(requestedUsername, user.username);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -31,6 +36,17 @@ export default async function DashboardPage() {
           New deck
         </Button>
       </div>
+
+      {usernameNotice && (
+        <Alert className="mt-6" data-testid="username-notice">
+          <AlertDescription>
+            {usernameNotice}{" "}
+            <Link href="/profile" className="font-medium text-primary underline-offset-4 hover:underline">
+              View profile
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-border/80 bg-card/70 p-5">

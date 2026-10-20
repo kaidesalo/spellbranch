@@ -1,20 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { v4 as uuidv4 } from "uuid";
-import { z } from "zod";
+import type { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
-import { updateStore } from "@/lib/data/store";
+import { getRepository, userMessage } from "@/lib/data";
+import { check, favoriteSchema, idSchema } from "@/lib/actions/schemas";
 
 export type ActionResult = { error?: string; success?: boolean };
-
-const favoriteSchema = z.object({
-  scryfallId: z.string().min(1),
-  cardName: z.string().min(1),
-  imageUri: z.string().nullable().optional(),
-  manaCost: z.string().nullable().optional(),
-  typeLine: z.string().nullable().optional(),
-});
 
 export async function addFavoriteAction(
   input: z.infer<typeof favoriteSchema>,
@@ -25,22 +17,17 @@ export async function addFavoriteAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid card" };
   }
 
-  await updateStore((store) => {
-    const exists = store.favorites.some(
-      (f) => f.userId === user.id && f.scryfallId === parsed.data.scryfallId,
-    );
-    if (exists) return;
-    store.favorites.push({
-      id: uuidv4(),
-      userId: user.id,
+  try {
+    await getRepository().addFavorite(user.id, {
       scryfallId: parsed.data.scryfallId,
       cardName: parsed.data.cardName,
       imageUri: parsed.data.imageUri ?? null,
       manaCost: parsed.data.manaCost ?? null,
       typeLine: parsed.data.typeLine ?? null,
-      createdAt: new Date().toISOString(),
     });
-  });
+  } catch (err) {
+    return { error: userMessage(err, "Could not save favorite") };
+  }
 
   revalidatePath("/favorites");
   return { success: true };
@@ -50,12 +37,14 @@ export async function removeFavoriteAction(
   favoriteId: string,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, favoriteId, "Favorite not found");
+  if (!id.ok) return { error: id.error };
 
-  await updateStore((store) => {
-    store.favorites = store.favorites.filter(
-      (f) => !(f.id === favoriteId && f.userId === user.id),
-    );
-  });
+  try {
+    await getRepository().removeFavorite(user.id, favoriteId);
+  } catch (err) {
+    return { error: userMessage(err, "Could not remove favorite") };
+  }
 
   revalidatePath("/favorites");
   return { success: true };

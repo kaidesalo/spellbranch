@@ -1,15 +1,21 @@
 import type { CardDiff, DeckCard } from "@/lib/types";
 
-function keyOf(card: DeckCard) {
+/** The card fields a diff needs (full DeckCards also fit). */
+type DiffCard = Pick<
+  DeckCard,
+  "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity"
+>;
+
+function keyOf(card: DiffCard) {
   return card.scryfallId;
 }
 
 export function compareDeckLists(
-  sourceCards: DeckCard[],
-  branchCards: DeckCard[],
+  sourceCards: DiffCard[],
+  branchCards: DiffCard[],
 ): CardDiff[] {
-  const sourceMap = new Map<string, DeckCard>();
-  const branchMap = new Map<string, DeckCard>();
+  const sourceMap = new Map<string, DiffCard>();
+  const branchMap = new Map<string, DiffCard>();
 
   for (const card of sourceCards) {
     const existing = sourceMap.get(keyOf(card));

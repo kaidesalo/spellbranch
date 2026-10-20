@@ -92,11 +92,14 @@ describe("public profiles carry no email", () => {
     expect(profile).toMatchObject({ id: "victim", username: "victim_u" });
   });
 
-  it("searchUsersAction results have no email", async () => {
-    const { searchUsersAction } = await import("@/lib/actions/friends");
-    const results = await searchUsersAction("v");
+  it("findProfileAction (exact username) results have no email", async () => {
+    const { findProfileAction } = await import("@/lib/actions/friends");
+    const results = await findProfileAction("Victim_U");
     expect(results.map((r) => r.username)).toEqual(["victim_u"]);
+    expect(Object.keys(results[0]).sort()).toEqual(["avatarUrl", "displayName", "id", "username"]);
     expectNoEmail(results);
+    // No substring search any more.
+    expect(await findProfileAction("v")).toEqual([]);
   });
 
   it("getFriendsData rows have no email", async () => {

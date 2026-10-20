@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { GitBranch, GitCompareArrows, Settings2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { forkDeckAction } from "@/lib/actions/decks";
-import { canUserEdit, canUserFork, getDeckById } from "@/lib/queries/decks";
+import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
 import { visibilityLabel } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
@@ -22,15 +22,18 @@ export default async function DeckDetailPage({
   if (!deck) notFound();
 
   const user = await getSessionUser();
-  const [canEdit, canFork, comments] = await Promise.all([
-    canUserEdit(id),
-    canUserFork(id),
+  const [{ canEdit, canFork, canComment }, comments] = await Promise.all([
+    getDeckPermissions(id),
     listComments(id),
   ]);
 
-  const preferred =
-    deck.preferredBranchId &&
-    deck.branches?.find((b) => b.id === deck.preferredBranchId);
+  // Only branches the viewer can see are in deck.branches. If the preferred
+  // branch isn't one of them, fall back to the first visible branch (or no
+  // Compare link at all) instead of linking to a 404 (review L1).
+  const preferred = deck.preferredBranchId
+    ? deck.branches?.find((b) => b.id === deck.preferredBranchId)
+    : undefined;
+  const defaultCompareId = preferred?.id ?? deck.branches?.[0]?.id;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
@@ -96,12 +99,15 @@ export default async function DeckDetailPage({
               </Button>
             </form>
           )}
-          {deck.forkedFromId && (
+          {/* sourceDeck is null when the viewer can't see the source: then
+              there's nothing to compare with, and its id stays out of the
+              page (Cipher re-review N2). */}
+          {deck.sourceDeck && (
             <Button
               size="sm"
               render={
                 <Link
-                  href={`/decks/${deck.forkedFromId}/compare?branch=${deck.id}`}
+                  href={`/decks/${deck.sourceDeck.id}/compare?branch=${deck.id}`}
                 />
               }
             >
@@ -109,13 +115,13 @@ export default async function DeckDetailPage({
               Compare
             </Button>
           )}
-          {!deck.forkedFromId && (deck.branches?.length ?? 0) > 0 && (
+          {!deck.forkedFromId && defaultCompareId && (
             <Button
               size="sm"
               variant="outline"
               render={
                 <Link
-                  href={`/decks/${deck.id}/compare?branch=${deck.preferredBranchId || deck.branches![0].id}`}
+                  href={`/decks/${deck.id}/compare?branch=${defaultCompareId}`}
                 />
               }
             >
@@ -138,7 +144,7 @@ export default async function DeckDetailPage({
                 >
                   <GitBranch className="h-3.5 w-3.5 text-primary" />
                   {branch.name}
-                  {deck.preferredBranchId === branch.id && (
+                  {preferred?.id === branch.id && (
                     <Badge className="ml-1">Preferred</Badge>
                   )}
                 </Link>
@@ -175,7 +181,7 @@ export default async function DeckDetailPage({
           <CommentSection
             deckId={deck.id}
             comments={comments}
-            canComment={Boolean(user)}
+            canComment={Boolean(user) && canComment}
           />
         </div>
       </div>

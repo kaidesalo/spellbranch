@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCompareData, getDeckById } from "@/lib/queries/decks";
 import { CompareView } from "@/components/decks/compare-view";
+import { toCompareSide } from "@/lib/compare-dto";
 import { Button } from "@/components/ui/button";
 
 export default async function ComparePage({
@@ -22,9 +23,12 @@ export default async function ComparePage({
 
   // If this page is opened on a branch, treat its parent as source.
   const sourceId = source.forkedFromId ?? source.id;
+  // A preferred branch the viewer can't see isn't in `branches`: fall back to
+  // the first visible one rather than 404 (review L1).
+  const visiblePreferred = branches.find((b) => b.id === source.preferredBranchId)?.id;
   const effectiveBranchId =
     branchId ||
-    (source.forkedFromId ? source.id : source.preferredBranchId || branches[0]?.id);
+    (source.forkedFromId ? source.id : visiblePreferred ?? branches[0]?.id);
 
   if (!effectiveBranchId) {
     return (
@@ -78,9 +82,11 @@ export default async function ComparePage({
         </div>
       )}
 
+      {/* Client component: pass only what it renders (review M1). */}
       <CompareView
-        source={data.source}
-        branch={data.branch}
+        source={toCompareSide(data.source)}
+        branch={toCompareSide(data.branch)}
+        isPreferred={data.source.preferredBranchId === data.branch.id}
         canSetPreferred={data.canSetPreferred}
       />
     </div>

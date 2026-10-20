@@ -2,63 +2,53 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { v4 as uuidv4 } from "uuid";
-import { z } from "zod";
+import type { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
-import { updateStore } from "@/lib/data/store";
-import { canEditDeck, canForkDeck } from "@/lib/permissions";
-import type { Deck, DeckCard, DeckFormat, Visibility } from "@/lib/types";
+import { getRepository, userMessage } from "@/lib/data";
+import {
+  cardInputSchema,
+  check,
+  deckSchema,
+  idSchema,
+  isFormData,
+  quantitySchema,
+} from "@/lib/actions/schemas";
 
 export type ActionResult = { error?: string; success?: boolean; id?: string };
 
-const deckSchema = z.object({
-  name: z.string().min(1, "Deck name is required").max(80),
-  format: z.enum([
-    "commander",
-    "standard",
-    "modern",
-    "pioneer",
-    "legacy",
-    "pauper",
-    "casual",
-  ]),
-  notes: z.string().max(2000).optional().default(""),
-  visibility: z.enum(["private", "friends", "public"]),
-  allowForks: z.boolean(),
-});
+function parseDeckForm(formData: unknown) {
+  if (!isFormData(formData)) {
+    return { success: false as const, error: { issues: [{ message: "Invalid deck" }] } };
+  }
+  const text = (key: string) => {
+    const v = formData.get(key);
+    return typeof v === "string" ? v : undefined;
+  };
+  return deckSchema.safeParse({
+    name: text("name"),
+    format: text("format"),
+    notes: text("notes") ?? "",
+    visibility: text("visibility"),
+    allowForks: formData.get("allowForks") === "on" || formData.get("allowForks") === "true",
+  });
+}
 
 export async function createDeckAction(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const parsed = deckSchema.safeParse({
-    name: formData.get("name"),
-    format: formData.get("format"),
-    notes: formData.get("notes") ?? "",
-    visibility: formData.get("visibility"),
-    allowForks: formData.get("allowForks") === "on" || formData.get("allowForks") === "true",
-  });
-
+  const parsed = parseDeckForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid deck" };
   }
 
-  const now = new Date().toISOString();
-  const id = uuidv4();
-
-  await updateStore((store) => {
-    store.decks.push({
-      id,
-      ownerId: user.id,
-      name: parsed.data.name,
-      format: parsed.data.format as DeckFormat,
+  let id: string;
+  try {
+    id = await getRepository().createDeck(user.id, {
+      ...parsed.data,
       notes: parsed.data.notes ?? "",
-      visibility: parsed.data.visibility as Visibility,
-      allowForks: parsed.data.allowForks,
-      forkedFromId: null,
-      preferredBranchId: null,
-      createdAt: now,
-      updatedAt: now,
     });
-  });
+  } catch (err) {
+    return { error: userMessage(err, "Could not create deck") };
+  }
 
   revalidatePath("/decks");
   revalidatePath("/dashboard");
@@ -70,33 +60,20 @@ export async function updateDeckMetaAction(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const parsed = deckSchema.safeParse({
-    name: formData.get("name"),
-    format: formData.get("format"),
-    notes: formData.get("notes") ?? "",
-    visibility: formData.get("visibility"),
-    allowForks: formData.get("allowForks") === "on" || formData.get("allowForks") === "true",
-  });
-
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const parsed = parseDeckForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid deck" };
   }
 
   try {
-    await updateStore((store) => {
-      const deck = store.decks.find((d) => d.id === deckId);
-      if (!deck || !canEditDeck(deck, user.id)) {
-        throw new Error("You cannot edit this deck");
-      }
-      deck.name = parsed.data.name;
-      deck.format = parsed.data.format;
-      deck.notes = parsed.data.notes ?? "";
-      deck.visibility = parsed.data.visibility;
-      deck.allowForks = parsed.data.allowForks;
-      deck.updatedAt = new Date().toISOString();
+    await getRepository().updateDeck(user.id, deckId, {
+      ...parsed.data,
+      notes: parsed.data.notes ?? "",
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Update failed" };
+    return { error: userMessage(err, "Update failed") };
   }
 
   revalidatePath(`/decks/${deckId}`);
@@ -106,26 +83,13 @@ export async function updateDeckMetaAction(
 
 export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
 
   try {
-    await updateStore((store) => {
-      const deck = store.decks.find((d) => d.id === deckId);
-      if (!deck || !canEditDeck(deck, user.id)) {
-        throw new Error("You cannot delete this deck");
-      }
-      store.decks = store.decks.filter((d) => d.id !== deckId);
-      store.deckCards = store.deckCards.filter((c) => c.deckId !== deckId);
-      store.comments = store.comments.filter((c) => c.deckId !== deckId);
-      for (const d of store.decks) {
-        if (d.preferredBranchId === deckId) d.preferredBranchId = null;
-        if (d.forkedFromId === deckId) {
-          // keep orphaned forks but clear source pointer
-          d.forkedFromId = null;
-        }
-      }
-    });
+    await getRepository().deleteDeck(user.id, deckId);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Delete failed" };
+    return { error: userMessage(err, "Delete failed") };
   }
 
   revalidatePath("/decks");
@@ -133,60 +97,31 @@ export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   redirect("/decks");
 }
 
-const cardInputSchema = z.object({
-  scryfallId: z.string().min(1),
-  cardName: z.string().min(1),
-  imageUri: z.string().nullable().optional(),
-  manaCost: z.string().nullable().optional(),
-  typeLine: z.string().min(1),
-  colors: z.array(z.string()).optional().default([]),
-  oracleText: z.string().nullable().optional(),
-  quantity: z.number().int().min(1).max(99).optional().default(1),
-});
-
 export async function addCardToDeckAction(
   deckId: string,
-  input: z.infer<typeof cardInputSchema>,
+  input: z.input<typeof cardInputSchema>,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
   const parsed = cardInputSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid card" };
   }
 
   try {
-    await updateStore((store) => {
-      const deck = store.decks.find((d) => d.id === deckId);
-      if (!deck || !canEditDeck(deck, user.id)) {
-        throw new Error("You cannot edit this deck");
-      }
-
-      const existing = store.deckCards.find(
-        (c) => c.deckId === deckId && c.scryfallId === parsed.data.scryfallId,
-      );
-
-      if (existing) {
-        existing.quantity = Math.min(99, existing.quantity + (parsed.data.quantity ?? 1));
-      } else {
-        store.deckCards.push({
-          id: uuidv4(),
-          deckId,
-          scryfallId: parsed.data.scryfallId,
-          cardName: parsed.data.cardName,
-          imageUri: parsed.data.imageUri ?? null,
-          manaCost: parsed.data.manaCost ?? null,
-          typeLine: parsed.data.typeLine,
-          colors: parsed.data.colors ?? [],
-          oracleText: parsed.data.oracleText ?? null,
-          quantity: parsed.data.quantity ?? 1,
-          createdAt: new Date().toISOString(),
-        });
-      }
-
-      deck.updatedAt = new Date().toISOString();
+    await getRepository().addCard(user.id, deckId, {
+      scryfallId: parsed.data.scryfallId,
+      cardName: parsed.data.cardName,
+      imageUri: parsed.data.imageUri ?? null,
+      manaCost: parsed.data.manaCost ?? null,
+      typeLine: parsed.data.typeLine,
+      colors: parsed.data.colors ?? [],
+      oracleText: parsed.data.oracleText ?? null,
+      quantity: parsed.data.quantity ?? 1,
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Could not add card" };
+    return { error: userMessage(err, "Could not add card") };
   }
 
   revalidatePath(`/decks/${deckId}`);
@@ -199,29 +134,17 @@ export async function updateCardQuantityAction(
   quantity: number,
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (!Number.isInteger(quantity) || quantity < 0 || quantity > 99) {
-    return { error: "Quantity must be between 0 and 99" };
-  }
+  const ids = check(idSchema, deckId, "Deck not found");
+  if (!ids.ok) return { error: ids.error };
+  const card = check(idSchema, cardId, "Card not found in deck");
+  if (!card.ok) return { error: card.error };
+  const qty = check(quantitySchema, quantity, "Quantity must be between 0 and 99");
+  if (!qty.ok) return { error: qty.error };
 
   try {
-    await updateStore((store) => {
-      const deck = store.decks.find((d) => d.id === deckId);
-      if (!deck || !canEditDeck(deck, user.id)) {
-        throw new Error("You cannot edit this deck");
-      }
-
-      if (quantity === 0) {
-        store.deckCards = store.deckCards.filter((c) => !(c.id === cardId && c.deckId === deckId));
-      } else {
-        const card = store.deckCards.find((c) => c.id === cardId && c.deckId === deckId);
-        if (!card) throw new Error("Card not found in deck");
-        card.quantity = quantity;
-      }
-
-      deck.updatedAt = new Date().toISOString();
-    });
+    await getRepository().setCardQuantity(user.id, deckId, cardId, quantity);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Could not update card" };
+    return { error: userMessage(err, "Could not update card") };
   }
 
   revalidatePath(`/decks/${deckId}`);
@@ -237,45 +160,14 @@ export async function removeCardFromDeckAction(
 
 export async function forkDeckAction(deckId: string): Promise<ActionResult> {
   const user = await requireUser();
-  let newId = "";
+  const id = check(idSchema, deckId, "You are not allowed to fork this deck");
+  if (!id.ok) return { error: id.error };
+  let newId: string;
 
   try {
-    await updateStore((store) => {
-      const source = store.decks.find((d) => d.id === deckId);
-      if (!source || !canForkDeck(store, source, user.id)) {
-        throw new Error("You are not allowed to fork this deck");
-      }
-
-      const now = new Date().toISOString();
-      newId = uuidv4();
-      const branch: Deck = {
-        id: newId,
-        ownerId: user.id,
-        name: `${source.name} (branch)`,
-        format: source.format,
-        notes: source.notes,
-        visibility: source.visibility === "public" ? "friends" : source.visibility,
-        allowForks: true,
-        forkedFromId: source.id,
-        preferredBranchId: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      store.decks.push(branch);
-
-      const sourceCards = store.deckCards.filter((c) => c.deckId === source.id);
-      for (const card of sourceCards) {
-        const copy: DeckCard = {
-          ...card,
-          id: uuidv4(),
-          deckId: newId,
-          createdAt: now,
-        };
-        store.deckCards.push(copy);
-      }
-    });
+    newId = await getRepository().forkDeck(user.id, deckId);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Fork failed" };
+    return { error: userMessage(err, "Fork failed") };
   }
 
   revalidatePath(`/decks/${deckId}`);
@@ -288,24 +180,15 @@ export async function setPreferredBranchAction(
   branchId: string | null,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const source = check(idSchema, sourceDeckId, "Deck not found");
+  if (!source.ok) return { error: source.error };
+  const branch = check(idSchema.nullable(), branchId, "Branch does not belong to this deck");
+  if (!branch.ok) return { error: branch.error };
 
   try {
-    await updateStore((store) => {
-      const source = store.decks.find((d) => d.id === sourceDeckId);
-      if (!source || !canEditDeck(source, user.id)) {
-        throw new Error("Only the source deck owner can set a preferred branch");
-      }
-      if (branchId) {
-        const branch = store.decks.find((d) => d.id === branchId);
-        if (!branch || branch.forkedFromId !== sourceDeckId) {
-          throw new Error("Branch does not belong to this deck");
-        }
-      }
-      source.preferredBranchId = branchId;
-      source.updatedAt = new Date().toISOString();
-    });
+    await getRepository().setPreferredBranch(user.id, sourceDeckId, branchId);
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Could not set preferred branch" };
+    return { error: userMessage(err, "Could not set preferred branch") };
   }
 
   revalidatePath(`/decks/${sourceDeckId}`);
