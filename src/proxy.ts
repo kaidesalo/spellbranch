@@ -19,7 +19,10 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except Next internals and static files.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|woff|woff2)$).*)",
+    // Everything except Next's static chunks/image optimizer and the real
+    // files in public/ (plus the favicon). Review R1: no blanket extension
+    // rule, so an HTML 404 like /nope.png or /x.js still gets the CSP.
+    // Adding a file to public/? List it here (tests/proxy-matcher.test.ts checks).
+    "/((?!_next/static/|_next/image$|(?:favicon\\.ico|file\\.svg|globe\\.svg|next\\.svg|vercel\\.svg|window\\.svg)$).*)",
   ],
 };
