@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import {
   removeFriendAction,
   respondFriendRequestAction,
-  searchUsersAction,
+  findProfileAction,
   sendFriendRequestAction,
 } from "@/lib/actions/friends";
 import type { Friendship, PublicProfile } from "@/lib/types";
@@ -28,10 +28,11 @@ export function FriendsPanel({
   const [pending, startTransition] = useTransition();
 
   function search() {
+    if (!query.trim()) return;
     startTransition(async () => {
-      const found = await searchUsersAction(query);
+      const found = await findProfileAction(query);
       setResults(found);
-      if (found.length === 0) toast.message("No players found");
+      if (found.length === 0) toast.message("No player with that username");
     });
   }
 
@@ -40,13 +41,17 @@ export function FriendsPanel({
       <section className="rounded-2xl border border-border/80 bg-card/70 p-5">
         <h2 className="font-heading text-lg font-semibold">Find friends</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Search by username or display name.
+          Search by exact username. Ask your friend for theirs (it&apos;s on their
+          profile page).
         </p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search players…"
+            placeholder="exact_username"
+            aria-label="Exact username"
+            autoComplete="off"
+            maxLength={24}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -54,7 +59,7 @@ export function FriendsPanel({
               }
             }}
           />
-          <Button onClick={search} disabled={pending || query.trim().length < 2}>
+          <Button onClick={search} disabled={pending || !query.trim()}>
             Search
           </Button>
         </div>
@@ -135,6 +140,7 @@ export function FriendsPanel({
                           false,
                         );
                         if (result.error) toast.error(result.error);
+                        else toast.message("Request declined");
                       })
                     }
                   >
@@ -156,12 +162,28 @@ export function FriendsPanel({
             {outgoing.map(({ friendship, profile }) => (
               <li
                 key={friendship.id}
-                className="rounded-xl border border-border/70 bg-card/60 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3"
               >
-                <p className="font-medium">{profile.displayName}</p>
-                <p className="text-sm text-muted-foreground">
-                  Waiting for @{profile.username} to respond
-                </p>
+                <div>
+                  <p className="font-medium">{profile.displayName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Waiting for @{profile.username} to respond
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await removeFriendAction(friendship.id);
+                      if (result.error) toast.error(result.error);
+                      else toast.success("Request cancelled");
+                    })
+                  }
+                >
+                  Cancel request
+                </Button>
               </li>
             ))}
           </ul>

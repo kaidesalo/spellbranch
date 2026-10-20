@@ -1,81 +1,44 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { v4 as uuidv4 } from "uuid";
 import { requireUser } from "@/lib/auth/require-user";
-import { readStore, updateStore } from "@/lib/data/store";
-import { toPublicProfile } from "@/lib/queries/profiles";
+import { getRepository, userMessage } from "@/lib/data";
+import type { PublicProfile } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean };
 
-export async function searchUsersAction(query: string) {
+/**
+ * Exact, case-insensitive username lookup (Supabase: rpc('find_profile')).
+ * Returns 0 or 1 profiles (id, username, display name, avatar), never the
+ * caller and never an email. No partial or display-name search.
+ */
+export async function findProfileAction(username: string): Promise<PublicProfile[]> {
   const user = await requireUser();
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-
-  const store = await readStore();
-  return store.users
-    .filter(
-      (u) =>
-        u.id !== user.id &&
-        (u.username.toLowerCase().includes(q) ||
-          u.displayName.toLowerCase().includes(q)),
-    )
-    .slice(0, 12)
-    .map(toPublicProfile);
+  if (typeof username !== "string" || !username.trim()) return [];
+  try {
+    return await getRepository().findProfile(user.id, username);
+  } catch (err) {
+    userMessage(err, "");
+    return [];
+  }
 }
 
 export async function sendFriendRequestAction(
   addresseeId: string,
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (addresseeId === user.id) {
-    return { error: "You cannot friend yourself" };
-  }
 
   try {
-    await updateStore((store) => {
-      const target = store.users.find((u) => u.id === addresseeId);
-      if (!target) throw new Error("User not found");
-
-      const existing = store.friendships.find(
-        (f) =>
-          (f.requesterId === user.id && f.addresseeId === addresseeId) ||
-          (f.requesterId === addresseeId && f.addresseeId === user.id),
-      );
-
-      if (existing?.status === "accepted") {
-        throw new Error("You are already friends");
-      }
-      if (existing?.status === "pending") {
-        throw new Error("A friend request already exists");
-      }
-
-      if (existing) {
-        existing.status = "pending";
-        existing.requesterId = user.id;
-        existing.addresseeId = addresseeId;
-        existing.createdAt = new Date().toISOString();
-      } else {
-        store.friendships.push({
-          id: uuidv4(),
-          requesterId: user.id,
-          addresseeId,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
-      }
-    });
+    await getRepository().sendFriendRequest(user.id, addresseeId);
   } catch (err) {
-    return {
-      error: err instanceof Error ? err.message : "Could not send request",
-    };
+    return { error: userMessage(err, "Could not send request") };
   }
 
   revalidatePath("/friends");
   return { success: true };
 }
 
+/** Addressee only: accept or decline a pending request. */
 export async function respondFriendRequestAction(
   friendshipId: string,
   accept: boolean,
@@ -83,34 +46,26 @@ export async function respondFriendRequestAction(
   const user = await requireUser();
 
   try {
-    await updateStore((store) => {
-      const friendship = store.friendships.find((f) => f.id === friendshipId);
-      if (!friendship || friendship.addresseeId !== user.id) {
-        throw new Error("Friend request not found");
-      }
-      friendship.status = accept ? "accepted" : "declined";
-    });
+    await getRepository().respondFriendRequest(user.id, friendshipId, accept === true);
   } catch (err) {
-    return {
-      error: err instanceof Error ? err.message : "Could not update request",
-    };
+    return { error: userMessage(err, "Could not update request") };
   }
 
   revalidatePath("/friends");
   return { success: true };
 }
 
+/** Cancel a pending request you sent, or unfriend. */
 export async function removeFriendAction(
   friendshipId: string,
 ): Promise<ActionResult> {
   const user = await requireUser();
 
-  await updateStore((store) => {
-    store.friendships = store.friendships.filter((f) => {
-      if (f.id !== friendshipId) return true;
-      return !(f.requesterId === user.id || f.addresseeId === user.id);
-    });
-  });
+  try {
+    await getRepository().removeFriendship(user.id, friendshipId);
+  } catch (err) {
+    return { error: userMessage(err, "Could not remove") };
+  }
 
   revalidatePath("/friends");
   return { success: true };

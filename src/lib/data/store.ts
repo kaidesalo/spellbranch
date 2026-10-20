@@ -10,6 +10,8 @@ import type {
 } from "@/lib/types";
 
 export interface LocalUser extends PublicProfile {
+  bio: string;
+  createdAt: string;
   email: string;
   passwordHash: string;
 }

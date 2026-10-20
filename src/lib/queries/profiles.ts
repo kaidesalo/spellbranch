@@ -1,28 +1,12 @@
 import "server-only";
 
-import type { PublicProfile } from "@/lib/types";
+import { requireUser } from "@/lib/auth/require-user";
+import { getRepository } from "@/lib/data";
 
-type ProfileSource = {
-  id: string;
-  username: string;
-  displayName: string;
-  bio: string;
-  avatarUrl: string | null;
-  createdAt: string;
-};
+export { toPublicProfile } from "@/lib/data/profiles";
 
-/**
- * Another user's profile as returned to the UI (friends, search, deck owners).
- * Picks fields explicitly so a LocalUser's email/passwordHash can never ride
- * along. Only the caller's own SessionUser carries an email.
- */
-export function toPublicProfile(user: ProfileSource): PublicProfile {
-  return {
-    id: user.id,
-    username: user.username,
-    displayName: user.displayName,
-    bio: user.bio,
-    avatarUrl: user.avatarUrl,
-    createdAt: user.createdAt,
-  };
+/** The signed-in user's own profile (username, display name, bio). */
+export async function getOwnProfile() {
+  const user = await requireUser();
+  return getRepository().getOwnProfile(user.id);
 }

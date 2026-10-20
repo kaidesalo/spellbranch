@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { GitBranch, GitCompareArrows, Settings2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { forkDeckAction } from "@/lib/actions/decks";
-import { canUserEdit, canUserFork, getDeckById } from "@/lib/queries/decks";
+import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
 import { visibilityLabel } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +22,8 @@ export default async function DeckDetailPage({
   if (!deck) notFound();
 
   const user = await getSessionUser();
-  const [canEdit, canFork, comments] = await Promise.all([
-    canUserEdit(id),
-    canUserFork(id),
+  const [{ canEdit, canFork, canComment }, comments] = await Promise.all([
+    getDeckPermissions(id),
     listComments(id),
   ]);
 
@@ -175,7 +174,7 @@ export default async function DeckDetailPage({
           <CommentSection
             deckId={deck.id}
             comments={comments}
-            canComment={Boolean(user)}
+            canComment={Boolean(user) && canComment}
           />
         </div>
       </div>

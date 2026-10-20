@@ -1,10 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
-import { updateStore } from "@/lib/data/store";
+import { getRepository, userMessage } from "@/lib/data";
 
 export type ActionResult = { error?: string; success?: boolean };
 
@@ -25,22 +24,17 @@ export async function addFavoriteAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid card" };
   }
 
-  await updateStore((store) => {
-    const exists = store.favorites.some(
-      (f) => f.userId === user.id && f.scryfallId === parsed.data.scryfallId,
-    );
-    if (exists) return;
-    store.favorites.push({
-      id: uuidv4(),
-      userId: user.id,
+  try {
+    await getRepository().addFavorite(user.id, {
       scryfallId: parsed.data.scryfallId,
       cardName: parsed.data.cardName,
       imageUri: parsed.data.imageUri ?? null,
       manaCost: parsed.data.manaCost ?? null,
       typeLine: parsed.data.typeLine ?? null,
-      createdAt: new Date().toISOString(),
     });
-  });
+  } catch (err) {
+    return { error: userMessage(err, "Could not save favorite") };
+  }
 
   revalidatePath("/favorites");
   return { success: true };
@@ -51,11 +45,11 @@ export async function removeFavoriteAction(
 ): Promise<ActionResult> {
   const user = await requireUser();
 
-  await updateStore((store) => {
-    store.favorites = store.favorites.filter(
-      (f) => !(f.id === favoriteId && f.userId === user.id),
-    );
-  });
+  try {
+    await getRepository().removeFavorite(user.id, favoriteId);
+  } catch (err) {
+    return { error: userMessage(err, "Could not remove favorite") };
+  }
 
   revalidatePath("/favorites");
   return { success: true };
