@@ -9,8 +9,14 @@
  * usable keys (or an unknown backend name) throws, so a misconfiguration fails
  * loudly instead of silently running on the local store.
  *
+ * Supabase mode also requires SPELLBRANCH_SITE_URL (confirmation links and
+ * the /auth/confirm Origin check depend on it).
+ *
  * NOTE: as of this change only auth/session use Supabase; the data actions
  * still read and write the local store (Supabase data layer is a follow-up).
+ * That hybrid isn't the reviewed authorization model (no RLS on app data, and
+ * the JSON store is per-instance on serverless hosts), so production refuses
+ * to start in Supabase mode unless SPELLBRANCH_ALLOW_HYBRID=1 is set.
  */
 
 export type Backend = "local" | "supabase";
@@ -42,12 +48,40 @@ export function getBackend(env: Env = process.env): Backend {
         "SPELLBRANCH_BACKEND=supabase but NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY are missing or placeholders.",
       );
     }
+    if (parseSiteUrl(env.SPELLBRANCH_SITE_URL) === null) {
+      throw new Error(
+        "SPELLBRANCH_BACKEND=supabase requires SPELLBRANCH_SITE_URL (the app's public origin, e.g. https://spellbranch.example).",
+      );
+    }
+    if (env.NODE_ENV === "production" && env.SPELLBRANCH_ALLOW_HYBRID?.trim() !== "1") {
+      throw new Error(
+        "SPELLBRANCH_BACKEND=supabase is auth-only for now: decks, friends, favorites and comments still use the local JSON store. " +
+          "Refusing to run this hybrid in production. Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
+      );
+    }
     return "supabase";
   }
 
   throw new Error(
     `Unknown SPELLBRANCH_BACKEND "${requested}". Use "local" (default) or "supabase".`,
   );
+}
+
+/** Parses an http(s) URL and returns its origin (no trailing slash), else null. */
+export function parseSiteUrl(value: string | undefined): string | null {
+  if (!value || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/** The configured public origin (SPELLBRANCH_SITE_URL), or null if unset/invalid. */
+export function getSiteOrigin(env: Env = process.env): string | null {
+  return parseSiteUrl(env.SPELLBRANCH_SITE_URL);
 }
 
 export function isSupabaseConfigured(env: Env = process.env): boolean {

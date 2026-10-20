@@ -104,6 +104,7 @@ describe("Supabase clients write auth cookies with the shared options", () => {
     vi.stubEnv("SPELLBRANCH_BACKEND", "supabase");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", SUPABASE_URL);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_test_only");
+    vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");
   });
 
   afterEach(() => {

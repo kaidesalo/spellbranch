@@ -46,7 +46,8 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
-| `SPELLBRANCH_SITE_URL` | Optional, e.g. `http://localhost:3847`. If set, sign-up confirmation emails redirect to `<site>/auth/confirm` |
+| `SPELLBRANCH_SITE_URL` | The app's public origin, e.g. `http://localhost:3847`. **Required with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it): sign-up confirmation emails redirect to `<site>/auth/confirm`, and the confirm POST checks `Origin` against it. Optional in local mode |
+| `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase` while data is still in the local JSON store. Without it, production refuses to start in that mode. Not for shared deploys |
 
 ## Supabase status
 
@@ -60,6 +61,8 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 from Supabase, but decks, friends, favorites and comments are still read from and written to
 `.data/store.json`, keyed by the Supabase user id. Use it only to test auth against a project
 with the migrations applied. Leave `SPELLBRANCH_BACKEND` unset (local) for normal development.
+`NODE_ENV=production` (`next build` / `next start`) throws in this mode unless
+`SPELLBRANCH_ALLOW_HYBRID=1` is set, until the data-layer PR lands.
 
 How the switch works (`src/lib/supabase/config.ts`):
 - unset / `local` → local JSON store + local JWT cookie (`spellbranch_session`)
@@ -67,7 +70,7 @@ How the switch works (`src/lib/supabase/config.ts`):
   The auth cookies are `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production
   (`src/lib/supabase/cookie-options.ts`, shared by the server and proxy clients). Because they're
   HttpOnly there is deliberately no browser Supabase client; all Supabase calls happen on the server.
-- `supabase` with missing/placeholder keys, or any other value → the app throws a clear configuration error
+- `supabase` with missing/placeholder keys, without `SPELLBRANCH_SITE_URL`, or in production without `SPELLBRANCH_ALLOW_HYBRID=1`, or any other value → the app throws a clear configuration error
 
 What exists in `supabase/`:
 - `migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger

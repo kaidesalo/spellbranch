@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireUser } from "@/lib/auth/require-user";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getSiteOrigin, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
 
@@ -236,7 +236,8 @@ async function supabaseSignUp(input: {
   }
   if (availability === "taken") return { error: "That username is already taken" };
 
-  const siteUrl = process.env.SPELLBRANCH_SITE_URL?.replace(/\/+$/, "");
+  // Required in Supabase mode (getBackend() throws without it).
+  const siteUrl = getSiteOrigin();
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
