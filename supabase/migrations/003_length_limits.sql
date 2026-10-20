@@ -12,17 +12,20 @@
 -- constraint is dropped (if it exists) and added again.
 
 -- 1. Bring existing over-limit values within the limits first (L3), so the
---    constraints below can't fail on existing data.
+--    constraints below can't fail on existing data. Nothing here renames a
+--    value that a unique constraint covers.
 update public.profiles set bio = left(bio, 280) where char_length(bio) > 280;
 
 update public.decks set name = left(name, 80) where char_length(name) > 80;
 update public.decks set name = 'Untitled deck' where char_length(name) = 0;
 update public.decks set notes = left(notes, 2000) where char_length(notes) > 2000;
 
--- An over-long scryfall_id isn't a real card id. Replace it with a value that
--- is unique per original (unique (deck_id, scryfall_id) / (user_id, scryfall_id)).
-update public.deck_cards set scryfall_id = 'invalid-' || md5(scryfall_id)
-  where char_length(scryfall_id) > 64;
+-- Scryfall ids are 36-character UUIDs, so a scryfall_id over 64 characters
+-- can never be a real card: delete those rows. (Renaming them to a derived
+-- value could collide with a row a user planted with that exact value and
+-- make the unique (deck_id, scryfall_id) constraint abort the migration;
+-- Cipher re-review N1.)
+delete from public.deck_cards where char_length(scryfall_id) > 64;
 update public.deck_cards set card_name = left(card_name, 200) where char_length(card_name) > 200;
 update public.deck_cards set type_line = left(type_line, 200) where char_length(type_line) > 200;
 update public.deck_cards set mana_cost = left(mana_cost, 100) where char_length(mana_cost) > 100;
@@ -36,8 +39,7 @@ update public.deck_cards
     where c = any(colors) order by n)
   where not (colors <@ array['W','U','B','R','G']::text[]) or cardinality(colors) > 5;
 
-update public.favorite_cards set scryfall_id = 'invalid-' || md5(scryfall_id)
-  where char_length(scryfall_id) > 64;
+delete from public.favorite_cards where char_length(scryfall_id) > 64;
 update public.favorite_cards set card_name = left(card_name, 200) where char_length(card_name) > 200;
 update public.favorite_cards set type_line = left(type_line, 200) where char_length(type_line) > 200;
 update public.favorite_cards set mana_cost = left(mana_cost, 100) where char_length(mana_cost) > 100;

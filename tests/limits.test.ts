@@ -36,7 +36,11 @@ describe("length limits agree between the app and the database", () => {
     expect(m003).toContain(`left(type_line, ${LIMITS.typeLine})`);
     expect(m003).toContain(`left(mana_cost, ${LIMITS.manaCost})`);
     expect(m003).toContain(`left(oracle_text, ${LIMITS.oracleText})`);
-    expect(m003).toContain(`char_length(scryfall_id) > ${LIMITS.scryfallId}`);
+    // Over-long Scryfall ids are deleted, never renamed (a derived new value
+    // could collide with a planted row; Cipher re-review N1).
+    expect(m003).toContain(`delete from public.deck_cards where char_length(scryfall_id) > ${LIMITS.scryfallId};`);
+    expect(m003).toContain(`delete from public.favorite_cards where char_length(scryfall_id) > ${LIMITS.scryfallId};`);
+    expect(m003).not.toMatch(/set\s+scryfall_id\s*=/i);
     expect(m003).toContain(`char_length(image_uri) > ${LIMITS.imageUri}`);
   });
 
