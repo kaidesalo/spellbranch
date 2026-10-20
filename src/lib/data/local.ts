@@ -22,8 +22,9 @@ import { toPublicProfile } from "@/lib/data/profiles";
 import type { Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
 
 /**
- * Local JSON store backend (.data/store.json). Behaviour is the pre-PR-3
- * app logic moved out of src/lib/{queries,actions}, plus the P2 friend rules.
+ * Local JSON store backend (.data/store.json, dev/demo only). The pre-PR-3
+ * app logic moved out of src/lib/{queries,actions}, plus the P2 friend rules,
+ * the F4 fork rule and visibility-filtered branches, matching Supabase mode.
  * Permissions are enforced here in app code (src/lib/permissions.ts).
  */
 
@@ -32,15 +33,29 @@ function ownerProfile(store: DataStore, id: string) {
   return u ? toPublicProfile(u) : undefined;
 }
 
-function decorateDeck(store: DataStore, deck: Deck): DeckWithMeta {
+/**
+ * Adds owner, cards, branches and source as seen by `viewerId` (null when
+ * signed out). Like RLS in Supabase mode, only branches and a source deck the
+ * viewer may see are included (Cipher PR #3 review, M1), and a preferred
+ * branch the viewer can't see is reported as null (L1).
+ */
+function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): DeckWithMeta {
   const cards = store.deckCards.filter((c) => c.deckId === deck.id);
-  const branches = store.decks.filter((d) => d.forkedFromId === deck.id);
-  const sourceDeck = deck.forkedFromId
-    ? (store.decks.find((d) => d.id === deck.forkedFromId) ?? null)
-    : null;
+  const branches = store.decks.filter(
+    (d) => d.forkedFromId === deck.id && canViewDeck(store, d, viewerId),
+  );
+  const source = deck.forkedFromId
+    ? store.decks.find((d) => d.id === deck.forkedFromId)
+    : undefined;
+  const sourceDeck = source && canViewDeck(store, source, viewerId) ? source : null;
+  const preferredBranchId =
+    deck.preferredBranchId && branches.some((b) => b.id === deck.preferredBranchId)
+      ? deck.preferredBranchId
+      : null;
 
   return {
     ...deck,
+    preferredBranchId,
     owner: ownerProfile(store, deck.ownerId),
     cards,
     cardCount: cards.reduce((sum, c) => sum + c.quantity, 0),
@@ -73,14 +88,14 @@ export const localRepository: Repository = {
       decks = decks.filter((d) => d.visibility === "public" && !d.forkedFromId);
     }
 
-    return decks.map((d) => decorateDeck(store, d)).sort(byUpdatedDesc);
+    return decks.map((d) => decorateDeck(store, d, viewerId)).sort(byUpdatedDesc);
   },
 
   async listMyBranches(userId) {
     const store = await readStore();
     return store.decks
       .filter((d) => d.ownerId === userId && d.forkedFromId)
-      .map((d) => decorateDeck(store, d))
+      .map((d) => decorateDeck(store, d, userId))
       .sort(byUpdatedDesc);
   },
 
@@ -88,7 +103,7 @@ export const localRepository: Repository = {
     const store = await readStore();
     const deck = store.decks.find((d) => d.id === deckId);
     if (!deck || !canViewDeck(store, deck, viewerId)) return null;
-    return decorateDeck(store, deck);
+    return decorateDeck(store, deck, viewerId);
   },
 
   async getCompareData(viewerId, sourceId, branchId) {
@@ -101,8 +116,8 @@ export const localRepository: Repository = {
     if (branch.forkedFromId !== source.id) return null;
 
     return {
-      source: decorateDeck(store, source),
-      branch: decorateDeck(store, branch),
+      source: decorateDeck(store, source, viewerId),
+      branch: decorateDeck(store, branch, viewerId),
       canSetPreferred: canEditDeck(source, viewerId),
     };
   },
@@ -201,17 +216,18 @@ export const localRepository: Repository = {
       }
       const now = new Date().toISOString();
       const newId = uuidv4();
-      // Unchanged local behaviour: public sources become friends-only.
-      // (Supabase's fork_deck() additionally makes forks of non-public decks
-      // private and non-forkable, review F4.)
+      // Same rule as fork_deck() in the database (review F4): a fork of a
+      // public deck is friends-only and forkable; a fork of a friends-only or
+      // private deck starts private and can't be forked further, so a fork
+      // never widens the source's audience.
       store.decks.push({
         id: newId,
         ownerId: userId,
         name: `${source.name} (branch)`,
         format: source.format,
         notes: source.notes,
-        visibility: source.visibility === "public" ? "friends" : source.visibility,
-        allowForks: true,
+        visibility: source.visibility === "public" ? "friends" : "private",
+        allowForks: source.visibility === "public",
         forkedFromId: source.id,
         preferredBranchId: null,
         createdAt: now,
@@ -235,7 +251,9 @@ export const localRepository: Repository = {
       );
       if (branchId) {
         const branch = store.decks.find((d) => d.id === branchId);
-        if (!branch || branch.forkedFromId !== sourceId) {
+        // Same answer for "missing", "not a fork of this deck" and "a fork
+        // you can't see" (002's enforce_deck_links, review M1).
+        if (!branch || branch.forkedFromId !== sourceId || !canViewDeck(store, branch, userId)) {
           throw new DataError("Branch does not belong to this deck");
         }
       }

@@ -11,24 +11,25 @@ import {
   summarizeDiffs,
 } from "@/lib/deck-diff";
 import { setPreferredBranchAction } from "@/lib/actions/decks";
-import type { DeckWithMeta } from "@/lib/types";
+import type { CompareSide } from "@/lib/compare-dto";
 import { cn } from "@/lib/utils";
 
 export function CompareView({
   source,
   branch,
+  isPreferred,
   canSetPreferred,
 }: {
-  source: DeckWithMeta;
-  branch: DeckWithMeta;
+  source: CompareSide;
+  branch: CompareSide;
+  isPreferred: boolean;
   canSetPreferred: boolean;
 }) {
-  const diffs = compareDeckLists(source.cards ?? [], branch.cards ?? []);
+  const diffs = compareDeckLists(source.cards, branch.cards);
   const summary = summarizeDiffs(diffs);
   const replacements = findReplacements(diffs);
   const changed = diffs.filter((d) => d.kind !== "unchanged");
   const [pending, startTransition] = useTransition();
-  const isPreferred = source.preferredBranchId === branch.id;
 
   function setPreferred(value: string | null) {
     startTransition(async () => {
@@ -50,7 +51,7 @@ export function CompareView({
           </p>
           <h2 className="font-heading text-xl font-semibold">{source.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground capitalize">
-            {source.format} · {source.cardCount ?? 0} cards
+            {source.format} · {source.cardCount} cards
           </p>
           <Button
             className="mt-3"
@@ -67,8 +68,8 @@ export function CompareView({
           </p>
           <h2 className="font-heading text-xl font-semibold">{branch.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground capitalize">
-            {branch.format} · {branch.cardCount ?? 0} cards
-            {branch.owner ? ` · @${branch.owner.username}` : ""}
+            {branch.format} · {branch.cardCount} cards
+            {branch.ownerUsername ? ` · @${branch.ownerUsername}` : ""}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button

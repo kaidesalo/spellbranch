@@ -27,9 +27,13 @@ export default async function DeckDetailPage({
     listComments(id),
   ]);
 
-  const preferred =
-    deck.preferredBranchId &&
-    deck.branches?.find((b) => b.id === deck.preferredBranchId);
+  // Only branches the viewer can see are in deck.branches. If the preferred
+  // branch isn't one of them, fall back to the first visible branch (or no
+  // Compare link at all) instead of linking to a 404 (review L1).
+  const preferred = deck.preferredBranchId
+    ? deck.branches?.find((b) => b.id === deck.preferredBranchId)
+    : undefined;
+  const defaultCompareId = preferred?.id ?? deck.branches?.[0]?.id;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
@@ -108,13 +112,13 @@ export default async function DeckDetailPage({
               Compare
             </Button>
           )}
-          {!deck.forkedFromId && (deck.branches?.length ?? 0) > 0 && (
+          {!deck.forkedFromId && defaultCompareId && (
             <Button
               size="sm"
               variant="outline"
               render={
                 <Link
-                  href={`/decks/${deck.id}/compare?branch=${deck.preferredBranchId || deck.branches![0].id}`}
+                  href={`/decks/${deck.id}/compare?branch=${defaultCompareId}`}
                 />
               }
             >
@@ -137,7 +141,7 @@ export default async function DeckDetailPage({
                 >
                   <GitBranch className="h-3.5 w-3.5 text-primary" />
                   {branch.name}
-                  {deck.preferredBranchId === branch.id && (
+                  {preferred?.id === branch.id && (
                     <Badge className="ml-1">Preferred</Badge>
                   )}
                 </Link>
