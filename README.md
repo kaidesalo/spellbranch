@@ -116,8 +116,10 @@ Schema notes for the data-layer PR:
    Only the local Docker stack (`supabase/config.toml`) runs with confirmations off.
    Edit *Authentication → Emails → Confirm signup* so the link is
    `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
-   (the route also accepts the default `?code=` redirect when `SPELLBRANCH_SITE_URL` is set and
-   the link is opened in the same browser that signed up).
+   (the route also accepts the default `?code=` redirect when the link is opened in the same
+   browser that signed up). Opening a `token_hash` link shows a **Confirm** button; only that
+   POST (checked against `SPELLBRANCH_SITE_URL`'s origin) uses the token, so mail scanners and
+   cross-site links can't consume it or sign anyone in.
 4. **Password policy** (dashboard *Authentication* settings: the Email provider and Attack Protection pages).
    Hosted projects don't read `supabase/config.toml`, so set these in the dashboard to match it:
    - Minimum password length **8** (the sign-up form enforces 8 too).
