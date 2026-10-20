@@ -47,7 +47,7 @@ describe("/auth/confirm", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toMatch(/text\/html/);
       expect(res.headers.get("cache-control")).toBe("no-store");
-      expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(res.headers.get("referrer-policy")).toBe("same-origin");
       const html = await res.text();
       expect(html).toContain('<form method="post" action="/auth/confirm">');
       expect(html).toContain('name="token_hash" value="abc123"');

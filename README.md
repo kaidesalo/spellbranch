@@ -163,6 +163,18 @@ Seeded accounts (local only, dev-only password `spellbranch-dev-only`):
 friends; Carol has a pending request to Alice. The seed also includes public,
 friends-only and private decks, a fork, comments and favorites.
 
+## Security headers
+
+- `next.config.ts`: `poweredByHeader: false`; every response gets `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin` (`same-origin` on `/auth/confirm`),
+  `X-Frame-Options: DENY`, a restrictive `Permissions-Policy`, and HSTS in production
+  (`src/lib/security/headers.ts`).
+- `src/proxy.ts`: a per-request nonce CSP: `script-src 'self' 'nonce-…' 'strict-dynamic'`, Scryfall
+  hosts in `img-src`, `connect-src 'self'`, `frame-ancestors 'none'`, `form-action 'self'`.
+  Next.js adds the nonce to its own scripts. This works because every page is dynamic (the root layout
+  reads the session). `style-src` still allows `'unsafe-inline'` for component style attributes.
+  If you add a third-party script or a browser-side API call, update `buildCsp()`.
+
 ## Scripts
 
 ```bash

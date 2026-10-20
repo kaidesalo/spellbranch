@@ -10,13 +10,24 @@ import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
  * This only refreshes cookies; it does not gate routes. Pages and server
  * actions enforce auth via getSessionUser()/requireUser().
  */
-export async function updateSession(request: NextRequest) {
+export async function updateSession(
+  request: NextRequest,
+  extraRequestHeaders: Record<string, string> = {},
+) {
+  // Forward the (possibly cookie-updated) request headers plus any extras
+  // (the CSP nonce) to the rest of the app.
+  const next = () => {
+    const headers = new Headers(request.headers);
+    for (const [name, value] of Object.entries(extraRequestHeaders)) headers.set(name, value);
+    return NextResponse.next({ request: { headers } });
+  };
+
   if (!isSupabaseConfigured()) {
-    return NextResponse.next({ request });
+    return next();
   }
 
   const { url, key } = getSupabaseEnv();
-  let response = NextResponse.next({ request });
+  let response = next();
 
   // New client per request (never module-global).
   const supabase = createServerClient(url, key, {
@@ -28,7 +39,7 @@ export async function updateSession(request: NextRequest) {
       },
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        response = next();
         // Pass `options` through untouched: it carries HttpOnly/Secure/etc.
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options),

@@ -22,8 +22,10 @@ import { createClient } from "@/lib/supabase/server";
 
 const PRIVATE_HEADERS = {
   "Cache-Control": "no-store",
-  // The URL carries token_hash; never leak it in a Referer.
-  "Referrer-Policy": "no-referrer",
+  // The URL carries token_hash; never send it in a cross-origin Referer.
+  // Not "no-referrer": that makes browsers send `Origin: null` on the form
+  // POST, which the Origin check rejects.
+  "Referrer-Policy": "same-origin",
 };
 
 function redirectTo(request: NextRequest, path: string, status: 303 | 307 = 307) {
