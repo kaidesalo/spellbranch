@@ -45,7 +45,7 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `SPELLBRANCH_BACKEND` | `local` (default) or `supabase`. Keys alone never switch the backend. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key. Used only for the sign-up username check (and future admin scripts); never `NEXT_PUBLIC_` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
 | `SPELLBRANCH_SITE_URL` | Optional, e.g. `http://localhost:3847`. If set, sign-up confirmation emails redirect to `<site>/auth/confirm` |
 
 ## Supabase status
