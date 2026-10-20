@@ -80,9 +80,13 @@ Schema notes for the data-layer PR:
   `rpc('find_profile', { username })`: an exact, case-insensitive username match (no partial or display-name search)
   that returns at most one `{ id, username, display_name, avatar_url }`. Sign-up can check a name with
   `rpc('username_available', { candidate })` (anon or signed in; returns `false` for taken or invalid names).
+  This lets anon check one exact name per request, a cheaper oracle than the old sign-up flow (which just
+  suffixed taken names). Follow-up: call it from a rate-limited Next.js route and revoke anon `EXECUTE`.
 - Friend requests: only the addressee can change `status` (`accepted` / `declined`). The requester can delete
   the row only while it's `pending` (cancel) or `accepted` (unfriend); a `declined` row stays, which blocks
   re-sending. The addressee can delete any row (unfriend, or clear a declined request so a new one is possible).
+  The addressee can also flip an `accepted` row to `declined`; that ends the friendship and acts as a soft block
+  (the requester can't delete the row or re-send) until the addressee deletes it.
 - Comments: the author or the deck owner can delete a comment.
 - Image URLs: `profiles.avatar_url` must be `https://…`; card `image_uri` must be `https://cards.scryfall.io/…` (or null).
 - Default usernames: signups without a valid `username` in metadata get `player_xxxxxx` (never the email prefix).
@@ -124,7 +128,9 @@ Schema notes for the data-layer PR:
 7. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
    from being auto-granted to `anon` (and functions to `authenticated`). Run `\ddp` in `psql` (or
    query `pg_default_acl`) on the project to confirm nothing else still grants them, and grant new
-   tables/functions explicitly in future migrations.
+   tables/functions explicitly in future migrations. The `revoke execute ... from public` default
+   covers functions `postgres` creates in any schema, not just `public`, so functions in other
+   schemas (e.g. a `private` helper schema or auth hooks) need explicit grants too.
 
 ### Local Supabase (Docker)
 
