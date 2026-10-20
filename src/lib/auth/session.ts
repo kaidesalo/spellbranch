@@ -154,14 +154,20 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
   };
 }
 
-export async function getSupabaseProfileBio(userId: string): Promise<string> {
+/**
+ * The username the signed-in user asked for at sign-up (Supabase mode only;
+ * from the verified JWT's user_metadata). handle_new_user() may have added a
+ * suffix if that name was taken by the time the account was created (review
+ * N2); compare it with the profile's final username. Local mode never
+ * changes the requested name, so this is null there.
+ */
+export async function getRequestedUsername(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("bio")
-    .eq("id", userId)
-    .maybeSingle();
-  return (data?.bio as string | undefined) ?? "";
+  const { data, error } = await supabase.auth.getClaims();
+  const meta = data?.claims?.user_metadata as Record<string, unknown> | undefined;
+  if (error || !meta || typeof meta.username !== "string") return null;
+  return meta.username;
 }
 
 // ---------------------------------------------------------------------------
