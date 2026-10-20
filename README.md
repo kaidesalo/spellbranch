@@ -65,6 +65,11 @@ actions in `src/lib/actions`.
 Schema notes for that work:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
 - Logged-out pages should read names from `public.public_profiles` (id, username, display_name, avatar_url).
+- Profiles aren't a directory: a signed-in user can read their own profile, people they share a friendship row
+  with, and owners/authors of decks and comments they can see. To find someone new, call
+  `rpc('find_profile', { username })`: an exact, case-insensitive username match (no partial or display-name search)
+  that returns at most one `{ id, username, display_name, avatar_url }`. Sign-up can check a name with
+  `rpc('username_available', { candidate })` (anon or signed in; returns `false` for taken or invalid names).
 - Friend requests: only the addressee can change `status` (`accepted` / `declined`). The requester can delete
   the row only while it's `pending` (cancel) or `accepted` (unfriend); a `declined` row stays, which blocks
   re-sending. The addressee can delete any row (unfriend, or clear a declined request so a new one is possible).

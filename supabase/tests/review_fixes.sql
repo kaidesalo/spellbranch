@@ -2,15 +2,14 @@
 --
 -- Adapted from Cipher's review harness (tests/cipher_fixed.sql, PR #1 security
 -- review, 2026-10-20) -- credit to Cipher for the original checks. Finding
--- labels follow the review's numbering (F1-F10). The F5 checks (profile read
--- scope / find_profile) are pgTAP TODOs: F5 is an open product decision.
+-- labels follow the review's numbering (F1-F10).
 --
 -- Run with `supabase test db` (or psql on a db with 001 + 002 applied).
 -- Self-contained; everything is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(24);
+select plan(36);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
@@ -39,12 +38,21 @@ set local "request.jwt.claims" = '{"sub":"c0000000-0000-4000-8000-000000000004",
 delete from public.friendships where id='c1000000-0000-4000-8000-000000000003';
 select is((select count(*) from public.friendships where id='c1000000-0000-4000-8000-000000000003'),1::bigint,'F1: requester cannot delete a declined request');
 select throws_ok($$insert into public.friendships (requester_id,addressee_id,status) values ('c0000000-0000-4000-8000-000000000004','c0000000-0000-4000-8000-000000000001','pending')$$,'23505',null,'F1: so cannot re-send it');
--- F5 (open follow-up, product call): narrower profile reads + find_profile().
-select todo_start('F5 follow-up: profile read scope not decided yet');
+-- F5: no profile directory; exact-username lookup only.
 select is((select count(*) from public.profiles where id::text like 'c0000000%'), 3::bigint, 'F5: dan sees himself, ann (shared request row), cat (comment on a public deck) only');
 select is((select count(*) from public.profiles where id='c0000000-0000-4000-8000-000000000002'), 0::bigint, 'F5: dan cannot read unrelated ben');
-select ok(to_regprocedure('public.find_profile(text)') is not null, 'F5: exact-match find_profile() lookup exists');
-select todo_end();
+select is((select username from public.find_profile('BEN')), 'ben', 'F5: find_profile() exact match is case-insensitive');
+select is((select count(*) from public.find_profile('be%')) + (select count(*) from public.find_profile('b_n'))
+          + (select count(*) from public.find_profile('be')) + (select count(*) from public.find_profile('%')), 0::bigint,
+  'F5: find_profile() has no prefix/wildcard semantics (be%, b_n, be, %)');
+select is((select count(*) from public.find_profile('nobody_here')), 0::bigint, 'F5: find_profile() unknown username -> no rows');
+select is((select string_agg(attname, ',' order by attnum) from pg_attribute
+           where attrelid = 'public.public_profiles'::regclass and attnum > 0 and not attisdropped)
+          || '|' || (select prorettype::regtype::text from pg_proc where oid = 'public.find_profile(text)'::regprocedure),
+  'id,username,display_name,avatar_url|public_profiles', 'F5: find_profile() returns only the public columns');
+select is((select count(*) from public.public_profiles where id='c0000000-0000-4000-8000-000000000002'), 0::bigint, 'F5: public_profiles view does not bypass the narrower policy');
+select is(public.username_available('BEN'), false, 'F5: username_available() sees a taken name the caller cannot read (case-insensitive)');
+select is(public.username_available('ben_new'), true, 'F5: username_available() true for a free valid name');
 -- cat (pending requester) can still cancel
 set local "request.jwt.claims" = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
 delete from public.friendships where id='c1000000-0000-4000-8000-000000000004';
@@ -84,6 +92,23 @@ reset role;
 set local "request.jwt.claims" = '';
 select lives_ok(format($$update public.decks set preferred_branch_id=%L where id='c2000000-0000-4000-8000-000000000002'$$,(select id from f_friends)),'F3: postgres (migrations/seed) still trusted');
 select ok(not has_table_privilege('anon','public.decks','MAINTAIN'),'F6: MAINTAIN revoked');
+select ok(not has_function_privilege('anon','public.find_profile(text)','EXECUTE')
+      and has_function_privilege('authenticated','public.find_profile(text)','EXECUTE'),'F5: find_profile() callable by authenticated only');
+select ok(has_function_privilege('anon','public.username_available(text)','EXECUTE')
+      and has_function_privilege('authenticated','public.username_available(text)','EXECUTE')
+      and (select prorettype = 'boolean'::regtype and prosecdef and proconfig @> array['search_path=""'] from pg_proc where oid = 'public.username_available(text)'::regprocedure),
+  'F5: username_available() is a boolean SECURITY DEFINER with empty search_path, callable by anon + authenticated');
+set local role anon;
+set local "request.jwt.claims" = '{"role":"anon"}';
+select throws_ok($$select * from public.find_profile('ann')$$,'42501',null,'F5: anon cannot call find_profile()');
+select is(public.username_available('ANN'), false, 'F5: anon username_available(): taken name -> false');
+select is(public.username_available('fresh_name'), true, 'F5: anon username_available(): free name -> true');
+select is(coalesce(public.username_available('a%'),true) or coalesce(public.username_available('ann%'),true)
+          or coalesce(public.username_available('no spaces'),true) or coalesce(public.username_available(null),true)
+          or coalesce(public.username_available(repeat('x',25)),true), false,
+  'F5: username_available(): invalid format (wildcards, spaces, null, too long) -> false');
+reset role;
+set local "request.jwt.claims" = '';
 create table public.zz_t(id int); create function public.zz_f() returns int language sql as 'select 1';
 select ok(not has_table_privilege('anon','public.zz_t','TRUNCATE') and not has_table_privilege('anon','public.zz_t','INSERT')
       and not has_function_privilege('anon','public.zz_f()','EXECUTE'),'F6: future tables/functions no longer granted to anon');
