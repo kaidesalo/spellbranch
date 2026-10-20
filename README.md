@@ -20,7 +20,7 @@ Social Magic: The Gathering deck building for friends. Create decks, search Scry
 - Next.js (App Router) + React + TypeScript
 - Tailwind CSS + shadcn/ui
 - Scryfall API for card data
-- Supabase schema + RLS included for hosted auth/database
+- Supabase schema + RLS + seed + pgTAP checks included (app wiring in progress)
 - Local JSON store (default) so the app runs without Supabase credentials
 
 ## Quick start
@@ -33,27 +33,100 @@ npm run dev
 
 Open [http://localhost:3847](http://localhost:3847).
 
-Without Supabase configured, accounts and decks persist in `.data/store.json`.
+Accounts and decks persist in `.data/store.json` (the app does not use Supabase yet; see below).
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local`:
+Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 
 | Variable | Purpose |
 | --- | --- |
 | `AUTH_SECRET` | Signs local session cookies (required in production) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (optional) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (optional) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role for admin scripts only (optional) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (optional, not used by the app yet) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key both work here (optional, not used yet) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret / service-role key for admin scripts only; server-side, never `NEXT_PUBLIC_` (optional) |
 
-If Supabase URL/key are missing or still placeholders, Spellbranch uses the local store and JWT cookie sessions.
+## Supabase status
 
-## Supabase setup (optional)
+**The app does not talk to Supabase yet.** Every route still uses the local JSON
+store (`.data/store.json`) and local JWT cookie sessions, whether or not the
+Supabase variables are set. What exists today:
 
-1. Create a Supabase project.
-2. Run `supabase/migrations/001_initial.sql` in the SQL editor.
-3. Set the env vars above.
-4. Wire the app’s auth helpers to Supabase Auth (clients are in `src/lib/supabase/`). The MVP ships with the local auth path fully working; the SQL + RLS policies match the same data model for a hosted cutover.
+- `supabase/migrations/001_initial.sql`: tables, RLS policies, `handle_new_user` profile trigger
+- `supabase/migrations/002_rls_fixes.sql`: RLS hardening (friend requests, profile privacy, usernames, fork rules, `fork_deck()` helper, comment deletion, URL checks, grants/default privileges)
+- `supabase/seed.sql`: local-only test data
+- `supabase/tests/rls_checks.sql`, `supabase/tests/review_fixes.sql`: pgTAP checks for the policies and the security-review fixes
+- `src/lib/supabase/{client,server}.ts`: `@supabase/ssr` clients, not wired in yet
+
+Planned follow-ups: Supabase Auth with `@supabase/ssr` (session refresh in `src/proxy.ts`,
+sign-in/up/out, `/auth/confirm`), then a Supabase-backed data layer behind the server
+actions in `src/lib/actions`.
+
+Schema notes for that work:
+- `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
+- Logged-out pages should read names from `public.public_profiles` (id, username, display_name, avatar_url).
+- Profiles aren't a directory: a signed-in user can read their own profile, people they share a friendship row
+  with, and owners/authors of decks and comments they can see. To find someone new, call
+  `rpc('find_profile', { username })`: an exact, case-insensitive username match (no partial or display-name search)
+  that returns at most one `{ id, username, display_name, avatar_url }`. Sign-up can check a name with
+  `rpc('username_available', { candidate })` (anon or signed in; returns `false` for taken or invalid names).
+  This lets anon check one exact name per request, a cheaper oracle than the old sign-up flow (which just
+  suffixed taken names). Follow-up: call it from a rate-limited Next.js route and revoke anon `EXECUTE`.
+- Friend requests: only the addressee can change `status` (`accepted` / `declined`). The requester can delete
+  the row only while it's `pending` (cancel) or `accepted` (unfriend); a `declined` row stays, which blocks
+  re-sending. The addressee can delete any row (unfriend, or clear a declined request so a new one is possible).
+  The addressee can also flip an `accepted` row to `declined`; that ends the friendship and acts as a soft block
+  (the requester can't delete the row or re-send) until the addressee deletes it.
+- Comments: the author or the deck owner can delete a comment.
+- Image URLs: `profiles.avatar_url` must be `https://…`; card `image_uri` must be `https://cards.scryfall.io/…` (or null).
+- Default usernames: signups without a valid `username` in metadata get `player_xxxxxx` (never the email prefix).
+- Forks of friends-only/private decks start `private` with forks off; forks of public decks start friends-only.
+- Forking: call `select fork_deck('<deck id>')`. It checks permissions and copies the cards.
+
+### Setting up a Supabase project
+
+1. **Create a project** at [supabase.com/dashboard](https://supabase.com/dashboard) (a free dev project is fine).
+2. **Copy the keys** from *Project Settings → API keys*: the project URL, the publishable
+   (or legacy anon) key, and, only if you need admin scripts, the secret / service-role key.
+   Put them in `.env.local` under the variable names above.
+3. **Configure auth URLs** in *Authentication → URL Configuration*:
+   - Site URL: `http://localhost:3847`
+   - Redirect URLs: `http://localhost:3847/auth/confirm`
+   (Add your production URL + `/auth/confirm` later.) For early development you can turn off
+   *Confirm email* under *Authentication → Providers → Email*.
+4. **Apply the migrations in order** (`001_initial.sql`, then `002_rls_fixes.sql`), either:
+   - with the CLI (no global install needed):
+     ```bash
+     npx supabase login
+     npx supabase link --project-ref <your-project-ref>
+     npx supabase db push
+     ```
+     Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
+   - or by pasting each file into the dashboard *SQL Editor* and running it, `001` first.
+5. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
+   with a published dev-only password. Don't run `supabase db reset --linked` or
+   `supabase db push --include-seed` against a hosted project: both load the seed.
+   `seed.sql` aborts if the database already has any non-`@example.test` user, but a brand-new
+   project with no users would not trip that guard.
+6. **Check default privileges.** `002` stops new objects created by `postgres` in `public`
+   from being auto-granted to `anon` (and functions to `authenticated`). Run `\ddp` in `psql` (or
+   query `pg_default_acl`) on the project to confirm nothing else still grants them, and grant new
+   tables/functions explicitly in future migrations. The `revoke execute ... from public` default
+   covers functions `postgres` creates in any schema, not just `public`, so functions in other
+   schemas (e.g. a `private` helper schema or auth hooks) need explicit grants too.
+
+### Local Supabase (Docker)
+
+```bash
+npx supabase start      # local stack; prints local URL + keys
+npx supabase db reset   # re-applies migrations + seed.sql
+npx supabase test db    # runs supabase/tests/*.sql (pgTAP)
+```
+
+Seeded accounts (local only, dev-only password `spellbranch-dev-only`):
+`alice@example.test`, `bob@example.test`, `carol@example.test`. Alice and Bob are
+friends; Carol has a pending request to Alice. The seed also includes public,
+friends-only and private decks, a fork, comments and favorites.
 
 ## Scripts
 
@@ -82,6 +155,8 @@ npm run typecheck
 - `src/lib/actions` — server actions with permission checks
 - `src/lib/data` — local JSON persistence
 - `src/lib/scryfall` — Scryfall helpers
-- `supabase/migrations` — relational schema and RLS policies
+- `supabase/migrations`: relational schema and RLS policies
+- `supabase/seed.sql`, `supabase/tests`: local seed data and pgTAP RLS checks
+- `supabase/config.toml`: Supabase CLI config (local dev)
 
 Card data comes from [Scryfall](https://scryfall.com/). Spellbranch is an unofficial fan project and is not affiliated with Wizards of the Coast.
