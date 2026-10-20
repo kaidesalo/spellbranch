@@ -99,12 +99,15 @@ export default async function DeckDetailPage({
               </Button>
             </form>
           )}
-          {deck.forkedFromId && (
+          {/* sourceDeck is null when the viewer can't see the source: then
+              there's nothing to compare with, and its id stays out of the
+              page (Cipher re-review N2). */}
+          {deck.sourceDeck && (
             <Button
               size="sm"
               render={
                 <Link
-                  href={`/decks/${deck.forkedFromId}/compare?branch=${deck.id}`}
+                  href={`/decks/${deck.sourceDeck.id}/compare?branch=${deck.id}`}
                 />
               }
             >
