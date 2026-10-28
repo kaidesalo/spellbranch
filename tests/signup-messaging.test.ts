@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setRateLimitStoreForTests } from "@/lib/rate-limit";
 
 // L2: a duplicate email must look exactly like a successful sign-up.
 // L4: sign-up enforces an 8-character minimum; sign-in doesn't.
@@ -18,6 +19,8 @@ vi.mock("@/lib/supabase/server", () => ({
     auth: { signUp, signInWithPassword },
   }),
 }));
+// Server actions read the client IP from the request headers (review M1).
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`);
@@ -53,6 +56,7 @@ describe("Supabase sign-up messaging (L2)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_test_only");
     vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");
     signUp.mockClear();
+    setRateLimitStoreForTests(); // fresh in-memory counters
   });
   afterEach(() => {
     vi.unstubAllEnvs();

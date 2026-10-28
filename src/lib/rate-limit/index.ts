@@ -83,9 +83,17 @@ export async function limit(policy: PolicyName, ids: LimitIds): Promise<LimitRes
   }
 }
 
+type Refused = Exclude<LimitResult, { ok: true }>;
+
 /** The user-facing text for a refused attempt. */
-export function limitMessage(result: Exclude<LimitResult, { ok: true }>): string {
+export function limitMessage(result: Refused): string {
   return result.reason === "limited" ? RATE_LIMITED_MESSAGE : RATE_LIMIT_UNAVAILABLE_MESSAGE;
+}
+
+/** A refused attempt as a server-action result: { error, retryAfterSec? }. */
+export function limitError(result: Refused): { error: string; retryAfterSec?: number } {
+  if (result.reason === "limited") return { error: RATE_LIMITED_MESSAGE, retryAfterSec: result.retryAfterSec };
+  return { error: RATE_LIMIT_UNAVAILABLE_MESSAGE };
 }
 
 function bucketValue(bucket: Bucket, ids: LimitIds): string {

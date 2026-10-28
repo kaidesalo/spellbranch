@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setRateLimitStoreForTests } from "@/lib/rate-limit";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
 
 // --- Mocks for signUpAction (no network, no hosted project) ---------------
@@ -11,6 +12,8 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({ rpc, from, auth: { signUp } })),
 }));
 
+// Server actions read the client IP from the request headers (review M1).
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -42,6 +45,7 @@ function form(username = "Felix_1") {
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+  setRateLimitStoreForTests(); // fresh in-memory counters
   rpc.mockReset();
   signUp.mockReset();
   from.mockReset();

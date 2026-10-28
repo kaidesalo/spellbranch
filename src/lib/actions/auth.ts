@@ -9,6 +9,7 @@ import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
 import { LIMITS } from "@/lib/data/limits";
 import { isFormData } from "@/lib/actions/schemas";
+import { limit, limitError, requestIp } from "@/lib/rate-limit";
 import { getSiteOrigin, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
@@ -16,8 +17,11 @@ import { checkUsernameAvailable } from "@/lib/supabase/username";
 /** Keep in sync with supabase/config.toml `minimum_password_length`. */
 const MIN_PASSWORD_LENGTH = 8;
 
+/** RFC 5321 maximum; also bounds what the rate limiter hashes. */
+const MAX_EMAIL_LENGTH = 254;
+
 const signUpSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().max(MAX_EMAIL_LENGTH, "Enter a valid email").email("Enter a valid email"),
   password: z
     .string()
     .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
@@ -34,7 +38,7 @@ const signUpSchema = z.object({
 // Sign-in deliberately doesn't enforce the sign-up length rule, so accounts
 // created under the old 6-character minimum can still log in.
 const signInSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().max(MAX_EMAIL_LENGTH, "Enter a valid email").email("Enter a valid email"),
   password: z.string().min(1, "Enter your password"),
 });
 
@@ -48,7 +52,13 @@ const SIGN_UP_CHECK_EMAIL: AuthResult = {
   message: "Check your email to confirm your account.",
 };
 
-export type AuthResult = { error?: string; success?: boolean; message?: string };
+export type AuthResult = {
+  error?: string;
+  success?: boolean;
+  message?: string;
+  /** Set when the attempt was rate limited (review M1). */
+  retryAfterSec?: number;
+};
 
 export async function signUpAction(formData: FormData): Promise<AuthResult> {
   if (!isFormData(formData)) return { error: "Invalid input" };
@@ -66,16 +76,26 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
   const { email, password, username, displayName } = parsed.data;
   if (!username) return { error: "Username is required" };
 
+  // Review M1: the username check has its own per-IP bucket, counted before
+  // the sign-up bucket, so trying a few names doesn't use up sign-ups.
+  const ip = await requestIp();
+  const usernameLimit = await limit("username-check", { ip });
+  if (!usernameLimit.ok) return limitError(usernameLimit);
+
   if (isSupabaseConfigured()) {
     const result = await supabaseSignUp({
       email,
       password,
       username,
       displayName: displayName || username,
+      ip,
     });
     if (result !== "signed-in") return result;
     redirect("/dashboard");
   }
+
+  const signUpLimit = await limit("sign-up", { ip, email });
+  if (!signUpLimit.ok) return limitError(signUpLimit);
 
   try {
     const user = await updateStore((store) => {
@@ -132,6 +152,11 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
   }
 
   const { email, password } = parsed.data;
+
+  // Review M1: per IP, per (email, IP) and per email, whether or not the
+  // account exists, before any password check.
+  const signInLimit = await limit("sign-in", { ip: await requestIp(), email });
+  if (!signInLimit.ok) return limitError(signInLimit);
 
   if (isSupabaseConfigured()) {
     const supabase = await createSupabaseServerClient();
@@ -233,10 +258,12 @@ async function supabaseSignUp(input: {
   password: string;
   username: string;
   displayName: string;
+  ip: string;
 }): Promise<AuthResult | "signed-in"> {
   const supabase = await createSupabaseServerClient();
 
-  // Friendly pre-check via the username_available RPC (anon-callable). If it
+  // Friendly pre-check via the username_available RPC (anon-callable for
+  // now; the secret-key commit moves it to service_role). If it
   // can't be verified we stop rather than assume "available"; the unique
   // index in the database still settles two sign-ups racing for one name.
   const availability = await checkUsernameAvailable(supabase, input.username);
@@ -244,6 +271,11 @@ async function supabaseSignUp(input: {
     return { error: "Could not create account right now. Please try again." };
   }
   if (availability === "taken") return { error: "That username is already taken" };
+
+  // Counted for every email, registered or not, so the limit says nothing
+  // about which addresses have accounts.
+  const signUpLimit = await limit("sign-up", { ip: input.ip, email: input.email });
+  if (!signUpLimit.ok) return limitError(signUpLimit);
 
   // Required in Supabase mode (getBackend() throws without it).
   const siteUrl = getSiteOrigin();
