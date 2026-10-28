@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DataError } from "@/lib/data/errors";
+import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
   FRIEND_MESSAGES,
   canRemove,
@@ -604,10 +605,10 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const q = username.trim();
       if (!USERNAME_RE.test(q)) return [];
       const client = await getClient();
-      const rows = check(
-        "find_profile",
-        await client.rpc("find_profile", { username: q }),
-      ) as ProfileRow[] | null;
+      const res = await client.rpc("find_profile", { username: q });
+      // Migration 004: the per-user database backstop raises PT429.
+      if (res.error?.code === "PT429") throw new DataError(RATE_LIMITED_MESSAGE);
+      const rows = check("find_profile", res) as ProfileRow[] | null;
       return (rows ?? [])
         .slice(0, 1)
         .map(toProfile)

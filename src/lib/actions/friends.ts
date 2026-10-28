@@ -5,25 +5,39 @@ import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
 import { FRIEND_MESSAGES } from "@/lib/data/friend-rules";
 import { check, idSchema, usernameQuerySchema } from "@/lib/actions/schemas";
+import { limit, limitError, requestIp } from "@/lib/rate-limit";
 import { z } from "zod";
 import type { PublicProfile } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean };
 
+export type FindProfileResult = {
+  profiles: PublicProfile[];
+  error?: string;
+  /** Set when the lookup was rate limited (review M1/I2). */
+  retryAfterSec?: number;
+};
+
 /**
  * Exact, case-insensitive username lookup (Supabase: rpc('find_profile')).
  * Returns 0 or 1 profiles (id, username, display name, avatar), never the
  * caller and never an email. No partial or display-name search.
+ *
+ * Review M1/I2: rate limited per IP and per user (find-profile policy), with
+ * a per-user database backstop in find_profile itself (migration 004).
  */
-export async function findProfileAction(username: string): Promise<PublicProfile[]> {
+export async function findProfileAction(username: string): Promise<FindProfileResult> {
   const user = await requireUser();
   const q = check(usernameQuerySchema, username, "");
-  if (!q.ok || !q.data.trim()) return [];
+  if (!q.ok || !q.data.trim()) return { profiles: [] };
+
+  const allowed = await limit("find-profile", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return { profiles: [], ...limitError(allowed) };
+
   try {
-    return await getRepository().findProfile(user.id, q.data);
+    return { profiles: await getRepository().findProfile(user.id, q.data) };
   } catch (err) {
-    userMessage(err, "");
-    return [];
+    return { profiles: [], error: userMessage(err, "Search failed. Please try again.") };
   }
 }
 

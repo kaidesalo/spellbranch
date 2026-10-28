@@ -11,7 +11,7 @@ import type { HitResult, RateLimitStore } from "@/lib/rate-limit/store";
  * The one entry point for rate limiting (review M1, Cipher F4).
  *
  *   const result = await limit("sign-in", { ip: await requestIp(), email });
- *   if (!result.ok) return rateLimitError(result);
+ *   if (!result.ok) return limitError(result);
  *
  * Callers name a policy and pass identifiers; they never choose limits or see
  * storage keys. This is a server-only module, NOT "use server": nothing here
@@ -28,9 +28,9 @@ export type LimitResult =
   | { ok: false; reason: "limited"; retryAfterSec: number }
   | { ok: false; reason: "unavailable" };
 
-/** Same text for every policy and bucket, so it reveals nothing (Cipher F9). */
-export const RATE_LIMITED_MESSAGE = "Too many attempts. Please try again later.";
-export const RATE_LIMIT_UNAVAILABLE_MESSAGE = "Something went wrong. Please try again shortly.";
+import { RATE_LIMITED_MESSAGE, RATE_LIMIT_UNAVAILABLE_MESSAGE } from "@/lib/rate-limit/messages";
+
+export { RATE_LIMITED_MESSAGE, RATE_LIMIT_UNAVAILABLE_MESSAGE };
 
 const STORE_TIMEOUT_MS = 2500;
 

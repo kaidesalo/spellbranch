@@ -19,6 +19,8 @@ vi.mock("@/lib/data/store", () => ({
 let sessionUser: { id: string; email: string; username: string; displayName: string } | null = null;
 vi.mock("@/lib/auth/session", () => ({ getSessionUser: async () => sessionUser }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+// findProfileAction reads the client IP from the request headers (review M1).
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`);
@@ -266,8 +268,8 @@ describe("friend actions use the same rules", () => {
     expect(await actions.respondFriendRequestAction(incoming[0].friendship.id, false)).toEqual({ success: true });
     as(ALICE);
     expect(await actions.sendFriendRequestAction(BOB)).toEqual({ error: FRIEND_MESSAGES.declined });
-    expect(await actions.findProfileAction("bob_u")).toHaveLength(1);
-    expect(await actions.findProfileAction("bo")).toEqual([]);
+    expect((await actions.findProfileAction("bob_u")).profiles).toHaveLength(1);
+    expect(await actions.findProfileAction("bo")).toEqual({ profiles: [] });
   });
 });
 

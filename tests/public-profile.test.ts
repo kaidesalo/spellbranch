@@ -65,6 +65,8 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionUser: async () => sessionUser,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+// findProfileAction reads the client IP from the request headers (review M1).
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`);
@@ -94,12 +96,12 @@ describe("public profiles carry no email", () => {
 
   it("findProfileAction (exact username) results have no email", async () => {
     const { findProfileAction } = await import("@/lib/actions/friends");
-    const results = await findProfileAction("Victim_U");
+    const { profiles: results } = await findProfileAction("Victim_U");
     expect(results.map((r) => r.username)).toEqual(["victim_u"]);
     expect(Object.keys(results[0]).sort()).toEqual(["avatarUrl", "displayName", "id", "username"]);
     expectNoEmail(results);
     // No substring search any more.
-    expect(await findProfileAction("v")).toEqual([]);
+    expect(await findProfileAction("v")).toEqual({ profiles: [] });
   });
 
   it("getFriendsData rows have no email", async () => {
