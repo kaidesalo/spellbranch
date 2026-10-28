@@ -1,0 +1,123 @@
+import "server-only";
+
+import { headers } from "next/headers";
+import { getClientIp } from "@/lib/rate-limit/client-ip";
+import { bucketKey, getRateLimitSecret, normalizeEmail } from "@/lib/rate-limit/keys";
+import { MemoryStore } from "@/lib/rate-limit/memory-store";
+import { POLICIES, retryAfterFor, type Bucket, type PolicyName } from "@/lib/rate-limit/policies";
+import type { HitResult, RateLimitStore } from "@/lib/rate-limit/store";
+
+/**
+ * The one entry point for rate limiting (review M1, Cipher F4).
+ *
+ *   const result = await limit("sign-in", { ip: await requestIp(), email });
+ *   if (!result.ok) return rateLimitError(result);
+ *
+ * Callers name a policy and pass identifiers; they never choose limits or see
+ * storage keys. This is a server-only module, NOT "use server": nothing here
+ * may be re-exported from an action file (tests/rate-limit-boundary.test.ts).
+ *
+ * Fails closed: if the store errors or takes longer than STORE_TIMEOUT_MS,
+ * the attempt is refused with a generic "try again shortly".
+ */
+
+export type LimitIds = { ip: string; email?: string; userId?: string };
+
+export type LimitResult =
+  | { ok: true }
+  | { ok: false; reason: "limited"; retryAfterSec: number }
+  | { ok: false; reason: "unavailable" };
+
+/** Same text for every policy and bucket, so it reveals nothing (Cipher F9). */
+export const RATE_LIMITED_MESSAGE = "Too many attempts. Please try again later.";
+export const RATE_LIMIT_UNAVAILABLE_MESSAGE = "Something went wrong. Please try again shortly.";
+
+const STORE_TIMEOUT_MS = 2500;
+
+let storeOverride: RateLimitStore | null = null;
+let timeoutMs = STORE_TIMEOUT_MS;
+let memoryStore: MemoryStore | null = null;
+
+function getStore(): RateLimitStore {
+  if (storeOverride) return storeOverride;
+  // TODO(M1 secret-key commit): in Supabase mode, return
+  //   new PostgresStore((args, signal) => serviceRpc("rate_limit_hit", args, signal))
+  // using the server-only secret-key client (src/lib/supabase/service.ts).
+  // Until then every mode counts in this process only. That's enough for the
+  // single-process local backend and dev; Supabase mode in production is
+  // still blocked by SPELLBRANCH_ALLOW_HYBRID (see README).
+  memoryStore ??= new MemoryStore();
+  return memoryStore;
+}
+
+/** Test hook: swap the store and/or the timeout. Pass nothing to reset. */
+export function setRateLimitStoreForTests(store: RateLimitStore | null = null, storeTimeoutMs = STORE_TIMEOUT_MS) {
+  storeOverride = store;
+  timeoutMs = storeTimeoutMs;
+  memoryStore = null;
+}
+
+/** The client IP bucket for the current request (server actions). */
+export async function requestIp(): Promise<string> {
+  return getClientIp(await headers());
+}
+
+export async function limit(policy: PolicyName, ids: LimitIds): Promise<LimitResult> {
+  try {
+    const secret = getRateLimitSecret();
+    const store = getStore();
+    // In order, stopping at the first block (see policies.ts).
+    for (const bucket of POLICIES[policy] as readonly Bucket[]) {
+      const key = bucketKey(secret, policy, bucket.by, bucketValue(bucket, ids));
+      const hit = await hitWithTimeout(store, key, bucket);
+      if (!hit.allowed) return { ok: false, reason: "limited", retryAfterSec: retryAfterFor(policy) };
+    }
+    return { ok: true };
+  } catch (err) {
+    // Never log keys, emails or IPs.
+    console.error(
+      `[spellbranch] rate limit store error (${policy}):`,
+      err instanceof Error ? err.message : "unknown error",
+    );
+    return { ok: false, reason: "unavailable" };
+  }
+}
+
+/** The user-facing text for a refused attempt. */
+export function limitMessage(result: Exclude<LimitResult, { ok: true }>): string {
+  return result.reason === "limited" ? RATE_LIMITED_MESSAGE : RATE_LIMIT_UNAVAILABLE_MESSAGE;
+}
+
+function bucketValue(bucket: Bucket, ids: LimitIds): string {
+  switch (bucket.by) {
+    case "ip":
+      return ids.ip;
+    case "email":
+      return normalizeEmail(required(ids.email, "email"));
+    case "email+ip":
+      return `${normalizeEmail(required(ids.email, "email"))}|${ids.ip}`;
+    case "user":
+      return required(ids.userId, "userId");
+  }
+}
+
+function required(value: string | undefined, name: string): string {
+  if (!value) throw new Error(`rate limit policy needs ${name}`);
+  return value;
+}
+
+async function hitWithTimeout(store: RateLimitStore, key: string, bucket: Bucket): Promise<HitResult> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("rate limit store timed out"));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([store.hit(key, bucket.limit, bucket.windowSec, controller.signal), timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
