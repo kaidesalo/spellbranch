@@ -1,3 +1,5 @@
+import { assertRateLimitConfig } from "@/lib/rate-limit/config";
+
 /**
  * Backend selection.
  *
@@ -23,6 +25,9 @@
  * file). Production refuses it unless SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1
  * (Cipher PR #3 review, H1). Both guards only look at NODE_ENV, so `next dev`
  * or a custom non-"production" NODE_ENV is not blocked.
+ *
+ * Serving in production (either backend) also needs the rate-limit settings
+ * (review M1): SPELLBRANCH_RATE_LIMIT_SECRET and SPELLBRANCH_CLIENT_IP_HEADER.
  */
 
 export type Backend = "local" | "supabase";
@@ -63,6 +68,7 @@ export function getBackend(env: Env = process.env): Backend {
           "Use SPELLBRANCH_BACKEND=supabase, or set SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION=1 for a single-process demo.",
       );
     }
+    if (isProductionRuntime(env)) assertRateLimitConfig(env);
     return "local";
   }
 
@@ -83,6 +89,7 @@ export function getBackend(env: Env = process.env): Backend {
           "Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
       );
     }
+    if (isProductionRuntime(env)) assertRateLimitConfig(env);
     return "supabase";
   }
 

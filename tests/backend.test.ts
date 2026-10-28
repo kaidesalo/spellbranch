@@ -52,6 +52,12 @@ describe("backend switch", () => {
   });
 });
 
+// Production also needs the M1 rate-limit settings (see the last describe).
+const rateLimit = {
+  SPELLBRANCH_RATE_LIMIT_SECRET: "test-only-rate-limit-secret-0123456789abcdef",
+  SPELLBRANCH_CLIENT_IP_HEADER: "x-real-ip",
+};
+
 describe("L6: production guard for the auth-only Supabase mode", () => {
   const supa = { ...keys, SPELLBRANCH_BACKEND: "supabase" };
 
@@ -66,7 +72,7 @@ describe("L6: production guard for the auth-only Supabase mode", () => {
   });
 
   it("allows production with SPELLBRANCH_ALLOW_HYBRID=1", () => {
-    expect(getBackend({ ...supa, NODE_ENV: "production", SPELLBRANCH_ALLOW_HYBRID: "1" })).toBe(
+    expect(getBackend({ ...supa, ...rateLimit, NODE_ENV: "production", SPELLBRANCH_ALLOW_HYBRID: "1" })).toBe(
       "supabase",
     );
   });
@@ -105,8 +111,8 @@ describe("H1: local mode is refused in production unless explicitly allowed", ()
   });
 
   it("only the exact value 1 (trimmed) opts in", () => {
-    expect(getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toBe("local");
-    expect(getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: " 1 " })).toBe("local");
+    expect(getBackend({ ...rateLimit, NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toBe("local");
+    expect(getBackend({ ...rateLimit, NODE_ENV: "production", [LOCAL_FLAG]: " 1 " })).toBe("local");
     for (const v of ["true", "yes", "0", ""]) {
       expect(() => getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: v })).toThrow(new RegExp(LOCAL_FLAG));
     }
@@ -125,5 +131,35 @@ describe("H1: local mode is refused in production unless explicitly allowed", ()
 
   it("the local flag doesn't unlock Supabase mode in production", () => {
     expect(() => getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toThrow(/SPELLBRANCH_ALLOW_HYBRID/);
+  });
+});
+
+describe("M1: production needs the rate-limit settings", () => {
+  const local = { NODE_ENV: "production", SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION: "1" };
+  const supa = { ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "production", SPELLBRANCH_ALLOW_HYBRID: "1" };
+
+  it.each([
+    ["local", local],
+    ["supabase", supa],
+  ])("%s: throws without SPELLBRANCH_CLIENT_IP_HEADER or the HMAC secret", (_name, base) => {
+    expect(() => getBackend({ ...base, SPELLBRANCH_RATE_LIMIT_SECRET: rateLimit.SPELLBRANCH_RATE_LIMIT_SECRET })).toThrow(
+      /SPELLBRANCH_CLIENT_IP_HEADER/,
+    );
+    expect(() => getBackend({ ...base, SPELLBRANCH_CLIENT_IP_HEADER: "x-real-ip" })).toThrow(
+      /SPELLBRANCH_RATE_LIMIT_SECRET/,
+    );
+    expect(() =>
+      getBackend({ ...base, ...rateLimit, SPELLBRANCH_RATE_LIMIT_SECRET: "short" }),
+    ).toThrow(/at least 32 bytes/);
+    expect(() =>
+      getBackend({ ...base, ...rateLimit, AUTH_SECRET: rateLimit.SPELLBRANCH_RATE_LIMIT_SECRET }),
+    ).toThrow(/different from AUTH_SECRET/);
+    expect(getBackend({ ...base, ...rateLimit })).toBe(_name);
+  });
+
+  it("doesn't block `next build` or development", () => {
+    expect(getBackend({ ...local, NEXT_PHASE: "phase-production-build" })).toBe("local");
+    expect(getBackend({ NODE_ENV: "development" })).toBe("local");
+    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" })).toBe("supabase");
   });
 });
