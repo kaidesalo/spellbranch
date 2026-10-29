@@ -59,6 +59,19 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `SPELLBRANCH_RATE_LIMIT_SECRET` | HMAC key for rate-limit counters: at least 32 bytes, **different from `AUTH_SECRET`** (`openssl rand -base64 32`). **Required in production** (either backend); dev falls back to an insecure dev-only secret with a warning. Rotating it resets every counter, so don't rotate it during an attack |
 | `SPELLBRANCH_CLIENT_IP_HEADER` | The one request header your platform sets to the client IP (see [Client IP header](#client-ip-header)). **Required in production** (either backend). Unset in dev: everything counts as one local client |
 
+**Production-only checks look at `NODE_ENV` alone.** These run only when `NODE_ENV=production`:
+- refusing local mode without `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION`, and Supabase mode without
+  `SPELLBRANCH_ALLOW_HYBRID`;
+- requiring `AUTH_SECRET`, `SPELLBRANCH_RATE_LIMIT_SECRET` and `SPELLBRANCH_CLIENT_IP_HEADER`
+  (no dev-only fallback secrets);
+- never using the `local` client-IP bucket, and `Secure` session cookies.
+
+The local-mode guard and the rate-limit settings check also skip the `next build` step, which
+serves nobody. Any other value, such as a custom `NODE_ENV=staging`, counts as development:
+all of the above is skipped and the insecure dev-only fallback secrets are used. Shared deploys
+must run with `NODE_ENV=production` (`next start` sets it). The Supabase secret-key check is not
+one of these: it runs whenever Supabase mode serves requests, whatever `NODE_ENV` is.
+
 ## Supabase status
 
 | Piece | Status |
@@ -124,7 +137,8 @@ What exists in `supabase/`:
   lookups per 10 minutes, then error `PT429`, which PostgREST returns as HTTP 429). Safe to re-run
 - `migrations/005_username_available_service_role.sql`: `username_available()` becomes
   `service_role` only (anon/authenticated `EXECUTE` revoked, review I2). **Deploy the app version
-  that uses the secret-key client first**, or sign-up's username check fails closed. Safe to re-run
+  that uses the secret-key client first** (see the deploy note in setup step 5), or sign-up's
+  username check fails closed. Safe to re-run
 - `seed.sql`: local-only test data
 - `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`, `tests/length_limits.sql`, `tests/rate_limits.sql`: pgTAP checks for the policies, the security-review fixes (including the `005` grants), the length limits, `restart_friend_request()` and the rate-limit tables/RPC/grants
 - `scripts/rate-limit-concurrency.sh`: 20 parallel sessions × 50 `rate_limit_hit()` calls must
@@ -191,8 +205,17 @@ Schema notes for the data-layer PR:
      Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
    - or by pasting each file into the dashboard *SQL Editor* and running it, in order (`001` to `005`).
 
-   On a project that already runs an older app version, deploy the app (with
-   `SUPABASE_SECRET_KEY` set) before applying `005`.
+   **Deploying the secret-key version to a project that already runs the app** (Cipher N2): the
+   order is `004` applied, then the new app (with `SUPABASE_SECRET_KEY` set), then `005`.
+   Between the app deploy and `005`, the new app calls `username_available` as `service_role`,
+   which only works if the project's default privileges grant it. Before deploying the app, check
+   in the *SQL Editor*:
+   ```sql
+   select has_function_privilege('service_role', 'public.username_available(text)', 'execute');
+   ```
+   If that returns `false`, first run just 005's grant line, which is safe at any time:
+   `grant execute on function public.username_available(text) to service_role;`. Otherwise
+   sign-up's username check fails closed ("Could not create account right now") until `005`.
 6. **Try it** (once all migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
    in `.env.local` and restart `npm run dev`. Accounts and all data now live in the project.
 7. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
@@ -230,11 +253,17 @@ callers never pick numbers or see storage keys, and an ESLint rule plus
   client), so every server instance shares them; in local mode they live in memory, per process. The
   in-memory store sweeps expired counters at most once a minute and holds at most 100,000; past
   that, new keys fail closed ("try again shortly") rather than evicting anyone's count.
-- If Supabase refuses to send a sign-up confirmation email (`over_email_send_rate_limit`), the
-  reply is still "Check your email", the same as for a registered email, so it doesn't reveal which
-  emails exist. A new user may then get no email until custom SMTP (F5) is set up.
-- `npm run test:canary` builds the app with fake canary secrets and fails if any of them reaches
-  the browser bundle (`.next/static`). It needs no network:
+- Supabase Auth's own limits:
+  - If Supabase refuses to send a sign-up confirmation email (`over_email_send_rate_limit`), the
+    reply is still "Check your email", the same as for a registered email, so it doesn't reveal
+    which emails exist. A new user may then get no email until custom SMTP (F5) is set up.
+  - Supabase's per-IP limits (`over_request_rate_limit`, or any other 429) at sign-up and sign-in
+    answer "Something went wrong. Please try again shortly." They are checked before the email is
+    read, so this reveals nothing. All app users share that bucket, because the server makes the
+    calls; the real fix is `Sb-Forwarded-For` (F5).
+- `npm run test:canary` builds the app with fake canary secrets and fails if any of them appears
+  anywhere in the build output (all of `.next`: browser bundle, client reference manifests, server
+  and middleware chunks, build cache). It needs no network:
   `unshare -rn bash -c 'ip link set lo up && npm run test:canary'`.
 
 | Where | Limits (fixed windows) |
