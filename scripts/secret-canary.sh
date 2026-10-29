@@ -1,8 +1,10 @@
 #!/bin/bash
 # Secret canary (review M1/I2, Cipher F4): build the app in Supabase mode with
 # FAKE, random canary values for the server-only secrets, then check that none
-# of them appears anywhere in the browser bundle (.next/static) or in the
-# client reference manifests (what Next ships to the browser for RSC).
+# of them appears anywhere in the build output: all of .next, so the browser
+# bundle (.next/static), the client reference manifests, server and
+# middleware chunks and the build cache (Cipher). The secrets are read from
+# process.env at request time, so they must never be inlined at build time.
 #
 #   npm run test:canary
 #
@@ -61,7 +63,7 @@ fi
 # Self-test: the scan must catch a planted canary, or a pass would mean nothing.
 PLANTED=".next/static/canary-self-test.js"
 echo "/* $SECRET_KEY_CANARY */" >"$PLANTED"
-grep -rqF "$SECRET_KEY_CANARY" .next/static || { rm -f "$PLANTED"; echo "FAIL: scan self-test"; exit 1; }
+grep -rqaF "$SECRET_KEY_CANARY" .next || { rm -f "$PLANTED"; echo "FAIL: scan self-test"; exit 1; }
 rm -f "$PLANTED"
 
 mapfile -t MANIFESTS < <(find .next/server -name '*client-reference-manifest*' -type f)
@@ -69,10 +71,10 @@ mapfile -t MANIFESTS < <(find .next/server -name '*client-reference-manifest*' -
 
 failed=0
 for canary in "$SECRET_KEY_CANARY" "$RATE_LIMIT_CANARY" "sb_secret_canary_"; do
-  if grep -rlF "$canary" .next/static "${MANIFESTS[@]}"; then
-    echo "FAIL: a server-only secret reached .next/static (files above)"
+  if grep -rlaF "$canary" .next; then
+    echo "FAIL: a server-only secret was inlined into the build output (files above)"
     failed=1
   fi
 done
 [ "$failed" = 0 ] || exit 1
-echo "ok: no server-only secret in .next/static ($(find .next/static -type f | wc -l) files) or ${#MANIFESTS[@]} client reference manifests"
+echo "ok: no server-only secret anywhere in .next ($(find .next -type f | wc -l) files, including $(find .next/static -type f | wc -l) in .next/static and ${#MANIFESTS[@]} client reference manifests)"
