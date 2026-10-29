@@ -23,6 +23,7 @@ afterEach(() => {
 
 function supabaseMode() {
   vi.stubEnv("SPELLBRANCH_BACKEND", "supabase");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test_only_fake_0000000000"); // fake
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnop.supabase.co");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_test_only");
   vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");

@@ -122,6 +122,7 @@ describe("checkUsernameAvailable", () => {
 describe("signUpAction with SPELLBRANCH_BACKEND=supabase", () => {
   beforeEach(() => {
     vi.stubEnv("SPELLBRANCH_BACKEND", "supabase");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test_only_fake_0000000000"); // fake
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://unit-test.invalid");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_unit_test");
     vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");

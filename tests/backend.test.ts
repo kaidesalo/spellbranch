@@ -14,6 +14,11 @@ const keys = {
   SPELLBRANCH_SITE_URL: "http://localhost:3847",
 };
 
+// Fake values only; never a real key.
+const FAKE_SECRET_KEY = "sb_secret_test_only_fake_0000000000";
+// Supabase mode needs the secret key in every mode (Cipher Q1).
+const supaKeys = { ...keys, SUPABASE_SECRET_KEY: FAKE_SECRET_KEY };
+
 describe("backend switch", () => {
   it("defaults to local with no env", () => {
     expect(getBackend({})).toBe("local");
@@ -29,8 +34,8 @@ describe("backend switch", () => {
   });
 
   it("uses supabase only with the flag AND real keys", () => {
-    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase" })).toBe("supabase");
-    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: " Supabase " })).toBe("supabase");
+    expect(getBackend({ ...supaKeys, SPELLBRANCH_BACKEND: "supabase" })).toBe("supabase");
+    expect(getBackend({ ...supaKeys, SPELLBRANCH_BACKEND: " Supabase " })).toBe("supabase");
   });
 
   it("throws when supabase is requested without keys", () => {
@@ -53,9 +58,6 @@ describe("backend switch", () => {
   });
 });
 
-// Fake values only; never a real key.
-const FAKE_SECRET_KEY = "sb_secret_test_only_fake_0000000000";
-
 // Production also needs the M1 rate-limit settings (see the last describe).
 const rateLimit = {
   SPELLBRANCH_RATE_LIMIT_SECRET: "test-only-rate-limit-secret-0123456789abcdef",
@@ -63,7 +65,7 @@ const rateLimit = {
 };
 
 describe("L6: production guard for the auth-only Supabase mode", () => {
-  const supa = { ...keys, SPELLBRANCH_BACKEND: "supabase" };
+  const supa = { ...supaKeys, SPELLBRANCH_BACKEND: "supabase" };
 
   it("throws in production without SPELLBRANCH_ALLOW_HYBRID", () => {
     expect(() => getBackend({ ...supa, NODE_ENV: "production" })).toThrow(/SPELLBRANCH_ALLOW_HYBRID/);
@@ -170,7 +172,7 @@ describe("M1: production needs the rate-limit settings", () => {
   it("doesn't block `next build` or development", () => {
     expect(getBackend({ ...local, NEXT_PHASE: "phase-production-build" })).toBe("local");
     expect(getBackend({ NODE_ENV: "development" })).toBe("local");
-    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" })).toBe("supabase");
+    expect(getBackend({ ...supaKeys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" })).toBe("supabase");
   });
 });
 
@@ -203,9 +205,21 @@ describe("M1/I2: the Supabase secret key", () => {
     expect(message).not.toContain(fakeJwt);
   });
 
-  it("isn't needed for local mode, dev or next build", () => {
+  it("is required in Supabase mode in dev too, with the same checks (Cipher Q1)", () => {
+    const devSupa = { ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" };
+    expect(getBackend({ ...devSupa, SUPABASE_SECRET_KEY: FAKE_SECRET_KEY })).toBe("supabase");
+    expect(() => getBackend(devSupa)).toThrow(/SUPABASE_SECRET_KEY is not set.*dev included/);
+    expect(() => getBackend({ ...devSupa, NODE_ENV: undefined })).toThrow(/not set/);
+    expect(() => getBackend({ ...devSupa, NODE_ENV: "test" })).toThrow(/not set/);
+    expect(() => getBackend({ ...devSupa, SUPABASE_SECRET_KEY: "eyJhbGciOiJIUzI1NiJ9.fake.fake" })).toThrow(/legacy/);
+    expect(() => getBackend({ ...devSupa, SUPABASE_SECRET_KEY: "sb_secret_your-secret-key" })).toThrow(/placeholder/);
+  });
+
+  it("isn't needed for local mode (any NODE_ENV) or `next build`", () => {
+    expect(getBackend({})).toBe("local");
+    expect(getBackend({ ...keys, NODE_ENV: "development" })).toBe("local");
+    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "local" })).toBe("local");
     expect(getBackend({ ...rateLimit, NODE_ENV: "production", SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION: "1" })).toBe("local");
-    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" })).toBe("supabase");
     expect(getBackend({ ...prodSupa, NEXT_PHASE: "phase-production-build" })).toBe("supabase");
   });
 

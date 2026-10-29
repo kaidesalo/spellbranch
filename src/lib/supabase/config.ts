@@ -28,8 +28,8 @@ import { assertRateLimitConfig } from "@/lib/rate-limit/config";
  *
  * Serving in production (either backend) also needs the rate-limit settings
  * (review M1): SPELLBRANCH_RATE_LIMIT_SECRET and SPELLBRANCH_CLIENT_IP_HEADER.
- * Supabase mode in production also needs SUPABASE_SECRET_KEY (an
- * `sb_secret_...` key, used only by src/lib/supabase/service.ts).
+ * Supabase mode, in dev too, needs SUPABASE_SECRET_KEY (an `sb_secret_...`
+ * key, used only by src/lib/supabase/service.ts); local mode never does.
  */
 
 export type Backend = "local" | "supabase";
@@ -122,11 +122,14 @@ export function getBackend(env: Env = process.env): Backend {
           "Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
       );
     }
-    if (isProductionRuntime(env)) {
-      assertRateLimitConfig(env);
+    // The secret key is needed whenever Supabase mode serves requests, dev
+    // included (Cipher Q1): without it sign-in and sign-up only fail closed,
+    // which is confusing. `next build` serves nobody, so it doesn't need it.
+    if (env.NEXT_PHASE !== "phase-production-build") {
       const problem = secretKeyProblem(env.SUPABASE_SECRET_KEY);
-      if (problem) throw new Error(`${problem} It is required in production with SPELLBRANCH_BACKEND=supabase.`);
+      if (problem) throw new Error(`${problem} It is required with SPELLBRANCH_BACKEND=supabase (dev included).`);
     }
+    if (isProductionRuntime(env)) assertRateLimitConfig(env);
     return "supabase";
   }
 

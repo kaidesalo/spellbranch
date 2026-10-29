@@ -15,6 +15,7 @@ const SUPABASE_ENV = {
   NEXT_PUBLIC_SUPABASE_URL: "https://example-project.supabase.co",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_test",
   SPELLBRANCH_SITE_URL: "http://localhost:3847",
+  SUPABASE_SECRET_KEY: "sb_secret_test_only_fake_0000000000", // fake
 };
 
 afterEach(() => {
