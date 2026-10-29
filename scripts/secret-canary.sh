@@ -1,7 +1,8 @@
 #!/bin/bash
 # Secret canary (review M1/I2, Cipher F4): build the app in Supabase mode with
 # FAKE, random canary values for the server-only secrets, then check that none
-# of them appears anywhere in the browser bundle (.next/static).
+# of them appears anywhere in the browser bundle (.next/static) or in the
+# client reference manifests (what Next ships to the browser for RSC).
 #
 #   npm run test:canary
 #
@@ -63,12 +64,15 @@ echo "/* $SECRET_KEY_CANARY */" >"$PLANTED"
 grep -rqF "$SECRET_KEY_CANARY" .next/static || { rm -f "$PLANTED"; echo "FAIL: scan self-test"; exit 1; }
 rm -f "$PLANTED"
 
+mapfile -t MANIFESTS < <(find .next/server -name '*client-reference-manifest*' -type f)
+[ "${#MANIFESTS[@]}" -gt 0 ] || { echo "FAIL: no client reference manifests found"; exit 1; }
+
 failed=0
 for canary in "$SECRET_KEY_CANARY" "$RATE_LIMIT_CANARY" "sb_secret_canary_"; do
-  if grep -rlF "$canary" .next/static; then
+  if grep -rlF "$canary" .next/static "${MANIFESTS[@]}"; then
     echo "FAIL: a server-only secret reached .next/static (files above)"
     failed=1
   fi
 done
 [ "$failed" = 0 ] || exit 1
-echo "ok: no server-only secret in .next/static ($(find .next/static -type f | wc -l) files checked)"
+echo "ok: no server-only secret in .next/static ($(find .next/static -type f | wc -l) files) or ${#MANIFESTS[@]} client reference manifests"
