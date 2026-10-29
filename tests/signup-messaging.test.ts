@@ -7,7 +7,7 @@ import { MemoryStore } from "@/lib/rate-limit/memory-store";
 
 type SignUpResult = {
   data: { session: unknown; user: unknown };
-  error: { code?: string; message: string } | null;
+  error: { code?: string; message: string; status?: number } | null;
 };
 
 let signUpResult: SignUpResult;
@@ -91,6 +91,19 @@ describe("Supabase sign-up messaging (L2)", () => {
       expect(JSON.stringify(dup)).not.toMatch(/already|exists|registered/i);
     },
   );
+
+  it.each([
+    ["over_email_send_rate_limit", { code: "over_email_send_rate_limit", message: "email rate limit exceeded", status: 429 }],
+    ["any other 429", { message: "Too many requests", status: 429 }],
+  ])("Supabase's email-send limit (%s) looks like a successful sign-up (Cipher R2)", async (_label, error) => {
+    // Registered (confirmed) email: GoTrue sends nothing and answers 200.
+    const registered = await signUpWith({ data: { session: null, user: { id: "fake" } }, error: null });
+    // New email while the sender is rate limited: GoTrue errors.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fresh = await signUpWith({ data: { session: null, user: null }, error });
+    expect(fresh).toEqual(registered);
+    expect(JSON.stringify(fresh)).not.toMatch(/rate|limit|could not/i);
+  });
 
   it("rejects passwords under 8 characters before calling Supabase (L4)", async () => {
     const { signUpAction } = await import("@/lib/actions/auth");

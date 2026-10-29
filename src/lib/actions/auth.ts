@@ -294,6 +294,14 @@ async function supabaseSignUp(input: {
       // sign-up so the response doesn't reveal that the email is registered.
       return { ...SIGN_UP_CHECK_EMAIL };
     }
+    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+      // Supabase refused to send the confirmation email (Cipher R2). That only
+      // happens for a NEW email (a registered one gets no email and no error),
+      // so a distinct reply would reveal which emails have accounts. Answer
+      // like a fresh sign-up; the real fix is custom SMTP (review F5).
+      console.error("[spellbranch] sign-up email not sent:", error.code ?? "429");
+      return { ...SIGN_UP_CHECK_EMAIL };
+    }
     if (error.code === "weak_password") {
       return { error: error.message || "Password is too weak" };
     }
