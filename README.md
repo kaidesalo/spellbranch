@@ -52,7 +52,7 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `SPELLBRANCH_BACKEND` | `local` (default) or `supabase`. Keys alone never switch the backend. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
+| `SUPABASE_SECRET_KEY` | Server-only Supabase **secret key** (`sb_secret_…`; legacy `eyJ…` service_role JWTs are refused). **Required in production with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it). Used only by `src/lib/supabase/service.ts` for two RPCs: `rate_limit_hit()` (shared rate-limit counters) and `username_available()` (sign-up username check). Never `NEXT_PUBLIC_`: the app refuses to start if any `NEXT_PUBLIC_*` value contains `sb_secret_`. In dev without it, sign-in/sign-up in Supabase mode fail closed ("Something went wrong") |
 | `SPELLBRANCH_SITE_URL` | The app's public origin, e.g. `http://localhost:3847`. **Required with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it): sign-up confirmation emails redirect to `<site>/auth/confirm`, and the confirm POST checks `Origin` against it. Optional in local mode |
 | `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION` | Set to `1` to let a **production** build run on the local JSON store (single-process demos only). Without it, production refuses local mode. Not for shared deploys |
 | `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase`. Without it, production refuses to run in that mode until auth rate limiting (review M1) is done and the data layer has been tested on a live project. The name is historical (it dates from the auth-only hybrid). Not for shared deploys |
@@ -66,7 +66,7 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | Schema, RLS, seed, pgTAP checks (`supabase/`) | Done |
 | Auth: sign-up/in/out, session refresh (`src/proxy.ts`), `/auth/confirm`, profile edit | Done, behind `SPELLBRANCH_BACKEND=supabase` |
 | Data: decks, cards, forks, compare, friends, favorites, comments (`src/lib/data`) | Done, behind `SPELLBRANCH_BACKEND=supabase`. Unit-tested with a mocked client and against PostgREST on local Postgres; **not yet tested against a live project** |
-| Auth rate limiting (review M1) | **Open**: blocks real users. App-side limits are in (see [Rate limiting](#rate-limiting)), but counters are still per process until the secret-key commit lands, and Supabase Auth's own limits/SMTP are still to do |
+| Auth rate limiting (review M1) | **Open**: blocks real users. App-side limits are in, with shared counters in Postgres (see [Rate limiting](#rate-limiting)); Supabase Auth's own limits and custom SMTP are still to do |
 
 In Supabase mode everything (accounts, sessions, decks, friends, favorites, comments) lives in
 Supabase and is protected by RLS; `.data/store.json` isn't used. Leave `SPELLBRANCH_BACKEND`
@@ -87,7 +87,10 @@ How data access works (`src/lib/data`):
   UUIDs, text has the length limits in `src/lib/data/limits.ts`, which `003_length_limits.sql`
   also enforces in the database.
 - `supabase.ts`: the request-scoped server client (the user's own session, or anon when signed
-  out); RLS decides what is visible. No service-role key anywhere. Other users' names come from
+  out); RLS decides what is visible. Data access never uses the secret key. The one exception
+  is `src/lib/supabase/service.ts` (server-only, no session, never `.auth`), which exports just
+  `rateLimitHit()` and `usernameAvailable()` for the limiter and the sign-up username check; ESLint
+  and `tests/rate-limit-boundary.test.ts` allow no other importer. Other users' names come from
   `public_profiles`; the signed-in user's email only from the session. Forks use
   `rpc('fork_deck')`, friend search `rpc('find_profile')`. Decks are inserted without
   `preferred_branch_id` (the database refuses it on insert); a preferred branch is set by a later
@@ -116,12 +119,14 @@ What exists in `supabase/`:
   back in one transaction. Safe to re-run
 - `migrations/004_rate_limits.sql`: rate-limit counters (review M1/I2). `private.rate_limits`
   (fixed windows on the database clock, rows older than 2 hours are cleaned up), the
-  `rate_limit_hit()` RPC (security definer, `service_role` only; the app doesn't call it yet,
-  see [Rate limiting](#rate-limiting)), and a per-user backstop inside `find_profile()` (60 lookups
-  per 10 minutes, then error `PT429`, which PostgREST returns as HTTP 429). `username_available`
-  grants are unchanged for now. Safe to re-run
+  `rate_limit_hit()` RPC (security definer, `service_role` only; called through the secret-key
+  client, see [Rate limiting](#rate-limiting)), and a per-user backstop inside `find_profile()` (60
+  lookups per 10 minutes, then error `PT429`, which PostgREST returns as HTTP 429). Safe to re-run
+- `migrations/005_username_available_service_role.sql`: `username_available()` becomes
+  `service_role` only (anon/authenticated `EXECUTE` revoked, review I2). **Deploy the app version
+  that uses the secret-key client first**, or sign-up's username check fails closed. Safe to re-run
 - `seed.sql`: local-only test data
-- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`, `tests/length_limits.sql`, `tests/rate_limits.sql`: pgTAP checks for the policies, the security-review fixes, the length limits, `restart_friend_request()` and the rate-limit tables/RPC/grants
+- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`, `tests/length_limits.sql`, `tests/rate_limits.sql`: pgTAP checks for the policies, the security-review fixes (including the `005` grants), the length limits, `restart_friend_request()` and the rate-limit tables/RPC/grants
 - `scripts/rate-limit-concurrency.sh`: 20 parallel sessions × 50 `rate_limit_hit()` calls must
   count exactly 1000. Local databases only (defaults to the Docker stack)
 
@@ -132,12 +137,10 @@ Schema notes for the data-layer PR:
   with, and owners/authors of decks and comments they can see. To find someone new, call
   `rpc('find_profile', { username })`: an exact, case-insensitive username match (no partial or display-name search)
   that returns at most one `{ id, username, display_name, avatar_url }`. Sign-up can check a name with
-  `rpc('username_available', { candidate })` (anon or signed in; returns `false` for taken or invalid names).
-  This lets anon check one exact name per request, a cheaper oracle than the old sign-up flow (which just
-  suffixed taken names). The app's sign-up now rate limits the check (20 per 10 minutes per IP), but the
-  RPC itself is still anon-callable, so someone calling PostgREST directly bypasses that. Follow-up (the
-  pending secret-key commit): call it with the server-only secret-key client and revoke anon/authenticated
-  `EXECUTE`. Usernames are public by design (profiles show them), so this limits bulk probing; it doesn't
+  `rpc('username_available', { candidate })` (returns `false` for taken or invalid names). Since `005` only
+  `service_role` may call it: the app calls it server-side through the secret-key client, after the
+  sign-up rate limit (20 per 10 minutes per IP), so nobody can skip the limit by calling PostgREST
+  directly. Usernames are public by design (profiles show them), so this limits bulk probing; it doesn't
   make usernames secret.
 - Friend requests: only the addressee can change `status` (`accepted` / `declined`). The requester can delete
   the row only while it's `pending` (cancel) or `accepted` (unfriend); a `declined` row stays, which blocks
@@ -154,8 +157,9 @@ Schema notes for the data-layer PR:
 
 1. **Create a project** at [supabase.com/dashboard](https://supabase.com/dashboard) (a free dev project is fine).
 2. **Copy the keys** from *Project Settings → API keys*: the project URL, the publishable
-   (or legacy anon) key, and, only if you need admin scripts, the secret / service-role key.
-   Put them in `.env.local` under the variable names above.
+   (or legacy anon) key, and a **secret key** (`sb_secret_…`, under *Secret keys*; not the
+   legacy `service_role` JWT). Put them in `.env.local` under the variable names above; the
+   secret key goes in `SUPABASE_SECRET_KEY` only, never in a `NEXT_PUBLIC_` variable.
 3. **Configure auth URLs** in *Authentication → URL Configuration*:
    - Site URL: `http://localhost:3847`
    - Redirect URLs: `http://localhost:3847/auth/confirm`
@@ -177,7 +181,7 @@ Schema notes for the data-layer PR:
    - **Secure password change** on (re-authentication required to change a password).
    - **Leaked password protection** on (HaveIBeenPwned check; Kaide: turn this on in the
      dashboard; Supabase offers it on the Pro plan and above, and it can't be set from the repo).
-5. **Apply the migrations in order** (`001_initial.sql`, `002_rls_fixes.sql`, `003_length_limits.sql`, then `004_rate_limits.sql`), either:
+5. **Apply the migrations in order** (`001_initial.sql`, `002_rls_fixes.sql`, `003_length_limits.sql`, `004_rate_limits.sql`, then `005_username_available_service_role.sql`), either:
    - with the CLI (no global install needed):
      ```bash
      npx supabase login
@@ -185,7 +189,10 @@ Schema notes for the data-layer PR:
      npx supabase db push
      ```
      Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
-   - or by pasting each file into the dashboard *SQL Editor* and running it, in order (`001` to `004`).
+   - or by pasting each file into the dashboard *SQL Editor* and running it, in order (`001` to `005`).
+
+   On a project that already runs an older app version, deploy the app (with
+   `SUPABASE_SECRET_KEY` set) before applying `005`.
 6. **Try it** (once all migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
    in `.env.local` and restart `npm run dev`. Accounts and all data now live in the project.
 7. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
@@ -218,6 +225,12 @@ friends-only and private decks, a fork, comments and favorites.
 Review M1/I2. Every check goes through `limit(policy, ids)` in `src/lib/rate-limit` (server-only);
 callers never pick numbers or see storage keys, and an ESLint rule plus
 `tests/rate-limit-boundary.test.ts` keep the stores and keys private to that folder.
+
+- Counters: in Supabase mode they live in Postgres (`rate_limit_hit()` through the secret-key
+  client), so every server instance shares them; in local mode they live in memory, per process.
+- `npm run test:canary` builds the app with fake canary secrets and fails if any of them reaches
+  the browser bundle (`.next/static`). It needs no network:
+  `unshare -rn bash -c 'ip link set lo up && npm run test:canary'`.
 
 | Where | Limits (fixed windows) |
 | --- | --- |
@@ -263,11 +276,13 @@ going live.
 | --- | --- |
 | Limiter, policies, HMAC keys, client IP, fail-closed checks; wired into sign-in, sign-up, the username check, `/auth/confirm` and friend search | Done |
 | `004_rate_limits.sql` (shared counters RPC, `find_profile` backstop) + pgTAP + concurrency script | Done, tested on local Postgres only |
-| Shared counters across instances (`PostgresStore` → `rate_limit_hit()`) | **Pending** the secret-key commit; until then counters live in each server process |
-| `username_available` via the secret-key client, anon/authenticated `EXECUTE` revoked (I2) | **Pending** the secret-key commit |
+| Server-only secret-key client (`src/lib/supabase/service.ts`), `sb_secret_` startup check, ESLint fence, bundle canary | Done |
+| Shared counters across instances (`PostgresStore` → `rate_limit_hit()`) | Done in Supabase mode; unit-tested with a mocked client, RPC tested on local Postgres only |
+| `username_available` via the secret-key client, anon/authenticated `EXECUTE` revoked (`005`, I2) | Done, tested on local Postgres only |
 | Supabase Auth's own limits (all app users share the server's IP there) and custom SMTP (the built-in sender allows only about 2 emails/hour) | **Open** follow-ups |
 
-M1 is **not** done: production in Supabase mode stays behind `SPELLBRANCH_ALLOW_HYBRID=1`.
+M1 is **not** done: Supabase Auth's own limits and SMTP are still open, and nothing has run against
+a live project yet, so production in Supabase mode stays behind `SPELLBRANCH_ALLOW_HYBRID=1`.
 
 ## Security headers
 
