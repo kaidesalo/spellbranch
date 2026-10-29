@@ -22,7 +22,10 @@ const files = walk(srcDir).map((file) => ({
   text: readFileSync(file, "utf8"),
 }));
 const useServerFiles = files.filter(({ text }) => /^\s*["']use server["'];?/.test(text));
-const INTERNALS = /from\s+["']@\/lib\/(rate-limit\/(store|memory-store|postgres-store|keys)|supabase\/service)["']/;
+const INTERNALS = /from\s+["']@\/lib\/rate-limit\/(store|memory-store|postgres-store|keys)["']/;
+const SERVICE = /from\s+["']@\/lib\/supabase\/service["']/;
+// The only modules allowed to use the secret-key client (Cipher F4).
+const SERVICE_IMPORTERS = ["lib/rate-limit/index.ts", "lib/supabase/username.ts"].map((f) => path.normalize(f));
 
 describe("rate-limit boundary", () => {
   it("only src/lib/rate-limit imports the stores and keys", () => {
@@ -31,6 +34,11 @@ describe("rate-limit boundary", () => {
       .filter(({ text }) => INTERNALS.test(text))
       .map(({ rel }) => rel);
     expect(offenders).toEqual([]);
+  });
+
+  it("only the limiter and the username check import the secret-key client", () => {
+    const importers = files.filter(({ text }) => SERVICE.test(text)).map(({ rel }) => rel).sort();
+    expect(importers).toEqual([...SERVICE_IMPORTERS].sort());
   });
 
   it.each(useServerFiles.map(({ rel, text }) => [rel, text]))(

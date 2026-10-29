@@ -262,11 +262,11 @@ async function supabaseSignUp(input: {
 }): Promise<AuthResult | "signed-in"> {
   const supabase = await createSupabaseServerClient();
 
-  // Friendly pre-check via the username_available RPC (anon-callable for
-  // now; the secret-key commit moves it to service_role). If it
+  // Friendly pre-check via the username_available RPC (service_role only,
+  // called through the server-only secret-key client). If it
   // can't be verified we stop rather than assume "available"; the unique
   // index in the database still settles two sign-ups racing for one name.
-  const availability = await checkUsernameAvailable(supabase, input.username);
+  const availability = await checkUsernameAvailable(input.username);
   if (availability === "error") {
     return { error: "Could not create account right now. Please try again." };
   }

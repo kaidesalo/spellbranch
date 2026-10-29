@@ -5,12 +5,17 @@ import { checkUsernameAvailable } from "@/lib/supabase/username";
 
 // --- Mocks for signUpAction (no network, no hosted project) ---------------
 
-const rpc = vi.fn();
+const rpc = vi.fn(); // the secret-key client's username_available RPC
+const cookieRpc = vi.fn(); // the user's cookie client: must not be used for the check
 const signUp = vi.fn();
 const from = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({ rpc, from, auth: { signUp } })),
+  createClient: vi.fn(async () => ({ rpc: cookieRpc, from, auth: { signUp } })),
+}));
+vi.mock("@/lib/supabase/service", () => ({
+  usernameAvailable: (candidate: string) => rpc("username_available", { candidate }),
+  rateLimitHit: vi.fn(),
 }));
 
 // Server actions read the client IP from the request headers (review M1).
@@ -48,6 +53,7 @@ let errorSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   setRateLimitStoreForTests(new MemoryStore()); // fresh in-memory counters
   rpc.mockReset();
+  cookieRpc.mockReset();
   signUp.mockReset();
   from.mockReset();
   updateStore.mockReset();
@@ -64,40 +70,40 @@ afterEach(() => {
 describe("checkUsernameAvailable", () => {
   it("calls the username_available RPC with { candidate }", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
-    await checkUsernameAvailable({ rpc }, "Felix_1");
+    await checkUsernameAvailable("Felix_1");
     expect(rpc).toHaveBeenCalledWith("username_available", { candidate: "Felix_1" });
   });
 
   it("returns available when the RPC returns true", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
-    expect(await checkUsernameAvailable({ rpc }, "felix")).toBe("available");
+    expect(await checkUsernameAvailable("felix")).toBe("available");
   });
 
   it("returns taken when the RPC returns false", async () => {
     rpc.mockResolvedValue({ data: false, error: null });
-    expect(await checkUsernameAvailable({ rpc }, "felix")).toBe("taken");
+    expect(await checkUsernameAvailable("felix")).toBe("taken");
   });
 
   it("returns error (never available) when the RPC returns an error", async () => {
     rpc.mockResolvedValue({ data: null, error: { message: "function does not exist" } });
-    expect(await checkUsernameAvailable({ rpc }, "felix")).toBe("error");
+    expect(await checkUsernameAvailable("felix")).toBe("error");
   });
 
   it("returns error (never available) when the RPC returns error alongside data", async () => {
     rpc.mockResolvedValue({ data: true, error: { message: "boom" } });
-    expect(await checkUsernameAvailable({ rpc }, "felix")).toBe("error");
+    expect(await checkUsernameAvailable("felix")).toBe("error");
   });
 
   it("returns error when the RPC throws", async () => {
     rpc.mockRejectedValue(new Error("fetch failed"));
-    expect(await checkUsernameAvailable({ rpc }, "felix")).toBe("error");
+    expect(await checkUsernameAvailable("felix")).toBe("error");
   });
 
   it.each([[null], [undefined], ["true"], [1], [[{ id: "x" }]]])(
     "returns error for a non-boolean payload %j",
     async (data) => {
       rpc.mockResolvedValue({ data, error: null });
-      expect(await checkUsernameAvailable({ rpc }, "felix")).toBe("error");
+      expect(await checkUsernameAvailable("felix")).toBe("error");
     },
   );
 });
@@ -112,11 +118,12 @@ describe("signUpAction with SPELLBRANCH_BACKEND=supabase", () => {
     vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");
   });
 
-  it("uses the RPC, not a public_profiles lookup", async () => {
+  it("uses the RPC through the secret-key client, not the cookie client or public_profiles", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
     signUp.mockResolvedValue({ data: { session: null }, error: null });
     await signUpAction(form("Felix_1"));
     expect(rpc).toHaveBeenCalledWith("username_available", { candidate: "Felix_1" });
+    expect(cookieRpc).not.toHaveBeenCalled();
     expect(from).not.toHaveBeenCalled();
   });
 

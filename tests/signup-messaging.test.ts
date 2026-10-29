@@ -15,10 +15,14 @@ const signUp = vi.fn(async () => signUpResult);
 const signInWithPassword = vi.fn(async () => ({ data: {}, error: { code: "invalid_credentials", message: "x" } }));
 
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    rpc: async () => ({ data: true, error: null }),
-    auth: { signUp, signInWithPassword },
-  }),
+  createClient: async () => ({ auth: { signUp, signInWithPassword } }),
+}));
+// The username check goes through the secret-key client (I2).
+vi.mock("@/lib/supabase/service", () => ({
+  usernameAvailable: async () => ({ data: true, error: null }),
+  rateLimitHit: async () => {
+    throw new Error("tests use an in-memory store");
+  },
 }));
 // Server actions read the client IP from the request headers (review M1).
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));

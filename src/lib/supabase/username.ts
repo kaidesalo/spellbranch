@@ -1,10 +1,17 @@
+import "server-only";
+
+import { usernameAvailable } from "@/lib/supabase/service";
+
 /**
  * Sign-up username check for the Supabase backend.
  *
  * Calls the `username_available(candidate text) returns boolean` RPC from
- * migration 002. It is SECURITY DEFINER and granted to anon, so it is
- * authoritative even before the visitor has an account, and it only ever
- * returns a boolean (exact, case-insensitive match; invalid names -> false).
+ * migration 002 through the server-only secret-key client: since migration
+ * 005 only service_role may call it (review I2), so the app's per-IP limit on
+ * the check can't be bypassed by calling PostgREST directly. It is SECURITY
+ * DEFINER, so it is authoritative even before the visitor has an account,
+ * and it only ever returns a boolean (exact, case-insensitive match; invalid
+ * names -> false).
  *
  * This is a pre-check for a friendly error message, not the guarantee: two
  * sign-ups racing for the same name can both see "available". The
@@ -18,20 +25,9 @@
 
 export type UsernameAvailability = "available" | "taken" | "error";
 
-/** Minimal slice of SupabaseClient used here (keeps tests easy to mock). */
-export type UsernameRpcClient = {
-  rpc: (
-    fn: "username_available",
-    args: { candidate: string },
-  ) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
-};
-
-export async function checkUsernameAvailable(
-  client: UsernameRpcClient,
-  candidate: string,
-): Promise<UsernameAvailability> {
+export async function checkUsernameAvailable(candidate: string): Promise<UsernameAvailability> {
   try {
-    const { data, error } = await client.rpc("username_available", { candidate });
+    const { data, error } = await usernameAvailable(candidate);
     if (error) {
       console.error(
         "[spellbranch] username availability check failed:",

@@ -24,9 +24,15 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
-    rpc: mocks.rpc,
     auth: { signUp: mocks.signUp, signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
   }),
+}));
+// The username check goes through the secret-key client (I2).
+vi.mock("@/lib/supabase/service", () => ({
+  usernameAvailable: (candidate: string) => mocks.rpc("username_available", { candidate }),
+  rateLimitHit: async () => {
+    throw new Error("tests use an in-memory store");
+  },
 }));
 vi.mock("@/lib/data/store", () => ({
   readStore: async () => ({ users: [], decks: [] }),
