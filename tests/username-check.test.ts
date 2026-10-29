@@ -74,6 +74,15 @@ describe("checkUsernameAvailable", () => {
     expect(rpc).toHaveBeenCalledWith("username_available", { candidate: "Felix_1" });
   });
 
+  it.each([["a"], ["has space"], ["x".repeat(100)], ["semi;colon"], [""]])(
+    "re-checks the format and never calls the RPC for %j",
+    async (bad) => {
+      rpc.mockClear();
+      expect(await checkUsernameAvailable(bad)).toBe("taken");
+      expect(rpc).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns available when the RPC returns true", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
     expect(await checkUsernameAvailable("felix")).toBe("available");

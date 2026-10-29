@@ -1,5 +1,6 @@
 import "server-only";
 
+import { USERNAME_RE } from "@/lib/data/validation";
 import { usernameAvailable } from "@/lib/supabase/service";
 
 /**
@@ -26,6 +27,9 @@ import { usernameAvailable } from "@/lib/supabase/service";
 export type UsernameAvailability = "available" | "taken" | "error";
 
 export async function checkUsernameAvailable(candidate: string): Promise<UsernameAvailability> {
+  // Re-check the format here, before the secret-key client is involved (it
+  // skips RLS). Invalid names are "taken", like the RPC's own `false`.
+  if (typeof candidate !== "string" || !USERNAME_RE.test(candidate)) return "taken";
   try {
     const { data, error } = await usernameAvailable(candidate);
     if (error) {
