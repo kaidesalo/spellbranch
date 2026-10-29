@@ -227,7 +227,12 @@ callers never pick numbers or see storage keys, and an ESLint rule plus
 `tests/rate-limit-boundary.test.ts` keep the stores and keys private to that folder.
 
 - Counters: in Supabase mode they live in Postgres (`rate_limit_hit()` through the secret-key
-  client), so every server instance shares them; in local mode they live in memory, per process.
+  client), so every server instance shares them; in local mode they live in memory, per process. The
+  in-memory store sweeps expired counters at most once a minute and holds at most 100,000; past
+  that, new keys fail closed ("try again shortly") rather than evicting anyone's count.
+- If Supabase refuses to send a sign-up confirmation email (`over_email_send_rate_limit`), the
+  reply is still "Check your email", the same as for a registered email, so it doesn't reveal which
+  emails exist. A new user may then get no email until custom SMTP (F5) is set up.
 - `npm run test:canary` builds the app with fake canary secrets and fails if any of them reaches
   the browser bundle (`.next/static`). It needs no network:
   `unshare -rn bash -c 'ip link set lo up && npm run test:canary'`.
