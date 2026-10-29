@@ -165,6 +165,14 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
       if (error.code === "email_not_confirmed") {
         return { error: "Please confirm your email address first (check your inbox)." };
       }
+      if (error.status === 429) {
+        // GoTrue's own per-IP /token limit (over_request_rate_limit), shared
+        // by every user because our server makes the call. It doesn't depend
+        // on the account, so "try again" leaks nothing, and "wrong password"
+        // would mislead everyone (Cipher R4/N4).
+        console.error("[spellbranch] sign-in rate limited by Supabase:", error.code ?? "429");
+        return { error: RATE_LIMIT_UNAVAILABLE_MESSAGE };
+      }
       return { error: "Invalid email or password" };
     }
     redirect("/dashboard");

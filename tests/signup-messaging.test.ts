@@ -12,7 +12,10 @@ type SignUpResult = {
 
 let signUpResult: SignUpResult;
 const signUp = vi.fn(async () => signUpResult);
-const signInWithPassword = vi.fn(async () => ({ data: {}, error: { code: "invalid_credentials", message: "x" } }));
+type SignInResult = { data: unknown; error: { code?: string; message: string; status?: number } | null };
+const signInWithPassword = vi.fn(
+  async (): Promise<SignInResult> => ({ data: {}, error: { code: "invalid_credentials", message: "x" } }),
+);
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { signUp, signInWithPassword } }),
@@ -129,5 +132,16 @@ describe("Supabase sign-up messaging (L2)", () => {
     const res = await signInAction(form({ email: valid.email, password: "123456" }));
     expect(res).toEqual({ error: "Invalid email or password" });
     expect(signInWithPassword).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["over_request_rate_limit", { code: "over_request_rate_limit", message: "Request rate limit reached", status: 429 }],
+    ["a bare 429", { message: "Too many requests", status: 429 }],
+  ])("sign-in: Supabase's own limit (%s) says try again, not 'Invalid email or password' (Cipher N4)", async (_label, error) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    signInWithPassword.mockResolvedValueOnce({ data: {}, error });
+    const { signInAction } = await import("@/lib/actions/auth");
+    const res = await signInAction(form({ email: valid.email, password: "correct-horse-battery" }));
+    expect(res).toEqual({ error: RATE_LIMIT_UNAVAILABLE_MESSAGE });
   });
 });
