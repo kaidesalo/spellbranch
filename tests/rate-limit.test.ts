@@ -37,6 +37,60 @@ describe("MemoryStore", () => {
     await store.hit("a", 1, 60);
     expect((await store.hit("b", 1, 60)).allowed).toBe(true);
   });
+  it("sweeps expired counters at most once a minute (Cipher R3)", async () => {
+    let now = 1_200_000_000_000;
+    const store = new MemoryStore(() => now);
+    for (let i = 0; i < 5; i++) await store.hit(`old-${i}`, 10, 60);
+    expect(store.size).toBe(5);
+
+    now += 59_000; // windows not over yet, and no sweep due
+    await store.hit("new-1", 10, 60);
+    expect(store.size).toBe(6);
+
+    now += 2_000; // 61 s: the old windows have ended and a sweep is due
+    await store.hit("new-2", 10, 60);
+    expect(store.size).toBe(1); // only new-2: new-1 was in the same, now finished, window
+  });
+
+  it("doesn't sweep again within the minute", async () => {
+    let now = 1_200_000_000_000;
+    const store = new MemoryStore(() => now);
+    const sweeps = vi.spyOn(store as unknown as { dropExpired: (n: number) => void }, "dropExpired");
+    now += 60_000;
+    for (let i = 0; i < 100; i++) await store.hit(`k-${i}`, 10, 60);
+    expect(sweeps).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses new keys past the hard cap, so limit() fails closed (Cipher R3)", async () => {
+    const now = 1_200_000_000_000;
+    const store = new MemoryStore(() => now, { maxEntries: 3 });
+    for (let i = 0; i < 3; i++) await store.hit(`k-${i}`, 10, 60);
+    await expect(store.hit("one-too-many", 10, 60)).rejects.toThrow(/full/);
+    // Existing counters keep counting (nobody's count is reset).
+    expect((await store.hit("k-0", 2, 60)).allowed).toBe(true);
+    expect((await store.hit("k-0", 2, 60)).allowed).toBe(false);
+    expect(store.size).toBe(3);
+
+    setRateLimitStoreForTests(store);
+    vi.stubEnv("SPELLBRANCH_RATE_LIMIT_SECRET", SECRET);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await limit("sign-in", { ip: "198.51.100.7", email: "cap@example.test" })).toEqual({
+      ok: false,
+      reason: "unavailable",
+    });
+    setRateLimitStoreForTests();
+    vi.unstubAllEnvs();
+  });
+
+  it("frees room once expired counters are swept", async () => {
+    let now = 1_200_000_000_000;
+    const store = new MemoryStore(() => now, { maxEntries: 2 });
+    await store.hit("a", 10, 60);
+    await store.hit("b", 10, 60);
+    now += 60_000;
+    expect((await store.hit("c", 10, 60)).allowed).toBe(true);
+    expect(store.size).toBe(1);
+  });
 });
 
 describe("keys", () => {
