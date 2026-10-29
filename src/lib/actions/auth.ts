@@ -9,7 +9,7 @@ import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
 import { LIMITS } from "@/lib/data/limits";
 import { isFormData } from "@/lib/actions/schemas";
-import { limit, limitError, requestIp } from "@/lib/rate-limit";
+import { RATE_LIMIT_UNAVAILABLE_MESSAGE, limit, limitError, requestIp } from "@/lib/rate-limit";
 import { getSiteOrigin, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
@@ -294,13 +294,21 @@ async function supabaseSignUp(input: {
       // sign-up so the response doesn't reveal that the email is registered.
       return { ...SIGN_UP_CHECK_EMAIL };
     }
-    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+    if (error.code === "over_email_send_rate_limit") {
       // Supabase refused to send the confirmation email (Cipher R2). That only
       // happens for a NEW email (a registered one gets no email and no error),
       // so a distinct reply would reveal which emails have accounts. Answer
       // like a fresh sign-up; the real fix is custom SMTP (review F5).
-      console.error("[spellbranch] sign-up email not sent:", error.code ?? "429");
+      console.error("[spellbranch] sign-up email not sent:", error.code);
       return { ...SIGN_UP_CHECK_EMAIL };
+    }
+    if (error.status === 429) {
+      // Any other 429 (over_request_rate_limit) is GoTrue's per-IP limit, which
+      // runs before it reads the email and which every user shares (all
+      // traffic comes from our server's IP). Saying "check your email" would
+      // be a lie, and an honest "try again" reveals nothing (Cipher N1).
+      console.error("[spellbranch] sign-up rate limited by Supabase:", error.code ?? "429");
+      return { error: RATE_LIMIT_UNAVAILABLE_MESSAGE };
     }
     if (error.code === "weak_password") {
       return { error: error.message || "Password is too weak" };

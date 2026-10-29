@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setRateLimitStoreForTests } from "@/lib/rate-limit";
+import { RATE_LIMIT_UNAVAILABLE_MESSAGE, setRateLimitStoreForTests } from "@/lib/rate-limit";
 import { MemoryStore } from "@/lib/rate-limit/memory-store";
 
 // L2: a duplicate email must look exactly like a successful sign-up.
@@ -92,17 +92,29 @@ describe("Supabase sign-up messaging (L2)", () => {
     },
   );
 
-  it.each([
-    ["over_email_send_rate_limit", { code: "over_email_send_rate_limit", message: "email rate limit exceeded", status: 429 }],
-    ["any other 429", { message: "Too many requests", status: 429 }],
-  ])("Supabase's email-send limit (%s) looks like a successful sign-up (Cipher R2)", async (_label, error) => {
+  it("Supabase's email-send limit looks like a successful sign-up (Cipher R2)", async () => {
     // Registered (confirmed) email: GoTrue sends nothing and answers 200.
     const registered = await signUpWith({ data: { session: null, user: { id: "fake" } }, error: null });
     // New email while the sender is rate limited: GoTrue errors.
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const fresh = await signUpWith({ data: { session: null, user: null }, error });
+    const fresh = await signUpWith({
+      data: { session: null, user: null },
+      error: { code: "over_email_send_rate_limit", message: "email rate limit exceeded", status: 429 },
+    });
     expect(fresh).toEqual(registered);
     expect(JSON.stringify(fresh)).not.toMatch(/rate|limit|could not/i);
+  });
+
+  it.each([
+    ["over_request_rate_limit", { code: "over_request_rate_limit", message: "Request rate limit reached", status: 429 }],
+    ["a bare 429", { message: "Too many requests", status: 429 }],
+  ])("Supabase's shared per-IP limit (%s) says try again, never 'check your email' (Cipher N1)", async (_label, error) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // GoTrue raises this before reading the email, so registered and new
+    // emails get the same reply.
+    const res = await signUpWith({ data: { session: null, user: null }, error });
+    expect(res).toEqual({ error: RATE_LIMIT_UNAVAILABLE_MESSAGE });
+    expect(JSON.stringify(res)).not.toMatch(/check your email/i);
   });
 
   it("rejects passwords under 8 characters before calling Supabase (L4)", async () => {
