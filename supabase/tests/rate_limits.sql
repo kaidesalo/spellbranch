@@ -1,6 +1,6 @@
 -- Spellbranch: rate-limit counters and the find_profile() backstop
 -- (migration 004; security review M1/I2, Cipher plan review F3/F7/F8).
--- Run with `supabase test db` (or psql on a db with 001-004 applied).
+-- Run with `supabase test db` (or psql on a db with 001-005 applied).
 -- Self-contained; everything is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -23,10 +23,11 @@ select ok(not has_function_privilege(r, 'private.rate_limit_hit_core(text,intege
 select ok(not has_function_privilege('anon', 'public.find_profile(text)', 'EXECUTE')
           and has_function_privilege('authenticated', 'public.find_profile(text)', 'EXECUTE'),
           'find_profile(): authenticated only (anon refused)');
--- Unchanged until the secret-key commit:
-select ok(has_function_privilege('anon', 'public.username_available(text)', 'EXECUTE')
-          and has_function_privilege('authenticated', 'public.username_available(text)', 'EXECUTE'),
-          'username_available(): grants unchanged by 004 (anon + authenticated)');
+-- 005 (I2): username_available() for service_role only, like rate_limit_hit().
+select ok(not has_function_privilege('anon', 'public.username_available(text)', 'EXECUTE')
+          and not has_function_privilege('authenticated', 'public.username_available(text)', 'EXECUTE')
+          and has_function_privilege('service_role', 'public.username_available(text)', 'EXECUTE'),
+          'username_available(): service_role only (005)');
 select ok(not exists (
             select 1 from pg_proc p, unnest(p.proacl) a
             where p.oid in ('public.rate_limit_hit(text,integer,integer)'::regprocedure,

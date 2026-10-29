@@ -4,12 +4,12 @@
 -- review, 2026-10-20) -- credit to Cipher for the original checks. Finding
 -- labels follow the review's numbering (F1-F10).
 --
--- Run with `supabase test db` (or psql on a db with 001 + 002 applied).
+-- Run with `supabase test db` (or psql on a db with 001-005 applied).
 -- Self-contained; everything is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(40);
+select plan(41);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
@@ -51,8 +51,8 @@ select is((select string_agg(attname, ',' order by attnum) from pg_attribute
           || '|' || (select prorettype::regtype::text from pg_proc where oid = 'public.find_profile(text)'::regprocedure),
   'id,username,display_name,avatar_url|public_profiles', 'F5: find_profile() returns only the public columns');
 select is((select count(*) from public.public_profiles where id='c0000000-0000-4000-8000-000000000002'), 0::bigint, 'F5: public_profiles view does not bypass the narrower policy');
-select is(public.username_available('BEN'), false, 'F5: username_available() sees a taken name the caller cannot read (case-insensitive)');
-select is(public.username_available('ben_new'), true, 'F5: username_available() true for a free valid name');
+select throws_ok($$select public.username_available('ben_new')$$,'42501',null,
+  'I2: authenticated cannot call username_available() (005: service_role only)');
 -- cat (pending requester) can still cancel
 set local "request.jwt.claims" = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
 delete from public.friendships where id='c1000000-0000-4000-8000-000000000004';
@@ -117,15 +117,23 @@ set local "request.jwt.claims" = '';
 select ok(not has_table_privilege('anon','public.decks','MAINTAIN'),'F6: MAINTAIN revoked');
 select ok(not has_function_privilege('anon','public.find_profile(text)','EXECUTE')
       and has_function_privilege('authenticated','public.find_profile(text)','EXECUTE'),'F5: find_profile() callable by authenticated only');
-select ok(has_function_privilege('anon','public.username_available(text)','EXECUTE')
-      and has_function_privilege('authenticated','public.username_available(text)','EXECUTE')
+select ok(not has_function_privilege('anon','public.username_available(text)','EXECUTE')
+      and not has_function_privilege('authenticated','public.username_available(text)','EXECUTE')
+      and has_function_privilege('service_role','public.username_available(text)','EXECUTE')
       and (select prorettype = 'boolean'::regtype and prosecdef and proconfig @> array['search_path=""'] from pg_proc where oid = 'public.username_available(text)'::regprocedure),
-  'F5: username_available() is a boolean SECURITY DEFINER with empty search_path, callable by anon + authenticated');
+  'F5/I2: username_available() is a boolean SECURITY DEFINER with empty search_path, callable by service_role only (005)');
 set local role anon;
 set local "request.jwt.claims" = '{"role":"anon"}';
 select throws_ok($$select * from public.find_profile('ann')$$,'42501',null,'F5: anon cannot call find_profile()');
-select is(public.username_available('ANN'), false, 'F5: anon username_available(): taken name -> false');
-select is(public.username_available('fresh_name'), true, 'F5: anon username_available(): free name -> true');
+select throws_ok($$select public.username_available('fresh_name')$$,'42501',null,
+  'I2: anon cannot call username_available() (005: service_role only)');
+reset role;
+-- The app calls it with the secret key (service_role).
+set local role service_role;
+set local "request.jwt.claims" = '{"role":"service_role"}';
+select is(public.username_available('BEN'), false, 'F5: username_available(): taken name -> false (case-insensitive)');
+select is(public.username_available('ANN'), false, 'F5: username_available(): another taken name -> false');
+select is(public.username_available('fresh_name'), true, 'F5: username_available(): free valid name -> true');
 select is(coalesce(public.username_available('a%'),true) or coalesce(public.username_available('ann%'),true)
           or coalesce(public.username_available('no spaces'),true) or coalesce(public.username_available(null),true)
           or coalesce(public.username_available(repeat('x',25)),true), false,
