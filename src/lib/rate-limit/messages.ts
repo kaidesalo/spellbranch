@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * User-facing rate-limit text. Same text for every policy and bucket, so it
  * reveals nothing (Cipher F9). Plain constants with no imports, so the data

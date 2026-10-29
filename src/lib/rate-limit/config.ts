@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Rate-limit settings that production checks before serving (review M1,
  * Cipher F1/F10). Called from getBackend(), next to the other production

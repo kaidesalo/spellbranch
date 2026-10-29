@@ -5,17 +5,14 @@ import nextTs from "eslint-config-next/typescript";
 // Review M1/I2, Cipher F4: callers go through limit() in @/lib/rate-limit, never
 // a store or the HMAC keys, and the secret-key Supabase client stays behind
 // exactly two modules. tests/rate-limit-boundary.test.ts checks these rules fire.
+// The regexes match the "@/lib/..." alias and relative paths alike
+// ("../rate-limit/keys", "../../lib/supabase/service"), Cipher R4.
 const rateLimitInternals = {
-  group: [
-    "@/lib/rate-limit/store",
-    "@/lib/rate-limit/memory-store",
-    "@/lib/rate-limit/postgres-store",
-    "@/lib/rate-limit/keys",
-  ],
+  regex: "(^|/)rate-limit/(store|memory-store|postgres-store|keys)(\\.[jt]sx?)?$",
   message: "Use limit() from @/lib/rate-limit instead (review M1, Cipher F4).",
 };
 const secretKeyClient = {
-  group: ["@/lib/supabase/service"],
+  regex: "(^|/)supabase/service(\\.[jt]sx?)?$",
   message:
     "The secret-key client is only for src/lib/rate-limit/index.ts and src/lib/supabase/username.ts (Cipher F4).",
 };
@@ -53,6 +50,12 @@ const eslintConfig = defineConfig([
   },
   { files: [LIMITER], rules: restrictImports([]) },
   { files: [USERNAME_CHECK], rules: restrictImports([rateLimitInternals]) },
+  {
+    // Next to service.ts, "./service" is the secret-key client too.
+    files: ["src/lib/supabase/**/*.{ts,tsx}"],
+    ignores: [USERNAME_CHECK, SERVICE],
+    rules: restrictImports([rateLimitInternals, secretKeyClient, { ...secretKeyClient, regex: "^\\./service(\\.[jt]sx?)?$" }]),
+  },
   {
     files: [SERVICE],
     rules: { "no-restricted-imports": ["error", { patterns: [rateLimitInternals] }] },

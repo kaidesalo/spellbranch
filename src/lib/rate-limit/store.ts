@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Where counters live. One call = one attempt: the store adds 1 to the
  * counter for (key, current window) and says whether it is still within the

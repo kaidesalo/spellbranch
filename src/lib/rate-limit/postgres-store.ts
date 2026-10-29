@@ -1,3 +1,4 @@
+import "server-only";
 import type { HitResult, RateLimitStore } from "@/lib/rate-limit/store";
 
 /**

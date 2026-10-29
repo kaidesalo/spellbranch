@@ -1,3 +1,4 @@
+import "server-only";
 import { isIP } from "node:net";
 import ipaddr from "ipaddr.js";
 

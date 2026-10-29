@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Rate-limit policies (review M1). One row per endpoint; every bucket of a
  * policy must allow the attempt. Buckets are checked in the order listed and

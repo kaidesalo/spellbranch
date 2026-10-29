@@ -1,3 +1,4 @@
+import "server-only";
 import { createHmac } from "node:crypto";
 import { rateLimitSecretProblem } from "@/lib/rate-limit/config";
 import type { BucketKind, PolicyName } from "@/lib/rate-limit/policies";
