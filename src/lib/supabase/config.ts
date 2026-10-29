@@ -28,6 +28,8 @@ import { assertRateLimitConfig } from "@/lib/rate-limit/config";
  *
  * Serving in production (either backend) also needs the rate-limit settings
  * (review M1): SPELLBRANCH_RATE_LIMIT_SECRET and SPELLBRANCH_CLIENT_IP_HEADER.
+ * Supabase mode in production also needs SUPABASE_SECRET_KEY (an
+ * `sb_secret_...` key, used only by src/lib/supabase/service.ts).
  */
 
 export type Backend = "local" | "supabase";
@@ -58,7 +60,38 @@ export function isProductionRuntime(env: Env = process.env): boolean {
   return env.NODE_ENV === "production" && env.NEXT_PHASE !== "phase-production-build";
 }
 
+/**
+ * Why SUPABASE_SECRET_KEY can't be used, or null if it looks right. Only the
+ * new `sb_secret_...` keys are accepted: a legacy service_role JWT (`eyJ...`)
+ * can't be revoked on its own. Never includes the value.
+ */
+export function secretKeyProblem(key: string | undefined): string | null {
+  if (!key || !key.trim()) return "SUPABASE_SECRET_KEY is not set.";
+  if (key.trim().startsWith("eyJ")) {
+    return "SUPABASE_SECRET_KEY looks like a legacy service_role JWT (eyJ...). Use a secret key (sb_secret_...) instead.";
+  }
+  if (!key.trim().startsWith("sb_secret_")) return "SUPABASE_SECRET_KEY must be a Supabase secret key (sb_secret_...).";
+  if (key.includes("your-secret-key")) return "SUPABASE_SECRET_KEY is still the .env.example placeholder.";
+  return null;
+}
+
+/**
+ * A secret key in a NEXT_PUBLIC_ variable would be shipped to every browser.
+ * Refuse to start in any mode. Names the variable, never the value.
+ */
+function assertNoPublicSecretKey(env: Env) {
+  for (const [name, value] of Object.entries(env)) {
+    if (name.startsWith("NEXT_PUBLIC_") && value?.includes("sb_secret_")) {
+      throw new Error(
+        `${name} holds a Supabase secret key (sb_secret_...). NEXT_PUBLIC_ variables are sent to the browser; ` +
+          "put the secret key in SUPABASE_SECRET_KEY only, and rotate it in the Supabase dashboard.",
+      );
+    }
+  }
+}
+
 export function getBackend(env: Env = process.env): Backend {
+  assertNoPublicSecretKey(env);
   const requested = (env.SPELLBRANCH_BACKEND ?? "").trim().toLowerCase();
 
   if (requested === "" || requested === "local") {
@@ -89,7 +122,11 @@ export function getBackend(env: Env = process.env): Backend {
           "Set SPELLBRANCH_ALLOW_HYBRID=1 to override (not for shared deploys).",
       );
     }
-    if (isProductionRuntime(env)) assertRateLimitConfig(env);
+    if (isProductionRuntime(env)) {
+      assertRateLimitConfig(env);
+      const problem = secretKeyProblem(env.SUPABASE_SECRET_KEY);
+      if (problem) throw new Error(`${problem} It is required in production with SPELLBRANCH_BACKEND=supabase.`);
+    }
     return "supabase";
   }
 
