@@ -4,8 +4,11 @@ import { headers } from "next/headers";
 import { getClientIp } from "@/lib/rate-limit/client-ip";
 import { bucketKey, getRateLimitSecret, normalizeEmail } from "@/lib/rate-limit/keys";
 import { MemoryStore } from "@/lib/rate-limit/memory-store";
+import { PostgresStore } from "@/lib/rate-limit/postgres-store";
 import { POLICIES, retryAfterFor, type Bucket, type PolicyName } from "@/lib/rate-limit/policies";
 import type { HitResult, RateLimitStore } from "@/lib/rate-limit/store";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { rateLimitHit } from "@/lib/supabase/service";
 
 /**
  * The one entry point for rate limiting (review M1, Cipher F4).
@@ -37,15 +40,19 @@ const STORE_TIMEOUT_MS = 2500;
 let storeOverride: RateLimitStore | null = null;
 let timeoutMs = STORE_TIMEOUT_MS;
 let memoryStore: MemoryStore | null = null;
+let postgresStore: PostgresStore | null = null;
 
+/**
+ * Supabase mode: counters in Postgres (rate_limit_hit(), migration 004) via
+ * the server-only secret-key client, shared by every server instance.
+ * Local mode: in this process (the local backend is single-process anyway).
+ */
 function getStore(): RateLimitStore {
   if (storeOverride) return storeOverride;
-  // TODO(M1 secret-key commit): in Supabase mode, return
-  //   new PostgresStore((args, signal) => serviceRpc("rate_limit_hit", args, signal))
-  // using the server-only secret-key client (src/lib/supabase/service.ts).
-  // Until then every mode counts in this process only. That's enough for the
-  // single-process local backend and dev; Supabase mode in production is
-  // still blocked by SPELLBRANCH_ALLOW_HYBRID (see README).
+  if (isSupabaseConfigured()) {
+    postgresStore ??= new PostgresStore(rateLimitHit);
+    return postgresStore;
+  }
   memoryStore ??= new MemoryStore();
   return memoryStore;
 }
@@ -55,6 +62,7 @@ export function setRateLimitStoreForTests(store: RateLimitStore | null = null, s
   storeOverride = store;
   timeoutMs = storeTimeoutMs;
   memoryStore = null;
+  postgresStore = null;
 }
 
 /** The client IP bucket for the current request (server actions). */

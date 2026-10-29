@@ -3,8 +3,8 @@ import type { HitResult, RateLimitStore } from "@/lib/rate-limit/store";
 /**
  * Counters in Postgres, via public.rate_limit_hit(p_key, p_limit,
  * p_window_seconds) from migration 004. The function only accepts
- * service_role, so the rpc passed in must come from the server-only
- * secret-key client (pending: see README "Rate limiting status").
+ * service_role, so the rpc passed in comes from the server-only
+ * secret-key client (rateLimitHit in src/lib/supabase/service.ts).
  *
  * The rpc is injected so this file never creates a Supabase client itself.
  */

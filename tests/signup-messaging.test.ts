@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setRateLimitStoreForTests } from "@/lib/rate-limit";
+import { MemoryStore } from "@/lib/rate-limit/memory-store";
 
 // L2: a duplicate email must look exactly like a successful sign-up.
 // L4: sign-up enforces an 8-character minimum; sign-in doesn't.
@@ -56,7 +57,7 @@ describe("Supabase sign-up messaging (L2)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_test_only");
     vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");
     signUp.mockClear();
-    setRateLimitStoreForTests(); // fresh in-memory counters
+    setRateLimitStoreForTests(new MemoryStore()); // fresh in-memory counters
   });
   afterEach(() => {
     vi.unstubAllEnvs();

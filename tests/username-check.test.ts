@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setRateLimitStoreForTests } from "@/lib/rate-limit";
+import { MemoryStore } from "@/lib/rate-limit/memory-store";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
 
 // --- Mocks for signUpAction (no network, no hosted project) ---------------
@@ -45,7 +46,7 @@ function form(username = "Felix_1") {
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  setRateLimitStoreForTests(); // fresh in-memory counters
+  setRateLimitStoreForTests(new MemoryStore()); // fresh in-memory counters
   rpc.mockReset();
   signUp.mockReset();
   from.mockReset();

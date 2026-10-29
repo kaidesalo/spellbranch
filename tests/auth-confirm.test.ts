@@ -39,7 +39,7 @@ describe("/auth/confirm", () => {
     vi.stubEnv("SPELLBRANCH_SITE_URL", SITE);
     verifyOtp.mockClear();
     exchangeCodeForSession.mockClear();
-    setRateLimitStoreForTests(); // fresh in-memory counters
+    setRateLimitStoreForTests(new MemoryStore()); // fresh in-memory counters
   });
   afterEach(() => vi.unstubAllEnvs());
 
