@@ -38,12 +38,21 @@ export function getClientIp(headers: HeaderReader, env: Env = process.env): stri
   }
 
   const raw = headers.get(name)?.trim();
-  // isIP() rejects comma lists, "127.1", ports and empty strings.
-  if (!raw || isIP(raw) === 0) {
+  // isIP() rejects comma lists, "127.1", ports and empty strings. A "%zone"
+  // suffix (fe80::1%eth0) never comes from the internet, so refuse it too.
+  if (!raw || isIP(raw) === 0 || raw.includes("%")) {
     warnUnknownIp(name);
     return UNKNOWN_IP;
   }
-  return ipBucket(raw);
+  try {
+    return ipBucket(raw);
+  } catch {
+    // ipaddr.js rejects a few forms isIP() accepts, such as ::1.2.3.4 and
+    // 64:ff9b::1.2.3.4 (Cipher R1). This runs before limit()'s try/catch, so
+    // an exception here would be a 500; it's just "not one usable IP".
+    warnUnknownIp(name);
+    return UNKNOWN_IP;
+  }
 }
 
 /** Canonical bucket name for one valid IP string. */

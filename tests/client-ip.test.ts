@@ -36,6 +36,10 @@ describe("getClientIp", () => {
     ["a short-form IPv4", { "x-real-ip": "127.1" }],
     ["with a port", { "x-real-ip": "1.2.3.4:5678" }],
     ["garbage", { "x-real-ip": "not-an-ip" }],
+    // isIP() accepts these but ipaddr.js throws on them (Cipher R1).
+    ["IPv4-compatible IPv6", { "x-real-ip": "::1.2.3.4" }],
+    ["NAT64 with embedded IPv4", { "x-real-ip": "64:ff9b::1.2.3.4" }],
+    ["with a zone suffix", { "x-real-ip": "fe80::1%eth0" }],
   ])("gives the shared unknown bucket when the header is %s", (_label, values) => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(getClientIp(h(values), VERCEL)).toBe("unknown");
