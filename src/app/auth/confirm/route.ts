@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedOrigin, isEmailOtpType, renderConfirmPage } from "@/lib/auth/confirm";
 import { safeNextPath } from "@/lib/auth/redirect";
+import { limit, limitMessage, type LimitResult } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/rate-limit/client-ip";
 import { getSiteOrigin, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,6 +20,10 @@ import { createClient } from "@/lib/supabase/server";
  *      of the browser that started sign-up.
  *
  * `next` always goes through safeNextPath (same-origin relative paths only).
+ *
+ * Review M1: the POST (after the Origin check) and the ?code= exchange are
+ * rate limited per client IP. Over the limit: 429 + Retry-After; limiter
+ * unavailable: 503. Both with a plain generic body.
  */
 
 const PRIVATE_HEADERS = {
@@ -33,6 +39,18 @@ function redirectTo(request: NextRequest, path: string, status: 303 | 307 = 307)
   const response = NextResponse.redirect(new URL(path, base), status);
   for (const [k, v] of Object.entries(PRIVATE_HEADERS)) response.headers.set(k, v);
   return response;
+}
+
+/** A plain-text refusal, or null when the attempt may go ahead. */
+async function refuseIfLimited(request: NextRequest): Promise<NextResponse | null> {
+  const result: LimitResult = await limit("confirm", { ip: getClientIp(request.headers) });
+  if (result.ok) return null;
+  const headers: Record<string, string> = { "Content-Type": "text/plain; charset=utf-8", ...PRIVATE_HEADERS };
+  if (result.reason === "limited") headers["Retry-After"] = String(result.retryAfterSec);
+  return new NextResponse(limitMessage(result), {
+    status: result.reason === "limited" ? 429 : 503,
+    headers,
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -52,6 +70,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
+    const refused = await refuseIfLimited(request);
+    if (refused) return refused;
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     return redirectTo(request, error ? "/login?error=confirm" : next);
@@ -69,6 +89,9 @@ export async function POST(request: NextRequest) {
       headers: { "Content-Type": "text/plain; charset=utf-8", ...PRIVATE_HEADERS },
     });
   }
+
+  const refused = await refuseIfLimited(request);
+  if (refused) return refused;
 
   let form: FormData;
   try {

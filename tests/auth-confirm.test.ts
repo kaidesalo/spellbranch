@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { isAllowedOrigin, renderConfirmPage } from "@/lib/auth/confirm";
+import { RATE_LIMITED_MESSAGE, RATE_LIMIT_UNAVAILABLE_MESSAGE, setRateLimitStoreForTests } from "@/lib/rate-limit";
+import { MemoryStore } from "@/lib/rate-limit/memory-store";
 
 // L1: GET /auth/confirm?token_hash renders a button; only an
 // Origin-checked POST calls verifyOtp.
@@ -32,11 +34,13 @@ function post(fields: Record<string, string>, headers: Record<string, string> = 
 describe("/auth/confirm", () => {
   beforeEach(() => {
     vi.stubEnv("SPELLBRANCH_BACKEND", "supabase");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test_only_fake_0000000000"); // fake
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnop.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_test_only");
     vi.stubEnv("SPELLBRANCH_SITE_URL", SITE);
     verifyOtp.mockClear();
     exchangeCodeForSession.mockClear();
+    setRateLimitStoreForTests(new MemoryStore()); // fresh in-memory counters
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -143,5 +147,62 @@ describe("/auth/confirm", () => {
   it("renderConfirmPage has no scripts or inline style attributes", () => {
     const html = renderConfirmPage({ tokenHash: "t", type: "email", next: "/dashboard" });
     expect(html).not.toMatch(/<script|\son\w+=|\sstyle=/i);
+  });
+
+  describe("rate limiting (M1: 10 per 5 minutes per IP)", () => {
+    const FIXED_NOW = 1_200_000_000_000;
+    const okPost = (ip: string, origin = SITE) =>
+      post({ token_hash: "abc", type: "email" }, { origin, "x-real-ip": ip });
+
+    beforeEach(() => {
+      vi.stubEnv("SPELLBRANCH_CLIENT_IP_HEADER", "x-real-ip");
+      setRateLimitStoreForTests(new MemoryStore(() => FIXED_NOW));
+    });
+
+    it("returns 429 with Retry-After and a generic body after 10 POSTs, without calling verifyOtp", async () => {
+      const { POST } = await route();
+      for (let i = 0; i < 10; i++) expect((await POST(okPost("203.0.113.9"))).status).toBe(303);
+      const res = await POST(okPost("203.0.113.9"));
+      expect(res.status).toBe(429);
+      expect(res.headers.get("retry-after")).toBe("300");
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(res.headers.get("content-type")).toMatch(/text\/plain/);
+      expect(await res.text()).toBe(RATE_LIMITED_MESSAGE);
+      expect(verifyOtp).toHaveBeenCalledTimes(10);
+
+      // Another IP is unaffected.
+      expect((await POST(okPost("198.51.100.4"))).status).toBe(303);
+    });
+
+    it("rejects cross-origin POSTs with 403 before counting them", async () => {
+      const { POST } = await route();
+      for (let i = 0; i < 15; i++) {
+        expect((await POST(okPost("203.0.113.9", "https://evil.test"))).status).toBe(403);
+      }
+      expect((await POST(okPost("203.0.113.9"))).status).toBe(303);
+      expect(verifyOtp).toHaveBeenCalledTimes(1);
+    });
+
+    it("limits the ?code= exchange in the same bucket", async () => {
+      const { GET } = await route();
+      const withIp = (q: string) => new NextRequest(`${SITE}/auth/confirm?${q}`, { headers: { "x-real-ip": "203.0.113.9" } });
+      for (let i = 0; i < 10; i++) expect((await GET(withIp("code=c"))).status).toBe(307);
+      expect((await GET(withIp("code=c"))).status).toBe(429);
+      expect(exchangeCodeForSession).toHaveBeenCalledTimes(10);
+      // Rendering the confirm page consumes nothing and isn't limited.
+      expect((await GET(withIp("token_hash=abc&type=email"))).status).toBe(200);
+    });
+
+    it("fails closed with 503 when the store errors", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      setRateLimitStoreForTests({ hit: async () => { throw new Error("down"); } });
+      const { POST } = await route();
+      const res = await POST(okPost("203.0.113.9"));
+      expect(res.status).toBe(503);
+      expect(res.headers.get("retry-after")).toBeNull();
+      expect(await res.text()).toBe(RATE_LIMIT_UNAVAILABLE_MESSAGE);
+      expect(verifyOtp).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
   });
 });

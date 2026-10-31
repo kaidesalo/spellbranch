@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DataError } from "@/lib/data/errors";
 import { FRIEND_MESSAGES } from "@/lib/data/friend-rules";
+import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import { createSupabaseRepository } from "@/lib/data/supabase";
 import { createMockClient, eqValue, ok, pgError, type Call } from "./helpers/supabase-mock";
 
@@ -284,6 +285,16 @@ describe("supabase adapter: friends (P2)", () => {
 
     const self = repoWith(() => ok([{ ...bobProfile, id: ME }]));
     expect(await self.repo.findProfile(ME, "me_u")).toEqual([]);
+  });
+
+  it("findProfile: the database backstop (PT429) becomes the generic rate-limit message", async () => {
+    const limited = await repoWith(() => pgError("PT429")).repo.findProfile(ME, "bob_u").catch((e) => e);
+    expect(limited).toBeInstanceOf(DataError);
+    expect(limited.message).toBe(RATE_LIMITED_MESSAGE);
+
+    // Other errors stay internal (not shown to the user).
+    const other = await repoWith(() => pgError("42501")).repo.findProfile(ME, "bob_u").catch((e) => e);
+    expect(other).not.toBeInstanceOf(DataError);
   });
 
   it("sendFriendRequest inserts a pending row as the caller", async () => {

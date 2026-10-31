@@ -5,6 +5,7 @@ import {
   hasSupabaseKeys,
   isSupabaseConfigured,
   parseSiteUrl,
+  secretKeyProblem,
 } from "@/lib/supabase/config";
 
 const keys = {
@@ -12,6 +13,11 @@ const keys = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_test",
   SPELLBRANCH_SITE_URL: "http://localhost:3847",
 };
+
+// Fake values only; never a real key.
+const FAKE_SECRET_KEY = "sb_secret_test_only_fake_0000000000";
+// Supabase mode needs the secret key in every mode (Cipher Q1).
+const supaKeys = { ...keys, SUPABASE_SECRET_KEY: FAKE_SECRET_KEY };
 
 describe("backend switch", () => {
   it("defaults to local with no env", () => {
@@ -28,8 +34,8 @@ describe("backend switch", () => {
   });
 
   it("uses supabase only with the flag AND real keys", () => {
-    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase" })).toBe("supabase");
-    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: " Supabase " })).toBe("supabase");
+    expect(getBackend({ ...supaKeys, SPELLBRANCH_BACKEND: "supabase" })).toBe("supabase");
+    expect(getBackend({ ...supaKeys, SPELLBRANCH_BACKEND: " Supabase " })).toBe("supabase");
   });
 
   it("throws when supabase is requested without keys", () => {
@@ -52,8 +58,14 @@ describe("backend switch", () => {
   });
 });
 
+// Production also needs the M1 rate-limit settings (see the last describe).
+const rateLimit = {
+  SPELLBRANCH_RATE_LIMIT_SECRET: "test-only-rate-limit-secret-0123456789abcdef",
+  SPELLBRANCH_CLIENT_IP_HEADER: "x-real-ip",
+};
+
 describe("L6: production guard for the auth-only Supabase mode", () => {
-  const supa = { ...keys, SPELLBRANCH_BACKEND: "supabase" };
+  const supa = { ...supaKeys, SPELLBRANCH_BACKEND: "supabase" };
 
   it("throws in production without SPELLBRANCH_ALLOW_HYBRID", () => {
     expect(() => getBackend({ ...supa, NODE_ENV: "production" })).toThrow(/SPELLBRANCH_ALLOW_HYBRID/);
@@ -66,7 +78,7 @@ describe("L6: production guard for the auth-only Supabase mode", () => {
   });
 
   it("allows production with SPELLBRANCH_ALLOW_HYBRID=1", () => {
-    expect(getBackend({ ...supa, NODE_ENV: "production", SPELLBRANCH_ALLOW_HYBRID: "1" })).toBe(
+    expect(getBackend({ ...supa, ...rateLimit, SUPABASE_SECRET_KEY: FAKE_SECRET_KEY, NODE_ENV: "production", SPELLBRANCH_ALLOW_HYBRID: "1" })).toBe(
       "supabase",
     );
   });
@@ -105,8 +117,8 @@ describe("H1: local mode is refused in production unless explicitly allowed", ()
   });
 
   it("only the exact value 1 (trimmed) opts in", () => {
-    expect(getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toBe("local");
-    expect(getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: " 1 " })).toBe("local");
+    expect(getBackend({ ...rateLimit, NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toBe("local");
+    expect(getBackend({ ...rateLimit, NODE_ENV: "production", [LOCAL_FLAG]: " 1 " })).toBe("local");
     for (const v of ["true", "yes", "0", ""]) {
       expect(() => getBackend({ NODE_ENV: "production", [LOCAL_FLAG]: v })).toThrow(new RegExp(LOCAL_FLAG));
     }
@@ -125,5 +137,113 @@ describe("H1: local mode is refused in production unless explicitly allowed", ()
 
   it("the local flag doesn't unlock Supabase mode in production", () => {
     expect(() => getBackend({ ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "production", [LOCAL_FLAG]: "1" })).toThrow(/SPELLBRANCH_ALLOW_HYBRID/);
+  });
+});
+
+describe("M1: production needs the rate-limit settings", () => {
+  const local = { NODE_ENV: "production", SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION: "1" };
+  const supa = {
+    ...keys,
+    SPELLBRANCH_BACKEND: "supabase",
+    NODE_ENV: "production",
+    SPELLBRANCH_ALLOW_HYBRID: "1",
+    SUPABASE_SECRET_KEY: FAKE_SECRET_KEY,
+  };
+
+  it.each([
+    ["local", local],
+    ["supabase", supa],
+  ])("%s: throws without SPELLBRANCH_CLIENT_IP_HEADER or the HMAC secret", (_name, base) => {
+    expect(() => getBackend({ ...base, SPELLBRANCH_RATE_LIMIT_SECRET: rateLimit.SPELLBRANCH_RATE_LIMIT_SECRET })).toThrow(
+      /SPELLBRANCH_CLIENT_IP_HEADER/,
+    );
+    expect(() => getBackend({ ...base, SPELLBRANCH_CLIENT_IP_HEADER: "x-real-ip" })).toThrow(
+      /SPELLBRANCH_RATE_LIMIT_SECRET/,
+    );
+    expect(() =>
+      getBackend({ ...base, ...rateLimit, SPELLBRANCH_RATE_LIMIT_SECRET: "short" }),
+    ).toThrow(/at least 32 bytes/);
+    expect(() =>
+      getBackend({ ...base, ...rateLimit, AUTH_SECRET: rateLimit.SPELLBRANCH_RATE_LIMIT_SECRET }),
+    ).toThrow(/different from AUTH_SECRET/);
+    expect(getBackend({ ...base, ...rateLimit })).toBe(_name);
+  });
+
+  it("doesn't block `next build` or development", () => {
+    expect(getBackend({ ...local, NEXT_PHASE: "phase-production-build" })).toBe("local");
+    expect(getBackend({ NODE_ENV: "development" })).toBe("local");
+    expect(getBackend({ ...supaKeys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" })).toBe("supabase");
+  });
+});
+
+describe("M1/I2: the Supabase secret key", () => {
+  const prodSupa = {
+    ...keys,
+    ...rateLimit,
+    SPELLBRANCH_BACKEND: "supabase",
+    NODE_ENV: "production",
+    SPELLBRANCH_ALLOW_HYBRID: "1",
+  };
+
+  it("is required in production in Supabase mode, as an sb_secret_ key", () => {
+    expect(getBackend({ ...prodSupa, SUPABASE_SECRET_KEY: FAKE_SECRET_KEY })).toBe("supabase");
+    expect(() => getBackend(prodSupa)).toThrow(/SUPABASE_SECRET_KEY is not set/);
+    expect(() => getBackend({ ...prodSupa, SUPABASE_SECRET_KEY: "  " })).toThrow(/not set/);
+    expect(() => getBackend({ ...prodSupa, SUPABASE_SECRET_KEY: "sb_publishable_fake" })).toThrow(/sb_secret_/);
+    expect(() => getBackend({ ...prodSupa, SUPABASE_SECRET_KEY: "sb_secret_your-secret-key" })).toThrow(/placeholder/);
+  });
+
+  it("rejects legacy service_role JWTs (eyJ...) without printing them", () => {
+    const fakeJwt = "eyJhbGciOiJIUzI1NiJ9.fake.fake";
+    let message = "";
+    try {
+      getBackend({ ...prodSupa, SUPABASE_SECRET_KEY: fakeJwt });
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toMatch(/legacy service_role JWT/);
+    expect(message).not.toContain(fakeJwt);
+  });
+
+  it("is required in Supabase mode in dev too, with the same checks (Cipher Q1)", () => {
+    const devSupa = { ...keys, SPELLBRANCH_BACKEND: "supabase", NODE_ENV: "development" };
+    expect(getBackend({ ...devSupa, SUPABASE_SECRET_KEY: FAKE_SECRET_KEY })).toBe("supabase");
+    expect(() => getBackend(devSupa)).toThrow(/SUPABASE_SECRET_KEY is not set.*dev included/);
+    expect(() => getBackend({ ...devSupa, NODE_ENV: undefined })).toThrow(/not set/);
+    expect(() => getBackend({ ...devSupa, NODE_ENV: "test" })).toThrow(/not set/);
+    expect(() => getBackend({ ...devSupa, SUPABASE_SECRET_KEY: "eyJhbGciOiJIUzI1NiJ9.fake.fake" })).toThrow(/legacy/);
+    expect(() => getBackend({ ...devSupa, SUPABASE_SECRET_KEY: "sb_secret_your-secret-key" })).toThrow(/placeholder/);
+  });
+
+  it("isn't needed for local mode (any NODE_ENV) or `next build`", () => {
+    expect(getBackend({})).toBe("local");
+    expect(getBackend({ ...keys, NODE_ENV: "development" })).toBe("local");
+    expect(getBackend({ ...keys, SPELLBRANCH_BACKEND: "local" })).toBe("local");
+    expect(getBackend({ ...rateLimit, NODE_ENV: "production", SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION: "1" })).toBe("local");
+    expect(getBackend({ ...prodSupa, NEXT_PHASE: "phase-production-build" })).toBe("supabase");
+  });
+
+  it("refuses a secret key in any NEXT_PUBLIC_ variable, in every mode, naming only the variable", () => {
+    for (const env of [
+      { ...keys, SPELLBRANCH_BACKEND: "supabase", NEXT_PUBLIC_SUPABASE_ANON_KEY: FAKE_SECRET_KEY },
+      { NEXT_PUBLIC_SECRET: FAKE_SECRET_KEY },
+      { NODE_ENV: "development", NEXT_PUBLIC_ANYTHING: `x${FAKE_SECRET_KEY}` },
+    ]) {
+      let message = "";
+      try {
+        getBackend(env);
+      } catch (err) {
+        message = (err as Error).message;
+      }
+      expect(message).toMatch(/NEXT_PUBLIC_\w+ holds a Supabase secret key/);
+      expect(message).not.toContain(FAKE_SECRET_KEY);
+    }
+  });
+
+  it("secretKeyProblem accepts only sb_secret_ keys", () => {
+    expect(secretKeyProblem(FAKE_SECRET_KEY)).toBeNull();
+    expect(secretKeyProblem(undefined)).toMatch(/not set/);
+    expect(secretKeyProblem("eyJx")).toMatch(/legacy/);
+    expect(secretKeyProblem("service-role")).toMatch(/sb_secret_/);
   });
 });

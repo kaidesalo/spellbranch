@@ -30,9 +30,10 @@ export function FriendsPanel({
   function search() {
     if (!query.trim()) return;
     startTransition(async () => {
-      const found = await findProfileAction(query);
-      setResults(found);
-      if (found.length === 0) toast.message("No player with that username");
+      const { profiles, error } = await findProfileAction(query);
+      setResults(profiles);
+      if (error) toast.error(error);
+      else if (profiles.length === 0) toast.message("No player with that username");
     });
   }
 

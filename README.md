@@ -52,10 +52,25 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | `SPELLBRANCH_BACKEND` | `local` (default) or `supabase`. Keys alone never switch the backend. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser key: the new **publishable** key (`sb_publishable_…`) or the legacy anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional, server-only secret key, reserved for future admin scripts; the app doesn't read it (the sign-up username check uses the anon-callable `username_available` RPC). Never `NEXT_PUBLIC_` |
+| `SUPABASE_SECRET_KEY` | Server-only Supabase **secret key** (`sb_secret_…`; legacy `eyJ…` service_role JWTs are refused). **Required with `SPELLBRANCH_BACKEND=supabase`, dev included** (the app throws at startup without it; local mode never needs it, and `next build` doesn't check it). Used only by `src/lib/supabase/service.ts` for two RPCs: `rate_limit_hit()` (shared rate-limit counters) and `username_available()` (sign-up username check). Never `NEXT_PUBLIC_`: the app refuses to start if any `NEXT_PUBLIC_*` value contains `sb_secret_`. |
 | `SPELLBRANCH_SITE_URL` | The app's public origin, e.g. `http://localhost:3847`. **Required with `SPELLBRANCH_BACKEND=supabase`** (the app throws without it): sign-up confirmation emails redirect to `<site>/auth/confirm`, and the confirm POST checks `Origin` against it. Optional in local mode |
 | `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION` | Set to `1` to let a **production** build run on the local JSON store (single-process demos only). Without it, production refuses local mode. Not for shared deploys |
 | `SPELLBRANCH_ALLOW_HYBRID` | Set to `1` to let a **production** build run with `SPELLBRANCH_BACKEND=supabase`. Without it, production refuses to run in that mode until auth rate limiting (review M1) is done and the data layer has been tested on a live project. The name is historical (it dates from the auth-only hybrid). Not for shared deploys |
+| `SPELLBRANCH_RATE_LIMIT_SECRET` | HMAC key for rate-limit counters: at least 32 bytes, **different from `AUTH_SECRET`** (`openssl rand -base64 32`). **Required in production** (either backend); dev falls back to an insecure dev-only secret with a warning. Rotating it resets every counter, so don't rotate it during an attack |
+| `SPELLBRANCH_CLIENT_IP_HEADER` | The one request header your platform sets to the client IP (see [Client IP header](#client-ip-header)). **Required in production** (either backend). Unset in dev: everything counts as one local client |
+
+**Production-only checks look at `NODE_ENV` alone.** These run only when `NODE_ENV=production`:
+- refusing local mode without `SPELLBRANCH_ALLOW_LOCAL_IN_PRODUCTION`, and Supabase mode without
+  `SPELLBRANCH_ALLOW_HYBRID`;
+- requiring `AUTH_SECRET`, `SPELLBRANCH_RATE_LIMIT_SECRET` and `SPELLBRANCH_CLIENT_IP_HEADER`
+  (no dev-only fallback secrets);
+- never using the `local` client-IP bucket, and `Secure` session cookies.
+
+The local-mode guard and the rate-limit settings check also skip the `next build` step, which
+serves nobody. Any other value, such as a custom `NODE_ENV=staging`, counts as development:
+all of the above is skipped and the insecure dev-only fallback secrets are used. Shared deploys
+must run with `NODE_ENV=production` (`next start` sets it). The Supabase secret-key check is not
+one of these: it runs whenever Supabase mode serves requests, whatever `NODE_ENV` is.
 
 ## Supabase status
 
@@ -64,7 +79,7 @@ Copy `.env.example` to `.env.local` (gitignored; never commit real keys):
 | Schema, RLS, seed, pgTAP checks (`supabase/`) | Done |
 | Auth: sign-up/in/out, session refresh (`src/proxy.ts`), `/auth/confirm`, profile edit | Done, behind `SPELLBRANCH_BACKEND=supabase` |
 | Data: decks, cards, forks, compare, friends, favorites, comments (`src/lib/data`) | Done, behind `SPELLBRANCH_BACKEND=supabase`. Unit-tested with a mocked client and against PostgREST on local Postgres; **not yet tested against a live project** |
-| Auth rate limiting (review M1) | **Open**: blocks real users |
+| Auth rate limiting (review M1) | **Open**: blocks real users. App-side limits are in, with shared counters in Postgres (see [Rate limiting](#rate-limiting)); Supabase Auth's own limits and custom SMTP are still to do |
 
 In Supabase mode everything (accounts, sessions, decks, friends, favorites, comments) lives in
 Supabase and is protected by RLS; `.data/store.json` isn't used. Leave `SPELLBRANCH_BACKEND`
@@ -85,7 +100,10 @@ How data access works (`src/lib/data`):
   UUIDs, text has the length limits in `src/lib/data/limits.ts`, which `003_length_limits.sql`
   also enforces in the database.
 - `supabase.ts`: the request-scoped server client (the user's own session, or anon when signed
-  out); RLS decides what is visible. No service-role key anywhere. Other users' names come from
+  out); RLS decides what is visible. Data access never uses the secret key. The one exception
+  is `src/lib/supabase/service.ts` (server-only, no session, never `.auth`), which exports just
+  `rateLimitHit()` and `usernameAvailable()` for the limiter and the sign-up username check; ESLint
+  and `tests/rate-limit-boundary.test.ts` allow no other importer. Other users' names come from
   `public_profiles`; the signed-in user's email only from the session. Forks use
   `rpc('fork_deck')`, friend search `rpc('find_profile')`. Decks are inserted without
   `preferred_branch_id` (the database refuses it on insert); a preferred branch is set by a later
@@ -112,8 +130,19 @@ What exists in `supabase/`:
   URL 512, colors W/U/B/R/G only). Existing over-limit values are trimmed first, so it can't abort
   on old data. Also adds `restart_friend_request()`, which clears a declined request and sends one
   back in one transaction. Safe to re-run
+- `migrations/004_rate_limits.sql`: rate-limit counters (review M1/I2). `private.rate_limits`
+  (fixed windows on the database clock, rows older than 2 hours are cleaned up), the
+  `rate_limit_hit()` RPC (security definer, `service_role` only; called through the secret-key
+  client, see [Rate limiting](#rate-limiting)), and a per-user backstop inside `find_profile()` (60
+  lookups per 10 minutes, then error `PT429`, which PostgREST returns as HTTP 429). Safe to re-run
+- `migrations/005_username_available_service_role.sql`: `username_available()` becomes
+  `service_role` only (anon/authenticated `EXECUTE` revoked, review I2). **Deploy the app version
+  that uses the secret-key client first** (see the deploy note in setup step 5), or sign-up's
+  username check fails closed. Safe to re-run
 - `seed.sql`: local-only test data
-- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`, `tests/length_limits.sql`: pgTAP checks for the policies, the security-review fixes, the length limits and `restart_friend_request()`
+- `tests/rls_checks.sql`, `tests/review_fixes.sql`, `tests/bio_limit.sql`, `tests/length_limits.sql`, `tests/rate_limits.sql`: pgTAP checks for the policies, the security-review fixes (including the `005` grants), the length limits, `restart_friend_request()` and the rate-limit tables/RPC/grants
+- `scripts/rate-limit-concurrency.sh`: 20 parallel sessions × 50 `rate_limit_hit()` calls must
+  count exactly 1000. Local databases only (defaults to the Docker stack)
 
 Schema notes for the data-layer PR:
 - `profiles` has no `email` column: read the signed-in user's email from the Supabase session.
@@ -122,9 +151,11 @@ Schema notes for the data-layer PR:
   with, and owners/authors of decks and comments they can see. To find someone new, call
   `rpc('find_profile', { username })`: an exact, case-insensitive username match (no partial or display-name search)
   that returns at most one `{ id, username, display_name, avatar_url }`. Sign-up can check a name with
-  `rpc('username_available', { candidate })` (anon or signed in; returns `false` for taken or invalid names).
-  This lets anon check one exact name per request, a cheaper oracle than the old sign-up flow (which just
-  suffixed taken names). Follow-up: call it from a rate-limited Next.js route and revoke anon `EXECUTE`.
+  `rpc('username_available', { candidate })` (returns `false` for taken or invalid names). Since `005` only
+  `service_role` may call it: the app calls it server-side through the secret-key client, after the
+  sign-up rate limit (20 per 10 minutes per IP), so nobody can skip the limit by calling PostgREST
+  directly. Usernames are public by design (profiles show them), so this limits bulk probing; it doesn't
+  make usernames secret.
 - Friend requests: only the addressee can change `status` (`accepted` / `declined`). The requester can delete
   the row only while it's `pending` (cancel) or `accepted` (unfriend); a `declined` row stays, which blocks
   re-sending. The addressee can delete any row (unfriend, or clear a declined request so a new one is possible).
@@ -140,8 +171,9 @@ Schema notes for the data-layer PR:
 
 1. **Create a project** at [supabase.com/dashboard](https://supabase.com/dashboard) (a free dev project is fine).
 2. **Copy the keys** from *Project Settings → API keys*: the project URL, the publishable
-   (or legacy anon) key, and, only if you need admin scripts, the secret / service-role key.
-   Put them in `.env.local` under the variable names above.
+   (or legacy anon) key, and a **secret key** (`sb_secret_…`, under *Secret keys*; not the
+   legacy `service_role` JWT). Put them in `.env.local` under the variable names above; the
+   secret key goes in `SUPABASE_SECRET_KEY` only, never in a `NEXT_PUBLIC_` variable.
 3. **Configure auth URLs** in *Authentication → URL Configuration*:
    - Site URL: `http://localhost:3847`
    - Redirect URLs: `http://localhost:3847/auth/confirm`
@@ -163,7 +195,7 @@ Schema notes for the data-layer PR:
    - **Secure password change** on (re-authentication required to change a password).
    - **Leaked password protection** on (HaveIBeenPwned check; Kaide: turn this on in the
      dashboard; Supabase offers it on the Pro plan and above, and it can't be set from the repo).
-5. **Apply the migrations in order** (`001_initial.sql`, `002_rls_fixes.sql`, then `003_length_limits.sql`), either:
+5. **Apply the migrations in order** (`001_initial.sql`, `002_rls_fixes.sql`, `003_length_limits.sql`, `004_rate_limits.sql`, then `005_username_available_service_role.sql`), either:
    - with the CLI (no global install needed):
      ```bash
      npx supabase login
@@ -171,7 +203,19 @@ Schema notes for the data-layer PR:
      npx supabase db push
      ```
      Plain `db push` applies only `supabase/migrations/` and does not load `seed.sql`.
-   - or by pasting each file into the dashboard *SQL Editor* and running it, in order (`001`, `002`, `003`).
+   - or by pasting each file into the dashboard *SQL Editor* and running it, in order (`001` to `005`).
+
+   **Deploying the secret-key version to a project that already runs the app** (Cipher N2): the
+   order is `004` applied, then the new app (with `SUPABASE_SECRET_KEY` set), then `005`.
+   Between the app deploy and `005`, the new app calls `username_available` as `service_role`,
+   which only works if the project's default privileges grant it. Before deploying the app, check
+   in the *SQL Editor*:
+   ```sql
+   select has_function_privilege('service_role', 'public.username_available(text)', 'execute');
+   ```
+   If that returns `false`, first run just 005's grant line, which is safe at any time:
+   `grant execute on function public.username_available(text) to service_role;`. Otherwise
+   sign-up's username check fails closed ("Could not create account right now") until `005`.
 6. **Try it** (once all migrations are applied): set `SPELLBRANCH_BACKEND=supabase`
    in `.env.local` and restart `npm run dev`. Accounts and all data now live in the project.
 7. **Never load `seed.sql` on a hosted project.** It creates email-confirmed test accounts
@@ -198,6 +242,81 @@ Seeded accounts (local only, dev-only password `spellbranch-dev-only`):
 `alice@example.test`, `bob@example.test`, `carol@example.test`. Alice and Bob are
 friends; Carol has a pending request to Alice. The seed also includes public,
 friends-only and private decks, a fork, comments and favorites.
+
+## Rate limiting
+
+Review M1/I2. Every check goes through `limit(policy, ids)` in `src/lib/rate-limit` (server-only);
+callers never pick numbers or see storage keys, and an ESLint rule plus
+`tests/rate-limit-boundary.test.ts` keep the stores and keys private to that folder.
+
+- Counters: in Supabase mode they live in Postgres (`rate_limit_hit()` through the secret-key
+  client), so every server instance shares them; in local mode they live in memory, per process. The
+  in-memory store sweeps expired counters at most once a minute and holds at most 100,000; past
+  that, new keys fail closed ("try again shortly") rather than evicting anyone's count.
+- Supabase Auth's own limits:
+  - If Supabase refuses to send a sign-up confirmation email (`over_email_send_rate_limit`), the
+    reply is still "Check your email", the same as for a registered email, so it doesn't reveal
+    which emails exist. A new user may then get no email until custom SMTP (F5) is set up.
+  - Supabase's per-IP limits (`over_request_rate_limit`, or any other 429) at sign-up and sign-in
+    answer "Something went wrong. Please try again shortly." They are checked before the email is
+    read, so this reveals nothing. All app users share that bucket, because the server makes the
+    calls; the real fix is `Sb-Forwarded-For` (F5).
+- `npm run test:canary` builds the app with fake canary secrets and fails if any of them appears
+  anywhere in the build output (all of `.next`: browser bundle, client reference manifests, server
+  and middleware chunks, build cache). It needs no network:
+  `unshare -rn bash -c 'ip link set lo up && npm run test:canary'`.
+
+| Where | Limits (fixed windows) |
+| --- | --- |
+| Sign-in | per IP 20 / 5 min, then per (email, IP) 10 / 15 min, then per email 50 / hour |
+| Sign-up | username check per IP 20 / 10 min (counted first); then per IP 10 / hour and per email 3 / hour |
+| `/auth/confirm` POST and `?code=` exchange | per IP 10 / 5 min (after the Origin check) |
+| Friend search (`findProfileAction`) | per IP 60 / 10 min and per user 30 / 10 min; plus 60 / 10 min per user inside `find_profile()` |
+| Sign-out | never limited |
+
+- Checked before Supabase Auth or the local store is called, for registered and unknown emails
+  alike. A refusal is always "Too many attempts. Please try again later." (with `retryAfterSec`;
+  `/auth/confirm` answers 429 + `Retry-After`), so the limit says nothing about which emails exist.
+- **Fails closed**: if the counter store errors or takes over 2.5 s, the attempt is refused with
+  "Something went wrong. Please try again shortly." (`/auth/confirm`: 503).
+- Keys are `HMAC-SHA256(SPELLBRANCH_RATE_LIMIT_SECRET, policy + identifier)`: no raw emails or IPs
+  are stored. Emails are trimmed and lower-cased first and capped at 254 characters.
+- IPv4 addresses count individually; IPv6 addresses count per `/64` (one home or server network).
+  A missing or invalid client IP header goes into one shared `unknown` bucket (and logs a warning,
+  without the value).
+- Rotating `SPELLBRANCH_RATE_LIMIT_SECRET` resets every counter. Don't rotate it during an attack.
+
+### Client IP header
+
+The app trusts exactly **one** header, named by `SPELLBRANCH_CLIENT_IP_HEADER`, and only if it holds
+a single valid IP. Pick the header your platform **sets and overwrites** on every request; never
+`X-Forwarded-For`, which clients can add to.
+
+| Platform | `SPELLBRANCH_CLIENT_IP_HEADER` | Notes |
+| --- | --- | --- |
+| Vercel | `x-real-ip` | Set by Vercel's edge |
+| Behind Cloudflare | `cf-connecting-ip` | Only if the origin accepts traffic from Cloudflare alone (firewall or Cloudflare Tunnel); otherwise anyone can send the header directly |
+| Fly.io | `fly-client-ip` | Not verified yet; check it on a test deploy |
+| Your own server (nginx) | `x-real-ip` | Add `proxy_set_header X-Real-IP $remote_addr;` and don't expose the Node port directly |
+
+**After each deploy, check the header can't be spoofed**: send 21 sign-in attempts within 5 minutes
+with a different made-up value of the header (and of `X-Forwarded-For`) on each; the 21st must still
+get "Too many attempts". If it doesn't, the header is coming from the client: fix the setting before
+going live.
+
+### Rate limiting status
+
+| Piece | Status |
+| --- | --- |
+| Limiter, policies, HMAC keys, client IP, fail-closed checks; wired into sign-in, sign-up, the username check, `/auth/confirm` and friend search | Done |
+| `004_rate_limits.sql` (shared counters RPC, `find_profile` backstop) + pgTAP + concurrency script | Done, tested on local Postgres only |
+| Server-only secret-key client (`src/lib/supabase/service.ts`), `sb_secret_` startup check, ESLint fence, bundle canary | Done |
+| Shared counters across instances (`PostgresStore` → `rate_limit_hit()`) | Done in Supabase mode; unit-tested with a mocked client, RPC tested on local Postgres only |
+| `username_available` via the secret-key client, anon/authenticated `EXECUTE` revoked (`005`, I2) | Done, tested on local Postgres only |
+| Supabase Auth's own limits (all app users share the server's IP there) and custom SMTP (the built-in sender allows only about 2 emails/hour) | **Open** follow-ups |
+
+M1 is **not** done: Supabase Auth's own limits and SMTP are still open, and nothing has run against
+a live project yet, so production in Supabase mode stays behind `SPELLBRANCH_ALLOW_HYBRID=1`.
 
 ## Security headers
 

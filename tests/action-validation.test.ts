@@ -195,9 +195,9 @@ describe("friends", () => {
     expect(repoCalls()).toEqual([]);
   });
 
-  it("findProfileAction returns [] for non-strings and oversized input", async () => {
+  it("findProfileAction returns no profiles for non-strings and oversized input", async () => {
     for (const bad of [undefined, null, 42, {}, ["me_u"], "x".repeat(65)]) {
-      expect(await call(friends.findProfileAction, bad)).toEqual([]);
+      expect(await call(friends.findProfileAction, bad)).toEqual({ profiles: [] });
     }
     expect(repoCalls()).toEqual([]);
   });

@@ -1,23 +1,34 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RATE_LIMIT_UNAVAILABLE_MESSAGE, setRateLimitStoreForTests } from "@/lib/rate-limit";
+import { MemoryStore } from "@/lib/rate-limit/memory-store";
 
 // L2: a duplicate email must look exactly like a successful sign-up.
 // L4: sign-up enforces an 8-character minimum; sign-in doesn't.
 
 type SignUpResult = {
   data: { session: unknown; user: unknown };
-  error: { code?: string; message: string } | null;
+  error: { code?: string; message: string; status?: number } | null;
 };
 
 let signUpResult: SignUpResult;
 const signUp = vi.fn(async () => signUpResult);
-const signInWithPassword = vi.fn(async () => ({ data: {}, error: { code: "invalid_credentials", message: "x" } }));
+type SignInResult = { data: unknown; error: { code?: string; message: string; status?: number } | null };
+const signInWithPassword = vi.fn(
+  async (): Promise<SignInResult> => ({ data: {}, error: { code: "invalid_credentials", message: "x" } }),
+);
 
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    rpc: async () => ({ data: true, error: null }),
-    auth: { signUp, signInWithPassword },
-  }),
+  createClient: async () => ({ auth: { signUp, signInWithPassword } }),
 }));
+// The username check goes through the secret-key client (I2).
+vi.mock("@/lib/supabase/service", () => ({
+  usernameAvailable: async () => ({ data: true, error: null }),
+  rateLimitHit: async () => {
+    throw new Error("tests use an in-memory store");
+  },
+}));
+// Server actions read the client IP from the request headers (review M1).
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`);
@@ -49,10 +60,12 @@ const valid = {
 describe("Supabase sign-up messaging (L2)", () => {
   beforeEach(() => {
     vi.stubEnv("SPELLBRANCH_BACKEND", "supabase");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test_only_fake_0000000000"); // fake
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnop.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_test_only");
     vi.stubEnv("SPELLBRANCH_SITE_URL", "http://localhost:3847");
     signUp.mockClear();
+    setRateLimitStoreForTests(new MemoryStore()); // fresh in-memory counters
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -83,6 +96,31 @@ describe("Supabase sign-up messaging (L2)", () => {
     },
   );
 
+  it("Supabase's email-send limit looks like a successful sign-up (Cipher R2)", async () => {
+    // Registered (confirmed) email: GoTrue sends nothing and answers 200.
+    const registered = await signUpWith({ data: { session: null, user: { id: "fake" } }, error: null });
+    // New email while the sender is rate limited: GoTrue errors.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fresh = await signUpWith({
+      data: { session: null, user: null },
+      error: { code: "over_email_send_rate_limit", message: "email rate limit exceeded", status: 429 },
+    });
+    expect(fresh).toEqual(registered);
+    expect(JSON.stringify(fresh)).not.toMatch(/rate|limit|could not/i);
+  });
+
+  it.each([
+    ["over_request_rate_limit", { code: "over_request_rate_limit", message: "Request rate limit reached", status: 429 }],
+    ["a bare 429", { message: "Too many requests", status: 429 }],
+  ])("Supabase's shared per-IP limit (%s) says try again, never 'check your email' (Cipher N1)", async (_label, error) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // GoTrue raises this before reading the email, so registered and new
+    // emails get the same reply.
+    const res = await signUpWith({ data: { session: null, user: null }, error });
+    expect(res).toEqual({ error: RATE_LIMIT_UNAVAILABLE_MESSAGE });
+    expect(JSON.stringify(res)).not.toMatch(/check your email/i);
+  });
+
   it("rejects passwords under 8 characters before calling Supabase (L4)", async () => {
     const { signUpAction } = await import("@/lib/actions/auth");
     const res = await signUpAction(form({ ...valid, password: "1234567" }));
@@ -95,5 +133,16 @@ describe("Supabase sign-up messaging (L2)", () => {
     const res = await signInAction(form({ email: valid.email, password: "123456" }));
     expect(res).toEqual({ error: "Invalid email or password" });
     expect(signInWithPassword).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["over_request_rate_limit", { code: "over_request_rate_limit", message: "Request rate limit reached", status: 429 }],
+    ["a bare 429", { message: "Too many requests", status: 429 }],
+  ])("sign-in: Supabase's own limit (%s) says try again, not 'Invalid email or password' (Cipher N4)", async (_label, error) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    signInWithPassword.mockResolvedValueOnce({ data: {}, error });
+    const { signInAction } = await import("@/lib/actions/auth");
+    const res = await signInAction(form({ email: valid.email, password: "correct-horse-battery" }));
+    expect(res).toEqual({ error: RATE_LIMIT_UNAVAILABLE_MESSAGE });
   });
 });

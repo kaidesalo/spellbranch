@@ -9,6 +9,7 @@ import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
 import { LIMITS } from "@/lib/data/limits";
 import { isFormData } from "@/lib/actions/schemas";
+import { RATE_LIMIT_UNAVAILABLE_MESSAGE, limit, limitError, requestIp } from "@/lib/rate-limit";
 import { getSiteOrigin, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkUsernameAvailable } from "@/lib/supabase/username";
@@ -16,8 +17,11 @@ import { checkUsernameAvailable } from "@/lib/supabase/username";
 /** Keep in sync with supabase/config.toml `minimum_password_length`. */
 const MIN_PASSWORD_LENGTH = 8;
 
+/** RFC 5321 maximum; also bounds what the rate limiter hashes. */
+const MAX_EMAIL_LENGTH = 254;
+
 const signUpSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().max(MAX_EMAIL_LENGTH, "Enter a valid email").email("Enter a valid email"),
   password: z
     .string()
     .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
@@ -34,7 +38,7 @@ const signUpSchema = z.object({
 // Sign-in deliberately doesn't enforce the sign-up length rule, so accounts
 // created under the old 6-character minimum can still log in.
 const signInSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().max(MAX_EMAIL_LENGTH, "Enter a valid email").email("Enter a valid email"),
   password: z.string().min(1, "Enter your password"),
 });
 
@@ -48,7 +52,13 @@ const SIGN_UP_CHECK_EMAIL: AuthResult = {
   message: "Check your email to confirm your account.",
 };
 
-export type AuthResult = { error?: string; success?: boolean; message?: string };
+export type AuthResult = {
+  error?: string;
+  success?: boolean;
+  message?: string;
+  /** Set when the attempt was rate limited (review M1). */
+  retryAfterSec?: number;
+};
 
 export async function signUpAction(formData: FormData): Promise<AuthResult> {
   if (!isFormData(formData)) return { error: "Invalid input" };
@@ -66,16 +76,26 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
   const { email, password, username, displayName } = parsed.data;
   if (!username) return { error: "Username is required" };
 
+  // Review M1: the username check has its own per-IP bucket, counted before
+  // the sign-up bucket, so trying a few names doesn't use up sign-ups.
+  const ip = await requestIp();
+  const usernameLimit = await limit("username-check", { ip });
+  if (!usernameLimit.ok) return limitError(usernameLimit);
+
   if (isSupabaseConfigured()) {
     const result = await supabaseSignUp({
       email,
       password,
       username,
       displayName: displayName || username,
+      ip,
     });
     if (result !== "signed-in") return result;
     redirect("/dashboard");
   }
+
+  const signUpLimit = await limit("sign-up", { ip, email });
+  if (!signUpLimit.ok) return limitError(signUpLimit);
 
   try {
     const user = await updateStore((store) => {
@@ -133,12 +153,25 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
 
   const { email, password } = parsed.data;
 
+  // Review M1: per IP, per (email, IP) and per email, whether or not the
+  // account exists, before any password check.
+  const signInLimit = await limit("sign-in", { ip: await requestIp(), email });
+  if (!signInLimit.ok) return limitError(signInLimit);
+
   if (isSupabaseConfigured()) {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (error.code === "email_not_confirmed") {
         return { error: "Please confirm your email address first (check your inbox)." };
+      }
+      if (error.status === 429) {
+        // GoTrue's own per-IP /token limit (over_request_rate_limit), shared
+        // by every user because our server makes the call. It doesn't depend
+        // on the account, so "try again" leaks nothing, and "wrong password"
+        // would mislead everyone (Cipher R4/N4).
+        console.error("[spellbranch] sign-in rate limited by Supabase:", error.code ?? "429");
+        return { error: RATE_LIMIT_UNAVAILABLE_MESSAGE };
       }
       return { error: "Invalid email or password" };
     }
@@ -233,17 +266,24 @@ async function supabaseSignUp(input: {
   password: string;
   username: string;
   displayName: string;
+  ip: string;
 }): Promise<AuthResult | "signed-in"> {
   const supabase = await createSupabaseServerClient();
 
-  // Friendly pre-check via the username_available RPC (anon-callable). If it
+  // Friendly pre-check via the username_available RPC (service_role only,
+  // called through the server-only secret-key client). If it
   // can't be verified we stop rather than assume "available"; the unique
   // index in the database still settles two sign-ups racing for one name.
-  const availability = await checkUsernameAvailable(supabase, input.username);
+  const availability = await checkUsernameAvailable(input.username);
   if (availability === "error") {
     return { error: "Could not create account right now. Please try again." };
   }
   if (availability === "taken") return { error: "That username is already taken" };
+
+  // Counted for every email, registered or not, so the limit says nothing
+  // about which addresses have accounts.
+  const signUpLimit = await limit("sign-up", { ip: input.ip, email: input.email });
+  if (!signUpLimit.ok) return limitError(signUpLimit);
 
   // Required in Supabase mode (getBackend() throws without it).
   const siteUrl = getSiteOrigin();
@@ -261,6 +301,22 @@ async function supabaseSignUp(input: {
       // Only reachable with confirmations OFF. Answer exactly like a fresh
       // sign-up so the response doesn't reveal that the email is registered.
       return { ...SIGN_UP_CHECK_EMAIL };
+    }
+    if (error.code === "over_email_send_rate_limit") {
+      // Supabase refused to send the confirmation email (Cipher R2). That only
+      // happens for a NEW email (a registered one gets no email and no error),
+      // so a distinct reply would reveal which emails have accounts. Answer
+      // like a fresh sign-up; the real fix is custom SMTP (review F5).
+      console.error("[spellbranch] sign-up email not sent:", error.code);
+      return { ...SIGN_UP_CHECK_EMAIL };
+    }
+    if (error.status === 429) {
+      // Any other 429 (over_request_rate_limit) is GoTrue's per-IP limit, which
+      // runs before it reads the email and which every user shares (all
+      // traffic comes from our server's IP). Saying "check your email" would
+      // be a lie, and an honest "try again" reveals nothing (Cipher N1).
+      console.error("[spellbranch] sign-up rate limited by Supabase:", error.code ?? "429");
+      return { error: RATE_LIMIT_UNAVAILABLE_MESSAGE };
     }
     if (error.code === "weak_password") {
       return { error: error.message || "Password is too weak" };
