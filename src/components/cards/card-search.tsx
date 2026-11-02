@@ -167,7 +167,7 @@ export function CardSearch({
           ))}
         </ul>
 
-        <div className="rounded-xl border border-border/70 bg-background/60 p-2">
+        <div className="self-start rounded-xl border border-border/70 bg-background/60 p-2">
           {visibleSelected && image ? (
             <Image
               src={image}
