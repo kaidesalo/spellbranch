@@ -100,6 +100,7 @@ export async function searchScryfallCards(
   const res = await fetch(url.toString(), {
     headers: SCRYFALL_HEADERS,
     next: { revalidate: 60 },
+    signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
   });
 
   if (res.status === 404) {
@@ -140,19 +141,87 @@ function rankCardsByQuery(cards: ScryfallCard[], query: string) {
   });
 }
 
+/** How long one card lookup may take, end to end (Cipher PR #9 L1). */
+export const SCRYFALL_CARD_TIMEOUT_MS = 5000;
+/** Largest card body we read; real cards are a few KB (Cipher PR #9 L1). */
+export const SCRYFALL_CARD_MAX_BYTES = 1_000_000;
+
+/** Why a card lookup failed when Scryfall didn't simply say 404. */
+export class ScryfallLookupError extends Error {
+  constructor(
+    readonly kind: "timeout" | "too-large" | "unavailable",
+    message: string,
+  ) {
+    super(message);
+    this.name = "ScryfallLookupError";
+  }
+}
+
+/** The body as text, refusing (and cancelling) past maxBytes. */
+async function readCapped(res: Response, maxBytes: number): Promise<string> {
+  const tooLarge = () => new ScryfallLookupError("too-large", "Scryfall response too large");
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => undefined);
+    throw tooLarge();
+  }
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 /**
- * One card by Scryfall id: null when Scryfall says 404, throws when Scryfall
- * can't answer (network, 429, 5xx) so callers don't report "not found".
+ * One card by Scryfall id: null when Scryfall says 404; otherwise throws a
+ * ScryfallLookupError when Scryfall can't answer (network, 429, 5xx, bad
+ * JSON), takes longer than SCRYFALL_CARD_TIMEOUT_MS, or sends more than
+ * SCRYFALL_CARD_MAX_BYTES, so callers don't report "not found".
  * Callers must pass a validated UUID; it is encoded into the path anyway.
  */
 export async function getScryfallCard(
   id: string,
+  opts: { timeoutMs?: number; maxBytes?: number } = {},
 ): Promise<ScryfallCard | null> {
-  const res = await fetch(`https://api.scryfall.com/cards/${encodeURIComponent(id)}`, {
-    headers: SCRYFALL_HEADERS,
-    next: { revalidate: 3600 },
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Scryfall card lookup failed (${res.status})`);
-  return (await res.json()) as ScryfallCard;
+  const { timeoutMs = SCRYFALL_CARD_TIMEOUT_MS, maxBytes = SCRYFALL_CARD_MAX_BYTES } = opts;
+  try {
+    // One signal for the request and the body read.
+    const res = await fetch(`https://api.scryfall.com/cards/${encodeURIComponent(id)}`, {
+      headers: SCRYFALL_HEADERS,
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (res.status === 404) {
+      await res.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new ScryfallLookupError("unavailable", `Scryfall card lookup failed (${res.status})`);
+    }
+    return JSON.parse(await readCapped(res, maxBytes)) as ScryfallCard;
+  } catch (err) {
+    if (err instanceof ScryfallLookupError) throw err;
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new ScryfallLookupError("timeout", "Scryfall card lookup timed out");
+    }
+    throw new ScryfallLookupError("unavailable", "Scryfall card lookup failed");
+  }
 }

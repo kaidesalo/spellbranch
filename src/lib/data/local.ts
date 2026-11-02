@@ -3,7 +3,7 @@ import "server-only";
 import { v4 as uuidv4 } from "uuid";
 import { readStore, updateStore, type DataStore } from "@/lib/data/store";
 import { COMMANDER_MESSAGES, DataError } from "@/lib/data/errors";
-import { isLegendaryCreatureTypeLine } from "@/lib/commander";
+import { commanderProblem, normalizeCommander } from "@/lib/commander";
 import {
   FRIEND_MESSAGES,
   canRemove,
@@ -164,6 +164,12 @@ export const localRepository: Repository = {
     });
   },
 
+  async assertCanSetCommander(userId, deckId) {
+    const store = await readStore();
+    const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
+    if (deck.format !== "commander") throw new DataError(COMMANDER_MESSAGES.notCommanderFormat);
+  },
+
   async setCommander(userId, deckId, commander) {
     await updateStore((store) => {
       const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
@@ -171,16 +177,9 @@ export const localRepository: Repository = {
       if (commander && deck.format !== "commander") {
         throw new DataError(COMMANDER_MESSAGES.notCommanderFormat);
       }
-      if (commander && !isLegendaryCreatureTypeLine(commander.typeLine)) {
-        throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
-      }
-      deck.commander = commander
-        ? {
-            ...commander,
-            imageUri: scryfallImageOrNull(commander.imageUri),
-            artUri: scryfallImageOrNull(commander.artUri),
-          }
-        : null;
+      const problem = commander && commanderProblem(commander);
+      if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
+      deck.commander = commander ? normalizeCommander(commander) : null;
       deck.updatedAt = new Date().toISOString();
     });
   },

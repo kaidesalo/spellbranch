@@ -18,17 +18,56 @@ export function frontFaceTypeLine(typeLine: string): string {
 }
 
 /**
+ * Whitespace exactly as the migration CHECKs spell it: the six ASCII
+ * whitespace characters, written out as `[ \t\n\r\f\v]` on both sides.
+ * Not `\s`: JavaScript's `\s` matches NBSP and other Unicode spaces, and
+ * Postgres's depends on the database locale (it matched U+2003 but not NBSP
+ * on PG17 here), so either could accept what the other rejects (Cipher I2).
+ */
+const PG_SPACE = "[ \\t\\n\\r\\f\\v]";
+const LEGENDARY = new RegExp(`(^|${PG_SPACE})Legendary(${PG_SPACE}|$)`);
+const CREATURE = new RegExp(`(^|${PG_SPACE})Creature(${PG_SPACE}|$)`);
+const NOT_BLANK = /[^ \t\n\r\f\v]/;
+
+/**
  * True when the front face's card types (the part before the em dash) include
  * both the Legendary supertype and the Creature type. Whole words and
  * case-sensitive, like Oracle text: "Legendary Enchantment Creature — God"
  * passes; "Legendary Artifact", "Creature — Legendary" and "legendary
  * creature" do not. Same rule as the decks_commander_legendary_creature
- * CHECK in supabase/migrations/006_deck_commander.sql.
+ * CHECK (supabase/migrations/007_deck_commander_hardening.sql).
  */
 export function isLegendaryCreatureTypeLine(typeLine: string | null | undefined): boolean {
   if (typeof typeLine !== "string") return false;
-  const types = frontFaceTypeLine(typeLine).split("—")[0]!;
-  return /(^|\s)Legendary(\s|$)/.test(types) && /(^|\s)Creature(\s|$)/.test(types);
+  const types = typeLine.split("//")[0]!.split("—")[0]!;
+  return LEGENDARY.test(types) && CREATURE.test(types);
+}
+
+/** A name with at least one non-whitespace character (decks_commander_name_not_blank). */
+export function isNonBlankName(name: string | null | undefined): boolean {
+  return typeof name === "string" && NOT_BLANK.test(name);
+}
+
+/**
+ * Why a commander can't be saved, or null if it can: the rules both
+ * adapters re-check before writing (the action builds the commander from
+ * Scryfall, but the repository doesn't trust its caller either).
+ */
+export function commanderProblem(c: DeckCommander): "notLegendaryCreature" | null {
+  if (!isLegendaryCreatureTypeLine(c.typeLine) || !isNonBlankName(c.cardName)) {
+    return "notLegendaryCreature";
+  }
+  return null;
+}
+
+/** The commander as stored: colors deduplicated in WUBRG order, CDN-only images. */
+export function normalizeCommander(c: DeckCommander): DeckCommander {
+  return {
+    ...c,
+    imageUri: scryfallImageOrNull(c.imageUri),
+    artUri: scryfallImageOrNull(c.artUri),
+    colorIdentity: normalizeColorIdentity(c.colorIdentity),
+  };
 }
 
 /** The type line Scryfall shows for the card's front face. */
@@ -42,7 +81,9 @@ export function isLegendaryCreatureCard(card: ScryfallCard): boolean {
 
 /** W/U/B/R/G only, once each, in WUBRG order. */
 export function normalizeColorIdentity(colors: readonly unknown[] | null | undefined): string[] {
-  const set = new Set((colors ?? []).filter((c): c is string => typeof c === "string"));
+  // flat(): a 2-D array from a direct API write reads back nested.
+  const flat = Array.isArray(colors) ? (colors as unknown[]).flat(Infinity) : [];
+  const set = new Set(flat.filter((c): c is string => typeof c === "string"));
   return CARD_COLORS.filter((c) => set.has(c));
 }
 
@@ -56,12 +97,11 @@ function artCrop(card: ScryfallCard): string | null {
  * creature) or doesn't fit the column limits.
  */
 export function commanderFromScryfall(card: ScryfallCard): DeckCommander | null {
-  if (!isUuid(card.id) || typeof card.name !== "string") return null;
+  if (!isUuid(card.id) || !isNonBlankName(card.name)) return null;
   const typeLine = scryfallFrontTypeLine(card);
   if (!isLegendaryCreatureTypeLine(typeLine)) return null;
   const manaCost = getCardManaCost(card);
   if (
-    card.name.length === 0 ||
     card.name.length > LIMITS.cardName ||
     typeLine.length > LIMITS.typeLine ||
     (manaCost !== null && manaCost.length > LIMITS.manaCost)

@@ -6,6 +6,7 @@ import {
   deckCountLabel,
   isLegendaryCreatureCard,
   isLegendaryCreatureTypeLine,
+  isNonBlankName,
   normalizeColorIdentity,
 } from "@/lib/commander";
 import { compareCommanders } from "@/lib/compare-dto";
@@ -47,6 +48,10 @@ describe("isLegendaryCreatureTypeLine", () => {
     "LegendaryCreature — Elf",
     "Legendary Creatures",
     "",
+    // Cipher I2: only ASCII whitespace separates words, as in migration 007.
+    "Legendary\u00a0Creature — Elf",
+    "Legendary\u2003Creature — Elf",
+    "\u00a0Legendary Creature",
   ];
   for (const t of yes) it(`accepts "${t}"`, () => expect(isLegendaryCreatureTypeLine(t)).toBe(true));
   for (const t of no) it(`rejects "${t}"`, () => expect(isLegendaryCreatureTypeLine(t)).toBe(false));
@@ -54,6 +59,20 @@ describe("isLegendaryCreatureTypeLine", () => {
     for (const v of [null, undefined, 42, {}] as unknown[]) {
       expect(isLegendaryCreatureTypeLine(v as string)).toBe(false);
     }
+  });
+  it("accepts every ASCII whitespace character between the words", () => {
+    for (const ws of [" ", "\t", "\n", "\r", "\f", "\v"]) {
+      expect(isLegendaryCreatureTypeLine(`Legendary${ws}Creature — Elf`)).toBe(true);
+    }
+  });
+});
+
+describe("isNonBlankName (migration 007's decks_commander_name_not_blank)", () => {
+  it("rejects names of only ASCII whitespace", () => {
+    for (const n of ["", " ", "\t\n\r\f\v ", null, undefined]) expect(isNonBlankName(n)).toBe(false);
+  });
+  it("accepts anything with another character, like Postgres's [^ \\t\\n\\r\\f\\v]", () => {
+    for (const n of ["Test Legend", " x ", "\u00a0"]) expect(isNonBlankName(n)).toBe(true);
   });
 });
 
@@ -115,6 +134,12 @@ describe("commanderFromScryfall", () => {
 });
 
 describe("helpers", () => {
+  it("normalizeColorIdentity dedupes and flattens (migration 007's colors CHECKs)", () => {
+    expect(normalizeColorIdentity(["G", "W", "W", "G"])).toEqual(["W", "G"]);
+    expect(normalizeColorIdentity([["W", "U"], ["B", "R"]] as unknown[])).toEqual(["W", "U", "B", "R"]);
+    expect(normalizeColorIdentity(null)).toEqual([]);
+  });
+
   it("normalizeColorIdentity keeps WUBRG order", () => {
     expect(normalizeColorIdentity(["G", "B", "W", "U", "R"])).toEqual(["W", "U", "B", "R", "G"]);
     expect(normalizeColorIdentity(undefined)).toEqual([]);
@@ -173,5 +198,30 @@ describe("migration 006 agrees with the app", () => {
 
   it("adds no policies (the deck policies already cover the columns)", () => {
     expect(m006).not.toMatch(/create policy/i);
+  });
+});
+
+describe("migration 007 agrees with the app", () => {
+  const m007 = readFileSync(
+    path.resolve(__dirname, "../supabase/migrations/007_deck_commander_hardening.sql"),
+    "utf8",
+  );
+  const sql = m007.replace(/--.*$/gm, "");
+
+  it("redefines the type-line rule with the app's whitespace class, never \\s", () => {
+    expect(sql).toContain(`split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|[ \\t\\n\\r\\f\\v])Legendary([ \\t\\n\\r\\f\\v]|$)'`);
+    expect(sql).toContain(`split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|[ \\t\\n\\r\\f\\v])Creature([ \\t\\n\\r\\f\\v]|$)'`);
+    expect(sql).toContain(`commander_name ~ '[^ \\t\\n\\r\\f\\v]'`);
+    expect(sql).not.toContain("\\s");
+  });
+
+  it("is re-runnable: every constraint is dropped if it exists before it is added", () => {
+    const added = [...sql.matchAll(/add constraint (\w+)/g)].map((m) => m[1]);
+    expect(added.length).toBe(4);
+    for (const name of added) expect(sql).toContain(`drop constraint if exists ${name};`);
+  });
+
+  it("only touches CHECKs and data (no policies, grants or functions)", () => {
+    expect(sql).not.toMatch(/create policy|grant |revoke |create (or replace )?function|add column|drop column/i);
   });
 });
