@@ -6,6 +6,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { groupCardsByType, totalCards } from "@/lib/card-types";
+import { deckCountLabel } from "@/lib/commander";
 import {
   removeCardFromDeckAction,
   updateCardQuantityAction,
@@ -16,10 +17,13 @@ export function DeckList({
   deckId,
   cards,
   canEdit,
+  hasCommander = false,
 }: {
   deckId: string;
   cards: DeckCard[];
   canEdit: boolean;
+  /** Adds "1 commander +" to the count; the commander isn't in `cards`. */
+  hasCommander?: boolean;
 }) {
   const groups = groupCardsByType(cards);
   const [pending, startTransition] = useTransition();
@@ -53,7 +57,7 @@ export function DeckList({
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        {totalCards(cards)} cards · {cards.length} unique
+        {deckCountLabel(totalCards(cards), hasCommander)} · {cards.length} unique
       </p>
       {groups.map((group) => (
         <section key={group.type}>
