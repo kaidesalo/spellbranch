@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DataError } from "@/lib/data/errors";
+import { COMMANDER_MESSAGES, DataError } from "@/lib/data/errors";
+import { isLegendaryCreatureTypeLine, normalizeColorIdentity } from "@/lib/commander";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
   FRIEND_MESSAGES,
@@ -16,6 +17,7 @@ import type {
   Comment,
   Deck,
   DeckCard,
+  DeckCommander,
   DeckFormat,
   DeckWithMeta,
   FavoriteCard,
@@ -49,8 +51,11 @@ export type ClientFactory = () => Promise<Client>;
 
 type PgError = { code?: string; message?: string } | null;
 
+// The commander_* columns come from migration 006: apply it before deploying
+// this version (PostgREST rejects a select of unknown columns).
+// (One string literal: supabase-js types the result from it.)
 const DECK_COLS =
-  "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, created_at, updated_at";
+  "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, created_at, updated_at";
 const CARD_COLS =
   "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, oracle_text, quantity, created_at";
 const PROFILE_COLS = "id, username, display_name, avatar_url";
@@ -67,6 +72,13 @@ type DeckRow = {
   allow_forks: boolean;
   forked_from_id: string | null;
   preferred_branch_id: string | null;
+  commander_scryfall_id?: string | null;
+  commander_name?: string | null;
+  commander_type_line?: string | null;
+  commander_mana_cost?: string | null;
+  commander_image_uri?: string | null;
+  commander_art_uri?: string | null;
+  commander_color_identity?: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -113,9 +125,37 @@ export const toDeck = (r: DeckRow): Deck => ({
   allowForks: r.allow_forks,
   forkedFromId: r.forked_from_id,
   preferredBranchId: r.preferred_branch_id,
+  commander: toCommander(r),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
+
+/** decks_commander_complete guarantees id, name and type line come together. */
+function toCommander(r: DeckRow): DeckCommander | null {
+  if (!r.commander_scryfall_id || !r.commander_name || !r.commander_type_line) return null;
+  return {
+    scryfallId: r.commander_scryfall_id,
+    cardName: r.commander_name,
+    typeLine: r.commander_type_line,
+    manaCost: r.commander_mana_cost ?? null,
+    imageUri: r.commander_image_uri ?? null,
+    artUri: r.commander_art_uri ?? null,
+    colorIdentity: r.commander_color_identity ?? [],
+  };
+}
+
+/** Column values for a commander (null clears every commander column). */
+function commanderColumns(c: DeckCommander | null) {
+  return {
+    commander_scryfall_id: c?.scryfallId ?? null,
+    commander_name: c?.cardName ?? null,
+    commander_type_line: c?.typeLine ?? null,
+    commander_mana_cost: c?.manaCost ?? null,
+    commander_image_uri: c ? scryfallImageOrNull(c.imageUri) : null,
+    commander_art_uri: c ? scryfallImageOrNull(c.artUri) : null,
+    commander_color_identity: c ? normalizeColorIdentity(c.colorIdentity) : [],
+  };
+}
 
 const toCard = (r: CardRow): DeckCard => ({
   id: r.id,
@@ -388,12 +428,45 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
             notes: input.notes,
             visibility: input.visibility,
             allow_forks: input.allowForks,
+            // Leaving Commander clears the commander in the same UPDATE, so
+            // decks_commander_format (commander => format = 'commander')
+            // never rejects a format change.
+            ...(input.format === "commander" ? {} : commanderColumns(null)),
           })
           .eq("id", deckId)
           .eq("owner_id", userId)
           .select("id"),
       ) as { id: string }[] | null;
       if (!rows?.length) throw new DataError("You cannot edit this deck");
+    },
+
+    async setCommander(userId, deckId, commander) {
+      const denied = "You cannot edit this deck";
+      if (!isUuid(deckId)) throw new DataError(denied);
+      const client = await getClient();
+      const deck = await requireOwnDeck(client, userId, deckId, denied);
+      if (commander && deck.format !== "commander") {
+        throw new DataError(COMMANDER_MESSAGES.notCommanderFormat);
+      }
+      if (commander && !isLegendaryCreatureTypeLine(commander.typeLine)) {
+        throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
+      }
+      let query = client
+        .from("decks")
+        .update(commanderColumns(commander))
+        .eq("id", deckId)
+        .eq("owner_id", userId);
+      // Guards a format change racing this write; the CHECK is the backstop.
+      if (commander) query = query.eq("format", "commander");
+      const { data, error } = await query.select("id");
+      if (error) {
+        // 23514: one of the decks_commander_* CHECKs (format or type line).
+        if (error.code === "23514") throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
+        throw new SupabaseDataError("decks commander", error.code);
+      }
+      if (!data?.length) {
+        throw new DataError(commander ? COMMANDER_MESSAGES.notCommanderFormat : denied);
+      }
     },
 
     async deleteDeck(userId, deckId) {
