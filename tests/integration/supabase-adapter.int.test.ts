@@ -10,7 +10,7 @@ import type { Repository } from "@/lib/data/types";
 
 /**
  * Integration pass: the real Supabase adapter + supabase-js against PostgREST
- * on a local Postgres 17 with the Supabase stub, migrations 001-003 and seed.
+ * on a local Postgres 17 with the Supabase stub, migrations 001-006 and seed.
  * Skipped unless SPELLBRANCH_IT_POSTGREST_URL is set; run it with
  * /workspace/spellbranch-pr3-rls/run_pr3_integration.sh (see the PR body).
  * There is no GoTrue: JWTs are minted with the throwaway PostgREST secret, so
@@ -272,6 +272,35 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
     const fork = await ben().getDeck(BEN, forkId);
     expect(fork?.forkedFromId).toBeNull();
     expect(fork?.cardCount).toBe(2);
+  });
+
+  it("commander (006): owner sets/clears, others read only, format change clears, forks copy", async () => {
+    const legend = {
+      scryfallId: "11111111-2222-4333-8444-555555555555", cardName: "Test Legend",
+      typeLine: "Legendary Creature — Elf", manaCost: "{2}{G}", imageUri: IMG,
+      artUri: "https://cards.scryfall.io/art_crop/front/0/0/x.jpg", colorIdentity: ["G"],
+    };
+    const edh = await ann().createDeck(ANN, { name: "EDH", format: "commander", notes: "", visibility: "public", allowForks: true });
+    await ann().setCommander(ANN, edh, legend);
+    expect((await anon().getDeck(null, edh))?.commander).toEqual(legend);
+    expect((await anon().listDecks(null, "public")).find((d) => d.id === edh)?.commander?.cardName).toBe("Test Legend");
+
+    expect(await dataError(ben().setCommander(BEN, edh, null))).toBe("You cannot edit this deck");
+    // Direct API write by a non-owner: RLS filters the row out.
+    const { data: hijack } = await clientFor(BEN).from("decks")
+      .update({ commander_name: "Hijack" }).eq("id", edh).select("id");
+    expect(hijack).toEqual([]);
+    // Direct API write by the owner can't bypass the type-line CHECK.
+    const { error: bad } = await clientFor(ANN).from("decks")
+      .update({ commander_type_line: "Legendary Artifact" }).eq("id", edh);
+    expect(bad?.code).toBe("23514");
+
+    const fork = await ben().forkDeck(BEN, edh);
+    expect((await ben().getDeck(BEN, fork))?.commander).toEqual(legend);
+
+    await ann().updateDeck(ANN, edh, { name: "EDH", format: "modern", notes: "", visibility: "public", allowForks: true });
+    expect((await anon().getDeck(null, edh))?.commander).toBeNull();
+    expect(await dataError(ann().setCommander(ANN, edh, legend))).toBe("Only Commander decks have a commander");
   });
 
   it("own profile comes from profiles; nobody's email is selectable", async () => {
