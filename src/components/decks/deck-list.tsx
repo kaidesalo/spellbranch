@@ -9,6 +9,8 @@ import { groupCardsByType, totalCards } from "@/lib/card-types";
 import { deckCountLabel } from "@/lib/commander";
 import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
 import { QuantityInput } from "@/components/decks/quantity-input";
+import { CardZoom } from "@/components/cards/card-zoom";
+import { zoomCardFromSaved } from "@/lib/card-zoom";
 import { updateCardQuantityAction } from "@/lib/actions/decks";
 import type { DeckCard } from "@/lib/types";
 
@@ -84,24 +86,32 @@ export function DeckList({
                 key={card.id}
                 className="flex items-center gap-3 px-3 py-2"
               >
-                {card.imageUri ? (
-                  <Image
-                    src={card.imageUri}
-                    alt=""
-                    width={36}
-                    height={50}
-                    className="h-[50px] w-9 rounded object-cover"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="h-[50px] w-9 rounded bg-muted" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{card.cardName}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {card.manaCost ?? "—"} · {card.typeLine}
-                  </p>
-                </div>
+                <CardZoom
+                  card={zoomCardFromSaved(card.cardName, card.imageUri)}
+                  className="flex min-w-0 flex-1 items-center gap-3"
+                >
+                  {card.imageUri ? (
+                    <Image
+                      src={card.imageUri}
+                      alt=""
+                      width={36}
+                      height={50}
+                      className="h-[50px] w-9 rounded object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="h-[50px] w-9 rounded bg-muted" />
+                  )}
+                  {/* spans, not p/div: a <button> may only hold phrasing content */}
+                  <span className="block min-w-0 flex-1">
+                    <span className="block truncate font-medium group-hover/zoom:underline">
+                      {card.cardName}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {card.manaCost ?? "—"} · {card.typeLine}
+                    </span>
+                  </span>
+                </CardZoom>
                 {canEdit ? (
                   <div className="flex items-center gap-1">
                     <Button

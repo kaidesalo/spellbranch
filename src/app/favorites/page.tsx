@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth/require-user";
 import { removeFavoriteAction } from "@/lib/actions/favorites";
 import { listFavorites } from "@/lib/queries/favorites";
 import { Button } from "@/components/ui/button";
+import { CardZoom } from "@/components/cards/card-zoom";
+import { zoomCardFromSaved } from "@/lib/card-zoom";
 
 export default async function FavoritesPage() {
   await requireUser();
@@ -31,14 +33,19 @@ export default async function FavoritesPage() {
             >
               <div className="flex gap-3">
                 {card.imageUri ? (
-                  <Image
-                    src={card.imageUri}
-                    alt={card.cardName}
-                    width={72}
-                    height={100}
-                    className="rounded-lg"
-                    unoptimized
-                  />
+                  <CardZoom
+                    card={zoomCardFromSaved(card.cardName, card.imageUri)}
+                    className="shrink-0 self-start"
+                  >
+                    <Image
+                      src={card.imageUri}
+                      alt={card.cardName}
+                      width={72}
+                      height={100}
+                      className="rounded-lg"
+                      unoptimized
+                    />
+                  </CardZoom>
                 ) : (
                   <div className="h-[100px] w-[72px] rounded-lg bg-muted" />
                 )}

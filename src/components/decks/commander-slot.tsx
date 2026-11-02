@@ -26,6 +26,8 @@ import {
   pickVisibleSelection,
   useScryfallSearch,
 } from "@/components/cards/use-scryfall-search";
+import { CardZoom } from "@/components/cards/card-zoom";
+import { zoomCardFromSaved, zoomCardFromScryfall } from "@/lib/card-zoom";
 
 // Lost Century palette swatches for the color identity pips.
 const PIP: Record<string, { label: string; className: string }> = {
@@ -106,7 +108,12 @@ export function CommanderSlot({
                   <Crown className="h-3.5 w-3.5" aria-hidden /> Commander
                 </p>
                 <p className="mt-1 text-2xl font-bold leading-tight sm:text-3xl">
-                  {commander.cardName}
+                  <CardZoom
+                    card={zoomCardFromSaved(commander.cardName, commander.imageUri)}
+                    className="hover:underline focus-visible:ring-[#e8d9a8]/70"
+                  >
+                    {commander.cardName}
+                  </CardZoom>
                 </p>
               </div>
             </div>
@@ -137,14 +144,19 @@ export function CommanderSlot({
           </div>
           {commander.imageUri && (
             <div className="hidden border-l border-border/70 bg-background/50 p-3 sm:block">
-              <Image
-                src={commander.imageUri}
-                alt={commander.cardName}
-                width={146}
-                height={204}
-                className="h-auto w-full rounded-lg"
-                unoptimized
-              />
+              <CardZoom
+                card={zoomCardFromSaved(commander.cardName, commander.imageUri)}
+                className="block w-full"
+              >
+                <Image
+                  src={commander.imageUri}
+                  alt={commander.cardName}
+                  width={146}
+                  height={204}
+                  className="h-auto w-full rounded-lg"
+                  unoptimized
+                />
+              </CardZoom>
             </div>
           )}
         </div>
@@ -274,14 +286,16 @@ function CommanderPicker({
           </ul>
           <div className="self-start rounded-xl border border-border/70 bg-background/60 p-2">
             {visibleSelected && image ? (
-              <Image
-                src={image}
-                alt={visibleSelected.name}
-                width={166}
-                height={232}
-                className="mx-auto h-auto w-full rounded-lg"
-                unoptimized
-              />
+              <CardZoom card={zoomCardFromScryfall(visibleSelected)} className="block w-full">
+                <Image
+                  src={image}
+                  alt={visibleSelected.name}
+                  width={166}
+                  height={232}
+                  className="mx-auto h-auto w-full rounded-lg"
+                  unoptimized
+                />
+              </CardZoom>
             ) : (
               <div className="flex aspect-[5/7] items-center justify-center rounded-lg bg-muted px-2 text-center text-xs text-muted-foreground">
                 Search by name, e.g. “Atraxa”
