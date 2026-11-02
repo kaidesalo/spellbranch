@@ -1,5 +1,6 @@
 import type {
   Comment,
+  DeckCommander,
   DeckFormat,
   DeckWithMeta,
   FavoriteCard,
@@ -92,11 +93,19 @@ export interface Repository {
 
   // Decks (writes)
   createDeck(userId: string, input: DeckInput): Promise<string>;
+  /** Changing the format away from "commander" clears the commander. */
   updateDeck(userId: string, deckId: string, input: DeckInput): Promise<void>;
   deleteDeck(userId: string, deckId: string): Promise<void>;
   addCard(userId: string, deckId: string, card: CardInput): Promise<void>;
   /** quantity 0 removes the card. */
   setCardQuantity(userId: string, deckId: string, cardId: string, quantity: number): Promise<void>;
+  /**
+   * Owner only, Commander decks only. `commander` must already be built from
+   * Scryfall data (commanderFromScryfall); null clears it. Both adapters
+   * re-check the legendary-creature rule, and the database CHECKs it again.
+   */
+  setCommander(userId: string, deckId: string, commander: DeckCommander | null): Promise<void>;
+  /** Copies cards and the commander (forks carry the commander over). */
   forkDeck(userId: string, deckId: string): Promise<string>;
   setPreferredBranch(userId: string, sourceId: string, branchId: string | null): Promise<void>;
 

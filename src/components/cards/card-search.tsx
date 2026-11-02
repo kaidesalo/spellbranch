@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Image from "next/image";
 import { Loader2, Plus, Search, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/scryfall/client";
 import { addCardToDeckAction } from "@/lib/actions/decks";
 import { addFavoriteAction } from "@/lib/actions/favorites";
+import { pickVisibleSelection, useScryfallSearch } from "./use-scryfall-search";
 
 export function CardSearch({
   deckId,
@@ -23,63 +24,10 @@ export function CardSearch({
   canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
-  const [cards, setCards] = useState<ScryfallCard[]>([]);
   const [selected, setSelected] = useState<ScryfallCard | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  const activeQuery = deferredQuery.trim();
-  const showEmptyHint = activeQuery.length >= 2 && !loading && !error && cards.length === 0;
-
-  useEffect(() => {
-    if (activeQuery.length < 2) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(
-          `/api/scryfall/search?q=${encodeURIComponent(activeQuery)}`,
-          { signal: controller.signal },
-        );
-        const data = (await res.json()) as {
-          cards?: ScryfallCard[];
-          error?: string;
-        };
-        if (!res.ok) throw new Error(data.error || "Search failed");
-        const next = data.cards ?? [];
-        setCards(next);
-        setSelected((current) => {
-          if (current && next.some((c) => c.id === current.id)) return current;
-          return next[0] ?? null;
-        });
-      } catch (err) {
-        if ((err as Error).name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Search failed");
-        setCards([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [activeQuery]);
-
-  const visibleCards = activeQuery.length < 2 ? [] : cards;
-  const visibleSelected =
-    activeQuery.length < 2
-      ? null
-      : selected && visibleCards.some((c) => c.id === selected.id)
-        ? selected
-        : visibleCards[0] ?? null;
+  const { cards: visibleCards, loading, error, showEmptyHint } = useScryfallSearch(query);
+  const visibleSelected = pickVisibleSelection(visibleCards, selected);
 
   function addSelected() {
     if (!visibleSelected || !canEdit) return;

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { DeckWithMeta } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { visibilityLabel } from "@/lib/permissions";
+import { deckCountLabel } from "@/lib/commander";
 
 export function DeckCardSummary({
   deck,
@@ -29,7 +30,11 @@ export function DeckCardSummary({
         <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>
       </div>
       <p className="mt-3 text-sm text-muted-foreground">
-        {deck.cardCount ?? 0} cards
+        {deckCountLabel(
+          deck.cardCount ?? 0,
+          deck.format === "commander" && Boolean(deck.commander),
+        )}
+        {deck.format === "commander" && deck.commander ? ` · ${deck.commander.cardName}` : ""}
         {deck.forkCount ? ` · ${deck.forkCount} forks` : ""}
         {deck.owner ? ` · @${deck.owner.username}` : ""}
       </p>

@@ -1,4 +1,4 @@
-import type { DeckCard, DeckWithMeta } from "@/lib/types";
+import type { DeckCard, DeckCommander, DeckWithMeta } from "@/lib/types";
 
 /**
  * What the client-side CompareView gets for each side: only the fields it
@@ -11,12 +11,16 @@ export type CompareCard = Pick<
   "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity"
 >;
 
+export type CompareCommander = Pick<DeckCommander, "scryfallId" | "cardName" | "typeLine">;
+
 export interface CompareSide {
   id: string;
   name: string;
   format: string;
   cardCount: number;
   ownerUsername: string | null;
+  /** Null unless the deck is a Commander deck with a commander set. */
+  commander: CompareCommander | null;
   cards: CompareCard[];
 }
 
@@ -27,6 +31,14 @@ export function toCompareSide(deck: DeckWithMeta): CompareSide {
     format: deck.format,
     cardCount: deck.cardCount ?? 0,
     ownerUsername: deck.owner?.username ?? null,
+    commander:
+      deck.format === "commander" && deck.commander
+        ? {
+            scryfallId: deck.commander.scryfallId,
+            cardName: deck.commander.cardName,
+            typeLine: deck.commander.typeLine,
+          }
+        : null,
     cards: (deck.cards ?? []).map((c) => ({
       scryfallId: c.scryfallId,
       cardName: c.cardName,
@@ -36,4 +48,17 @@ export function toCompareSide(deck: DeckWithMeta): CompareSide {
       quantity: c.quantity,
     })),
   };
+}
+
+export type CommanderChange = "none" | "same" | "added" | "removed" | "changed";
+
+/** How the branch's commander differs from the source's. */
+export function compareCommanders(
+  source: CompareCommander | null,
+  branch: CompareCommander | null,
+): CommanderChange {
+  if (!source && !branch) return "none";
+  if (!source) return "added";
+  if (!branch) return "removed";
+  return source.scryfallId === branch.scryfallId ? "same" : "changed";
 }

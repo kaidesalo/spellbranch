@@ -16,3 +16,9 @@ export function userMessage(err: unknown, fallback: string): string {
   console.error("[spellbranch] data error:", err instanceof Error ? err.message : err);
   return fallback;
 }
+
+/** Shown for every commander write the rules refuse (both adapters). */
+export const COMMANDER_MESSAGES = {
+  notCommanderFormat: "Only Commander decks have a commander",
+  notLegendaryCreature: "Your commander must be a legendary creature",
+} as const;

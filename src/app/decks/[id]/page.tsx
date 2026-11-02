@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardSearch } from "@/components/cards/card-search";
 import { DeckList } from "@/components/decks/deck-list";
+import { CommanderSlot } from "@/components/decks/commander-slot";
+import { deckCountLabel } from "@/lib/commander";
 import { CommentSection } from "@/components/comments/comment-section";
 
 export default async function DeckDetailPage({
@@ -35,6 +37,17 @@ export default async function DeckDetailPage({
     : undefined;
   const defaultCompareId = preferred?.id ?? deck.branches?.[0]?.id;
 
+  // The commander is its own slot, not a deck-list entry (it isn't one of
+  // the 99). Only Commander decks show the slot.
+  const isCommanderFormat = deck.format === "commander";
+  const commander = isCommanderFormat ? deck.commander : null;
+  const commanderAlsoInList = Boolean(
+    commander &&
+      deck.cards?.some(
+        (c) => c.scryfallId === commander.scryfallId || c.cardName === commander.cardName,
+      ),
+  );
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <div className="flex flex-col gap-4 border-b border-border/70 pb-5 lg:flex-row lg:items-start lg:justify-between">
@@ -52,7 +65,7 @@ export default async function DeckDetailPage({
             </Badge>
             <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>
             <span>
-              {deck.cardCount ?? 0} cards
+              {deckCountLabel(deck.cardCount ?? 0, Boolean(commander))}
               {deck.owner ? ` · @${deck.owner.username}` : ""}
               {deck.allowForks ? " · forks allowed" : " · forks locked"}
             </span>
@@ -168,6 +181,14 @@ export default async function DeckDetailPage({
           <CardSearch deckId={deck.id} canEdit={canEdit} />
         </aside>
         <div className="space-y-8">
+          {isCommanderFormat && (
+            <CommanderSlot
+              deckId={deck.id}
+              commander={commander}
+              canEdit={canEdit}
+              alsoInDeckList={commanderAlsoInList}
+            />
+          )}
           <section className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5">
             <h2 className="mb-4 font-heading text-xl">
               Deck list
@@ -176,6 +197,7 @@ export default async function DeckDetailPage({
               deckId={deck.id}
               cards={deck.cards ?? []}
               canEdit={canEdit}
+              hasCommander={Boolean(commander)}
             />
           </section>
           <CommentSection

@@ -65,6 +65,7 @@ describe("id arguments must be UUIDs", () => {
     ["removeCardFromDeckAction", (id) => call(decks.removeCardFromDeckAction, OTHER, id)],
     ["forkDeckAction", (id) => call(decks.forkDeckAction, id)],
     ["setPreferredBranchAction (source)", (id) => call(decks.setPreferredBranchAction, id, OTHER)],
+    ["setCommanderAction (deck)", (id) => call(decks.setCommanderAction, id, null)],
     ["addCommentAction", (id) => call(comments.addCommentAction, id, "hi")],
     ["removeFavoriteAction", (id) => call(favorites.removeFavoriteAction, id)],
     ["sendFriendRequestAction", (id) => call(friends.sendFriendRequestAction, id)],
@@ -80,6 +81,14 @@ describe("id arguments must be UUIDs", () => {
       expect(repoCalls()).toEqual([]);
     });
   }
+
+  it("setCommanderAction accepts null (clear) but not other non-UUIDs for the card", async () => {
+    expect(await call(decks.setCommanderAction, OTHER, null)).toEqual({ success: true });
+    for (const bad of BAD_IDS.filter((b) => b !== null)) {
+      expect(await call(decks.setCommanderAction, OTHER, bad)).toEqual({ error: expect.any(String) });
+    }
+    expect(repo.setCommander.mock.calls).toEqual([[ME, OTHER, null]]);
+  });
 
   it("setPreferredBranchAction accepts null (clear) but not other non-UUIDs for the branch", async () => {
     expect(await call(decks.setPreferredBranchAction, OTHER, null)).toEqual({ success: true });

@@ -11,7 +11,8 @@ import {
   summarizeDiffs,
 } from "@/lib/deck-diff";
 import { setPreferredBranchAction } from "@/lib/actions/decks";
-import type { CompareSide } from "@/lib/compare-dto";
+import { compareCommanders, type CompareSide } from "@/lib/compare-dto";
+import { deckCountLabel } from "@/lib/commander";
 import { cn } from "@/lib/utils";
 
 export function CompareView({
@@ -29,6 +30,7 @@ export function CompareView({
   const summary = summarizeDiffs(diffs);
   const replacements = findReplacements(diffs);
   const changed = diffs.filter((d) => d.kind !== "unchanged");
+  const commanderChange = compareCommanders(source.commander, branch.commander);
   const [pending, startTransition] = useTransition();
 
   function setPreferred(value: string | null) {
@@ -51,7 +53,7 @@ export function CompareView({
           </p>
           <h2 className="font-heading text-xl font-semibold">{source.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground capitalize">
-            {source.format} · {source.cardCount} cards
+            {source.format} · {deckCountLabel(source.cardCount, Boolean(source.commander))}
           </p>
           <Button
             className="mt-3"
@@ -68,7 +70,7 @@ export function CompareView({
           </p>
           <h2 className="font-heading text-xl font-semibold">{branch.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground capitalize">
-            {branch.format} · {branch.cardCount} cards
+            {branch.format} · {deckCountLabel(branch.cardCount, Boolean(branch.commander))}
             {branch.ownerUsername ? ` · @${branch.ownerUsername}` : ""}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -105,7 +107,38 @@ export function CompareView({
         </Badge>
         <Badge variant="secondary">{replacements.length} replaced</Badge>
         <Badge variant="outline">{summary.unchanged} unchanged</Badge>
+        {(commanderChange === "added" ||
+          commanderChange === "removed" ||
+          commanderChange === "changed") && (
+          <Badge className="bg-[#4b726e] text-white hover:bg-[#4b726e]">
+            commander {commanderChange}
+          </Badge>
+        )}
       </div>
+
+      {commanderChange !== "none" && (
+        <section>
+          <h3 className="mb-2 font-heading text-lg font-semibold">Commander</h3>
+          <div className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm">
+            {commanderChange === "same" ? (
+              <p>
+                Both lead with{" "}
+                <span className="font-medium">{source.commander!.cardName}</span>.
+              </p>
+            ) : (
+              <p>
+                <span className={source.commander ? "text-rose-700 line-through" : "text-muted-foreground"}>
+                  {source.commander?.cardName ?? "No commander"}
+                </span>
+                <span className="mx-2 text-muted-foreground">→</span>
+                <span className={branch.commander ? "font-medium text-emerald-800" : "text-muted-foreground"}>
+                  {branch.commander?.cardName ?? "No commander"}
+                </span>
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {replacements.length > 0 && (
         <section>

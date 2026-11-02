@@ -20,6 +20,9 @@ export function DeckForm({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [format, setFormat] = useState<string>(deck?.format ?? "commander");
+  const commanderWillClear =
+    Boolean(deck?.commander) && deck?.format === "commander" && format !== "commander";
 
   return (
     <form
@@ -52,7 +55,9 @@ export function DeckForm({
           <select
             id="format"
             name="format"
-            defaultValue={deck?.format ?? "commander"}
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+            aria-describedby={commanderWillClear ? "format-commander-hint" : undefined}
             className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
             {DECK_FORMATS.map((f) => (
@@ -61,6 +66,12 @@ export function DeckForm({
               </option>
             ))}
           </select>
+          {commanderWillClear && (
+            <p id="format-commander-hint" className="text-xs text-muted-foreground">
+              Only Commander decks have a commander. Saving with this format
+              clears {deck!.commander!.cardName} as the commander.
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="visibility">Visibility</Label>

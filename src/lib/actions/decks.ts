@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import type { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
+import { COMMANDER_MESSAGES } from "@/lib/data/errors";
+import { commanderFromScryfall } from "@/lib/commander";
+import { getScryfallCard } from "@/lib/scryfall/client";
 import {
   cardInputSchema,
   check,
@@ -156,6 +159,48 @@ export async function removeCardFromDeckAction(
   cardId: string,
 ): Promise<ActionResult> {
   return updateCardQuantityAction(deckId, cardId, 0);
+}
+
+/**
+ * Sets (or with null, clears) a Commander deck's commander. The client sends
+ * only a Scryfall id: the card itself is fetched from Scryfall here, so the
+ * name, type line and images that get stored never come from the client, and
+ * the legendary-creature rule is checked on Scryfall's own type line. The
+ * repository re-checks ownership, the format and the rule (and the database
+ * CHECKs them once more in Supabase mode).
+ */
+export async function setCommanderAction(
+  deckId: string,
+  scryfallId: string | null,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const card = check(idSchema.nullable(), scryfallId, "Card not found");
+  if (!card.ok) return { error: card.error };
+
+  let commander = null;
+  if (card.data !== null) {
+    let found;
+    try {
+      found = await getScryfallCard(card.data);
+    } catch {
+      return { error: "Could not reach Scryfall" };
+    }
+    if (!found) return { error: "Card not found" };
+    commander = commanderFromScryfall(found);
+    if (!commander) return { error: COMMANDER_MESSAGES.notLegendaryCreature };
+  }
+
+  try {
+    await getRepository().setCommander(user.id, deckId, commander);
+  } catch (err) {
+    return { error: userMessage(err, "Could not update the commander") };
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  revalidatePath("/decks");
+  return { success: true };
 }
 
 export async function forkDeckAction(deckId: string): Promise<ActionResult> {

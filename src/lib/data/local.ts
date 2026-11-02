@@ -2,7 +2,8 @@ import "server-only";
 
 import { v4 as uuidv4 } from "uuid";
 import { readStore, updateStore, type DataStore } from "@/lib/data/store";
-import { DataError } from "@/lib/data/errors";
+import { COMMANDER_MESSAGES, DataError } from "@/lib/data/errors";
+import { isLegendaryCreatureTypeLine } from "@/lib/commander";
 import {
   FRIEND_MESSAGES,
   canRemove,
@@ -56,6 +57,8 @@ function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): De
   return {
     ...deck,
     preferredBranchId,
+    // Decks saved before the commander feature have no field at all.
+    commander: deck.commander ?? null,
     owner: ownerProfile(store, deck.ownerId),
     cards,
     cardCount: cards.reduce((sum, c) => sum + c.quantity, 0),
@@ -143,6 +146,7 @@ export const localRepository: Repository = {
         ...input,
         forkedFromId: null,
         preferredBranchId: null,
+        commander: null,
         createdAt: now,
         updatedAt: now,
       });
@@ -154,6 +158,30 @@ export const localRepository: Repository = {
     await updateStore((store) => {
       const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
       Object.assign(deck, input, { updatedAt: new Date().toISOString() });
+      // Only Commander decks have a commander: leaving the format clears it
+      // (same rule as the decks_commander_format CHECK in Supabase mode).
+      if (deck.format !== "commander") deck.commander = null;
+    });
+  },
+
+  async setCommander(userId, deckId, commander) {
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
+      // Clearing is always allowed (a no-op outside Commander decks).
+      if (commander && deck.format !== "commander") {
+        throw new DataError(COMMANDER_MESSAGES.notCommanderFormat);
+      }
+      if (commander && !isLegendaryCreatureTypeLine(commander.typeLine)) {
+        throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
+      }
+      deck.commander = commander
+        ? {
+            ...commander,
+            imageUri: scryfallImageOrNull(commander.imageUri),
+            artUri: scryfallImageOrNull(commander.artUri),
+          }
+        : null;
+      deck.updatedAt = new Date().toISOString();
     });
   },
 
@@ -230,6 +258,8 @@ export const localRepository: Repository = {
         allowForks: source.visibility === "public",
         forkedFromId: source.id,
         preferredBranchId: null,
+        // The commander carries over like the cards (fork_deck() copies it too).
+        commander: source.commander ? { ...source.commander } : null,
         createdAt: now,
         updatedAt: now,
       });
