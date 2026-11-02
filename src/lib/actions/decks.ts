@@ -18,7 +18,15 @@ import {
   quantitySchema,
 } from "@/lib/actions/schemas";
 
-export type ActionResult = { error?: string; success?: boolean; id?: string; retryAfterSec?: number };
+export type ActionResult = {
+  error?: string;
+  success?: boolean;
+  id?: string;
+  /** Rate-limited actions: seconds until the caller may retry. */
+  retryAfterSec?: number;
+  /** updateCardQuantityAction: the quantity that was saved (0 = removed). */
+  quantity?: number;
+};
 
 function parseDeckForm(formData: unknown) {
   if (!isFormData(formData)) {
@@ -142,17 +150,19 @@ export async function updateCardQuantityAction(
   if (!ids.ok) return { error: ids.error };
   const card = check(idSchema, cardId, "Card not found in deck");
   if (!card.ok) return { error: card.error };
+  // Above the max is capped, not refused (see quantitySchema).
   const qty = check(quantitySchema, quantity, "Quantity must be between 0 and 99");
   if (!qty.ok) return { error: qty.error };
 
   try {
-    await getRepository().setCardQuantity(user.id, deckId, cardId, quantity);
+    // The repository checks that the user owns the deck and the card is in it.
+    await getRepository().setCardQuantity(user.id, deckId, cardId, qty.data);
   } catch (err) {
     return { error: userMessage(err, "Could not update card") };
   }
 
   revalidatePath(`/decks/${deckId}`);
-  return { success: true };
+  return { success: true, quantity: qty.data };
 }
 
 export async function removeCardFromDeckAction(
