@@ -27,6 +27,7 @@ import {
   useScryfallSearch,
 } from "@/components/cards/use-scryfall-search";
 import { CardZoom } from "@/components/cards/card-zoom";
+import { ManaCost, ManaText } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved, zoomCardFromScryfall } from "@/lib/card-zoom";
 
 // Lost Century palette swatches for the color identity pips.
@@ -119,9 +120,7 @@ export function CommanderSlot({
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm">
               <span>{commander.typeLine}</span>
-              {commander.manaCost && (
-                <span className="font-mono text-xs text-muted-foreground">{commander.manaCost}</span>
-              )}
+              <ManaCost cost={commander.manaCost} className="text-base" />
               <ColorIdentity colors={commander.colorIdentity} />
             </div>
             {alsoInDeckList && (
@@ -277,7 +276,7 @@ function CommanderPicker({
                       )}
                     </div>
                     <div className={`text-xs ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                      {getCardManaCost(card) ?? "—"} · {scryfallFrontTypeLine(card)}
+                      <ManaCost cost={getCardManaCost(card)} fallback="—" /> · {scryfallFrontTypeLine(card)}
                     </div>
                   </button>
                 </li>
@@ -304,7 +303,11 @@ function CommanderPicker({
             {visibleSelected && (
               <div className="mt-2 space-y-2">
                 <p className="line-clamp-4 text-xs text-muted-foreground">
-                  {getCardOracleText(visibleSelected) || "No rules text."}
+                  {getCardOracleText(visibleSelected) ? (
+                    <ManaText text={getCardOracleText(visibleSelected)} />
+                  ) : (
+                    "No rules text."
+                  )}
                 </p>
                 <Button
                   size="sm"

@@ -14,7 +14,12 @@ const inner = source.slice(2, -1); // strip leading "/(" and trailing ")"
 const re = new RegExp(`^/(?:${inner})$`);
 const runsOn = (p: string) => re.test(p);
 
-const publicFiles = readdirSync(path.resolve(__dirname, "../public"));
+// Every served file under public/, as a URL path like "next.svg" or "mana/W.svg".
+const publicDir = path.resolve(__dirname, "../public");
+const publicFiles = readdirSync(publicDir, { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile())
+  .map((entry) => path.relative(publicDir, path.join(entry.parentPath, entry.name)))
+  .map((file) => file.split(path.sep).join("/"));
 
 describe("proxy matcher (R1)", () => {
   it.each([
@@ -30,11 +35,16 @@ describe("proxy matcher (R1)", () => {
     "/sub/next.svg",
     "/_next/imagefoo",
     "/auth/confirm",
+    "/mana",
+    "/mana/",
+    "/mana/nope.png",
+    "/mana/w.svg",
+    "/mana/W.svg/x",
   ])("runs on %s", (p) => {
     expect(runsOn(p)).toBe(true);
   });
 
-  it.each(["/_next/static/chunks/main.js", "/_next/static/css/app.css", "/_next/image", "/favicon.ico"])(
+  it.each(["/_next/static/chunks/main.js", "/_next/static/css/app.css", "/_next/image", "/favicon.ico", "/mana/W.svg", "/mana/WUP.svg"])(
     "skips %s",
     (p) => {
       expect(runsOn(p)).toBe(false);

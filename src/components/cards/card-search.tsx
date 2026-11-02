@@ -16,6 +16,7 @@ import { addCardToDeckAction } from "@/lib/actions/decks";
 import { addFavoriteAction } from "@/lib/actions/favorites";
 import { zoomCardFromScryfall } from "@/lib/card-zoom";
 import { CardZoom } from "./card-zoom";
+import { ManaCost, ManaText } from "./mana-symbols";
 import { pickVisibleSelection, useScryfallSearch } from "./use-scryfall-search";
 
 export function CardSearch({
@@ -110,7 +111,7 @@ export function CardSearch({
                       : "text-muted-foreground"
                   }`}
                 >
-                  {getCardManaCost(card) ?? "—"} · {card.type_line}
+                  <ManaCost cost={getCardManaCost(card)} fallback="—" /> · {card.type_line}
                 </div>
               </button>
             </li>
@@ -137,7 +138,11 @@ export function CardSearch({
           {visibleSelected && (
             <div className="mt-2 space-y-2">
               <p className="text-xs text-muted-foreground line-clamp-4">
-                {getCardOracleText(visibleSelected) || "No rules text."}
+                {getCardOracleText(visibleSelected) ? (
+                  <ManaText text={getCardOracleText(visibleSelected)} />
+                ) : (
+                  "No rules text."
+                )}
               </p>
               <div className="flex flex-col gap-2">
                 {canEdit && (

@@ -10,6 +10,7 @@ import { deckCountLabel } from "@/lib/commander";
 import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
 import { QuantityInput } from "@/components/decks/quantity-input";
 import { CardZoom } from "@/components/cards/card-zoom";
+import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
 import { updateCardQuantityAction } from "@/lib/actions/decks";
 import type { DeckCard } from "@/lib/types";
@@ -108,7 +109,7 @@ export function DeckList({
                       {card.cardName}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {card.manaCost ?? "—"} · {card.typeLine}
+                      <ManaCost cost={card.manaCost} fallback="—" /> · {card.typeLine}
                     </span>
                   </span>
                 </CardZoom>
