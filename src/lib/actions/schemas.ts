@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { CARD_COLORS, LIMITS } from "@/lib/data/limits";
 import { isUuid } from "@/lib/data/validation";
+import { MAX_CARD_QUANTITY, clampQuantity } from "@/lib/deck-quantity";
+
+const QUANTITY_MESSAGE = `Quantity must be between 0 and ${MAX_CARD_QUANTITY}`;
 
 /**
  * Argument schemas for the server actions (Cipher PR #3 review, L2/L4).
@@ -51,11 +54,16 @@ export const favoriteSchema = z.object({
   typeLine: nullableText(LIMITS.typeLine),
 });
 
+/**
+ * A deck-list quantity: a whole number from 0 (removes the card) up. Larger
+ * numbers are capped at MAX_CARD_QUANTITY instead of refused, so a typed
+ * "500" saves as 99; negatives, decimals, NaN and non-numbers are refused.
+ */
 export const quantitySchema = z
-  .number("Quantity must be between 0 and 99")
-  .int("Quantity must be between 0 and 99")
-  .min(0, "Quantity must be between 0 and 99")
-  .max(99, "Quantity must be between 0 and 99");
+  .number(QUANTITY_MESSAGE)
+  .int(QUANTITY_MESSAGE)
+  .min(0, QUANTITY_MESSAGE)
+  .transform(clampQuantity);
 
 export const commentBodySchema = z
   .string("Comment must be text")
