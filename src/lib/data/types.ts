@@ -104,6 +104,12 @@ export interface Repository {
    * Scryfall data (commanderFromScryfall); null clears it. Both adapters
    * re-check the legendary-creature rule, and the database CHECKs it again.
    */
+  /**
+   * Throws a DataError unless userId owns a Commander-format deck deckId.
+   * A cheap pre-check, so setCommanderAction refuses before it spends a
+   * Scryfall lookup (Cipher L1); setCommander checks again when it writes.
+   */
+  assertCanSetCommander(userId: string, deckId: string): Promise<void>;
   setCommander(userId: string, deckId: string, commander: DeckCommander | null): Promise<void>;
   /** Copies cards and the commander (forks carry the commander over). */
   forkDeck(userId: string, deckId: string): Promise<string>;
