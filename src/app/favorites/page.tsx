@@ -43,7 +43,7 @@ export default async function FavoritesPage() {
                   <div className="h-[100px] w-[72px] rounded-lg bg-muted" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-heading font-semibold">{card.cardName}</p>
+                  <p className="font-semibold">{card.cardName}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {card.manaCost ?? "—"}
                   </p>
