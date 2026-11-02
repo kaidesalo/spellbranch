@@ -18,10 +18,10 @@ function face(family, weights) {
 }
 
 module.exports = {
-  "https://fonts.googleapis.com/css2?family=Figtree:wght@300..900&display=swap":
-    face("Figtree", "300 900"),
-  "https://fonts.googleapis.com/css2?family=Syne:wght@400..800&display=swap":
-    face("Syne", "400 800"),
+  "https://fonts.googleapis.com/css2?family=Raleway:wght@100..900&display=swap":
+    face("Raleway", "100 900"),
+  "https://fonts.googleapis.com/css2?family=Knewave:wght@400&display=swap":
+    face("Knewave", "400"),
   "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap":
     face("Geist Mono", "100 900"),
 };

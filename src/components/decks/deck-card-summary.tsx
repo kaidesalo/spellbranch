@@ -17,13 +17,13 @@ export function DeckCardSummary({
       className="group block rounded-2xl border border-border/80 bg-card/70 p-5 transition hover:border-primary/40 hover:bg-card"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-heading text-lg font-semibold group-hover:text-primary">
+        <h3 className="text-lg font-semibold group-hover:text-primary">
           {deck.name}
         </h3>
         {badge}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Badge variant="outline" className="capitalize">
+        <Badge variant="outline">
           {deck.format}
         </Badge>
         <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>

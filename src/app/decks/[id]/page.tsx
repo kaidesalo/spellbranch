@@ -47,7 +47,7 @@ export default async function DeckDetailPage({
             {preferred && <Badge>Preferred: {preferred.name}</Badge>}
           </div>
           <p className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
-            <Badge variant="outline" className="capitalize">
+            <Badge variant="outline">
               {deck.format}
             </Badge>
             <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>
@@ -162,14 +162,14 @@ export default async function DeckDetailPage({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr]">
         <aside className="rounded-2xl border border-border/80 bg-card/70 p-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
-          <h2 className="mb-3 font-heading text-lg font-semibold">
+          <h2 className="mb-3 font-heading text-xl">
             Card search
           </h2>
           <CardSearch deckId={deck.id} canEdit={canEdit} />
         </aside>
         <div className="space-y-8">
           <section className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5">
-            <h2 className="mb-4 font-heading text-lg font-semibold">
+            <h2 className="mb-4 font-heading text-xl">
               Deck list
             </h2>
             <DeckList

@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
-import { Figtree, Syne, Geist_Mono } from "next/font/google";
+import { Raleway, Knewave, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getSessionUser } from "@/lib/auth/session";
 import "./globals.css";
 
-const figtree = Figtree({
-  variable: "--font-figtree",
+// Body, nav and labels: light geometric sans (variable font, 100-900).
+const raleway = Raleway({
+  variable: "--font-raleway",
   subsets: ["latin"],
 });
 
-const syne = Syne({
-  variable: "--font-syne",
+// Page titles and section headers only (h1/h2, .font-heading): brush display face.
+const knewave = Knewave({
+  variable: "--font-knewave",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -36,7 +39,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${figtree.variable} ${syne.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${raleway.variable} ${knewave.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <SiteHeader user={user} />

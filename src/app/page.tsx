@@ -17,10 +17,10 @@ export default async function HomePage() {
 
       <section className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="animate-rise">
-          <p className="font-heading text-5xl font-semibold tracking-tight text-primary sm:text-6xl md:text-7xl">
+          <p className="font-heading text-6xl text-primary sm:text-7xl md:text-8xl">
             Spellbranch
           </p>
-          <h1 className="mt-4 max-w-xl font-heading text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+          <h1 className="mt-4 max-w-xl font-sans text-3xl font-light leading-snug tracking-normal text-foreground sm:text-4xl">
             Build decks with friends. Fork ideas. Compare every change.
           </h1>
           <p className="mt-4 max-w-lg text-lg text-muted-foreground">
@@ -96,7 +96,7 @@ export default async function HomePage() {
           ].map((item) => (
             <div key={item.title}>
               <item.icon className="mb-3 h-5 w-5 text-primary" aria-hidden />
-              <h2 className="font-heading text-lg font-semibold">{item.title}</h2>
+              <h2 className="label-caps text-sm text-foreground">{item.title}</h2>
               <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
             </div>
           ))}

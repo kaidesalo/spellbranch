@@ -57,7 +57,7 @@ export function DeckList({
       </p>
       {groups.map((group) => (
         <section key={group.type}>
-          <h3 className="mb-2 flex items-center justify-between font-heading text-sm font-semibold uppercase tracking-wide text-primary">
+          <h3 className="mb-2 flex items-center justify-between label-caps text-primary">
             <span>{group.type}</span>
             <span className="text-muted-foreground">{group.count}</span>
           </h3>
