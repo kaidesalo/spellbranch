@@ -179,10 +179,15 @@ describe("card and favorite payloads", () => {
   });
 
   it("updateCardQuantityAction checks the quantity type and range", async () => {
-    for (const bad of [-1, 100, 1.5, "2", null, NaN]) {
+    for (const bad of [-1, 1.5, "2", null, NaN, Infinity]) {
       expect(await call(decks.updateCardQuantityAction, OTHER, OTHER, bad)).toEqual({ error: "Quantity must be between 0 and 99" });
     }
     expect(repoCalls()).toEqual([]);
+  });
+
+  it("updateCardQuantityAction caps quantities above 99 instead of refusing them", async () => {
+    expect(await decks.updateCardQuantityAction(OTHER, OTHER, 100)).toEqual({ success: true, quantity: 99 });
+    expect(repo.setCardQuantity.mock.calls[0]).toEqual([ME, OTHER, OTHER, 99]);
   });
 
   it("addFavoriteAction enforces the same limits", async () => {
