@@ -38,7 +38,7 @@ export default async function EditDeckPage({
         />
       </div>
 
-      <div className="mt-8 rounded-2xl border border-destructive/30 bg-destructive/5 p-6">
+      <div className="mt-8 rounded-2xl border border-destructive/30 bg-card/70 p-6">
         <h2 className="font-heading text-lg font-semibold text-destructive">
           Delete deck
         </h2>
