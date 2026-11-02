@@ -62,17 +62,38 @@ const SCRYFALL_HEADERS = {
   "User-Agent": "Spellbranch/0.1 (https://github.com/spellbranch; mtg deck builder)",
 };
 
+/** What a search is for: any card, or a commander pick (legendary creatures). */
+export type SearchKind = "card" | "commander";
+
+/** Scryfall filter appended to commander searches. */
+export const COMMANDER_SEARCH_FILTER = "t:legendary t:creature";
+
+/**
+ * Optional predicate applied to commander results after the search, so the
+ * picker only ever lists cards the server would accept even if the user's
+ * own query syntax widens the Scryfall match. Injected (rather than imported
+ * from @/lib/commander) to avoid a circular import.
+ */
+type CardFilter = (card: ScryfallCard) => boolean;
+
+export function buildSearchQuery(query: string, kind: SearchKind = "card"): string {
+  const q = query.trim();
+  // Quoted name first so common queries like "sol ring" rank the exact card.
+  const base = q.includes(":") ? q : `name:"${q}" OR ${q}`;
+  return kind === "commander" ? `(${base}) ${COMMANDER_SEARCH_FILTER}` : base;
+}
+
 export async function searchScryfallCards(
   query: string,
   page = 1,
+  kind: SearchKind = "card",
+  keep?: CardFilter,
 ): Promise<{ cards: ScryfallCard[]; total: number; error?: string }> {
   const q = query.trim();
   if (!q) return { cards: [], total: 0 };
 
   const url = new URL("https://api.scryfall.com/cards/search");
-  // Quoted name first so common queries like "sol ring" rank the exact card.
-  const searchQuery = q.includes(":") ? q : `name:"${q}" OR ${q}`;
-  url.searchParams.set("q", searchQuery);
+  url.searchParams.set("q", buildSearchQuery(q, kind));
   url.searchParams.set("page", String(page));
   url.searchParams.set("unique", "cards");
 
@@ -94,10 +115,12 @@ export async function searchScryfallCards(
     };
   }
 
-  const cards = rankCardsByQuery(data.data ?? [], q);
+  const found = data.data ?? [];
+  const kept = keep ? found.filter(keep) : found;
+  const cards = rankCardsByQuery(kept, q);
   return {
     cards,
-    total: data.total_cards ?? cards.length,
+    total: keep ? cards.length : (data.total_cards ?? cards.length),
   };
 }
 
@@ -117,13 +140,19 @@ function rankCardsByQuery(cards: ScryfallCard[], query: string) {
   });
 }
 
+/**
+ * One card by Scryfall id: null when Scryfall says 404, throws when Scryfall
+ * can't answer (network, 429, 5xx) so callers don't report "not found".
+ * Callers must pass a validated UUID; it is encoded into the path anyway.
+ */
 export async function getScryfallCard(
   id: string,
 ): Promise<ScryfallCard | null> {
-  const res = await fetch(`https://api.scryfall.com/cards/${id}`, {
+  const res = await fetch(`https://api.scryfall.com/cards/${encodeURIComponent(id)}`, {
     headers: SCRYFALL_HEADERS,
     next: { revalidate: 3600 },
   });
-  if (!res.ok) return null;
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Scryfall card lookup failed (${res.status})`);
   return (await res.json()) as ScryfallCard;
 }

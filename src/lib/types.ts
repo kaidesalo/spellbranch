@@ -65,6 +65,26 @@ export interface DeckCard {
   createdAt: string;
 }
 
+/**
+ * A Commander deck's commander: one legendary creature, kept on the deck row
+ * itself (not in deck_cards), so it is never one of the 99 and never has a
+ * quantity. Fields mirror how deck cards are stored; every value comes from
+ * Scryfall on the server (setCommanderAction), never from the client.
+ */
+export interface DeckCommander {
+  scryfallId: string;
+  cardName: string;
+  /** Front face type line; always contains "Legendary" and "Creature". */
+  typeLine: string;
+  manaCost: string | null;
+  /** Full card image (Scryfall "normal"). */
+  imageUri: string | null;
+  /** Art crop for the commander banner (Scryfall "art_crop"). */
+  artUri: string | null;
+  /** W/U/B/R/G subset in WUBRG order; [] is colorless. */
+  colorIdentity: string[];
+}
+
 export interface Deck {
   id: string;
   ownerId: string;
@@ -75,6 +95,8 @@ export interface Deck {
   allowForks: boolean;
   forkedFromId: string | null;
   preferredBranchId: string | null;
+  /** Only ever set when format is "commander" (DB CHECK decks_commander_format). */
+  commander: DeckCommander | null;
   createdAt: string;
   updatedAt: string;
 }
