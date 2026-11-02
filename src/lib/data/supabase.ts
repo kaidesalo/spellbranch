@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { COMMANDER_MESSAGES, DataError } from "@/lib/data/errors";
-import { isLegendaryCreatureTypeLine, normalizeColorIdentity } from "@/lib/commander";
+import { commanderProblem, normalizeColorIdentity, normalizeCommander } from "@/lib/commander";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
   FRIEND_MESSAGES,
@@ -140,20 +140,23 @@ function toCommander(r: DeckRow): DeckCommander | null {
     manaCost: r.commander_mana_cost ?? null,
     imageUri: r.commander_image_uri ?? null,
     artUri: r.commander_art_uri ?? null,
-    colorIdentity: r.commander_color_identity ?? [],
+    // Normalized on read too: a direct API write could have stored odd arrays
+    // before migration 007 (Cipher I1).
+    colorIdentity: normalizeColorIdentity(r.commander_color_identity),
   };
 }
 
 /** Column values for a commander (null clears every commander column). */
-function commanderColumns(c: DeckCommander | null) {
+function commanderColumns(input: DeckCommander | null) {
+  const c = input && normalizeCommander(input);
   return {
     commander_scryfall_id: c?.scryfallId ?? null,
     commander_name: c?.cardName ?? null,
     commander_type_line: c?.typeLine ?? null,
     commander_mana_cost: c?.manaCost ?? null,
-    commander_image_uri: c ? scryfallImageOrNull(c.imageUri) : null,
-    commander_art_uri: c ? scryfallImageOrNull(c.artUri) : null,
-    commander_color_identity: c ? normalizeColorIdentity(c.colorIdentity) : [],
+    commander_image_uri: c?.imageUri ?? null,
+    commander_art_uri: c?.artUri ?? null,
+    commander_color_identity: c?.colorIdentity ?? [],
   };
 }
 
@@ -440,6 +443,13 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       if (!rows?.length) throw new DataError("You cannot edit this deck");
     },
 
+    async assertCanSetCommander(userId, deckId) {
+      const denied = "You cannot edit this deck";
+      if (!isUuid(deckId)) throw new DataError(denied);
+      const deck = await requireOwnDeck(await getClient(), userId, deckId, denied);
+      if (deck.format !== "commander") throw new DataError(COMMANDER_MESSAGES.notCommanderFormat);
+    },
+
     async setCommander(userId, deckId, commander) {
       const denied = "You cannot edit this deck";
       if (!isUuid(deckId)) throw new DataError(denied);
@@ -448,9 +458,8 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       if (commander && deck.format !== "commander") {
         throw new DataError(COMMANDER_MESSAGES.notCommanderFormat);
       }
-      if (commander && !isLegendaryCreatureTypeLine(commander.typeLine)) {
-        throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
-      }
+      const problem = commander && commanderProblem(commander);
+      if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
       let query = client
         .from("decks")
         .update(commanderColumns(commander))

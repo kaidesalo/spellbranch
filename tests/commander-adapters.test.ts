@@ -83,6 +83,26 @@ describe("local adapter: commander", () => {
     );
   });
 
+  it("rejects a blank name and stores colors deduplicated in WUBRG order (migration 007)", async () => {
+    const id = await repo.createDeck(ALICE, deckInput("commander"));
+    await rejectsWith(repo.setCommander(ALICE, id, { ...LEGEND, cardName: " \t" }), COMMANDER_MESSAGES.notLegendaryCreature);
+    await rejectsWith(
+      repo.setCommander(ALICE, id, { ...LEGEND, typeLine: "Legendary\u00a0Creature — Elf" }),
+      COMMANDER_MESSAGES.notLegendaryCreature,
+    );
+    await repo.setCommander(ALICE, id, { ...LEGEND, colorIdentity: ["G", "W", "G"] });
+    expect((await repo.getDeck(null, id))?.commander?.colorIdentity).toEqual(["W", "G"]);
+  });
+
+  it("assertCanSetCommander: owner of a Commander deck only", async () => {
+    const edh = await repo.createDeck(ALICE, deckInput("commander"));
+    const modern = await repo.createDeck(ALICE, deckInput("modern"));
+    await expect(repo.assertCanSetCommander(ALICE, edh)).resolves.toBeUndefined();
+    await rejectsWith(repo.assertCanSetCommander(BOB, edh), "You cannot edit this deck");
+    await rejectsWith(repo.assertCanSetCommander(ALICE, modern), COMMANDER_MESSAGES.notCommanderFormat);
+    await rejectsWith(repo.assertCanSetCommander(ALICE, "missing"), "You cannot edit this deck");
+  });
+
   it("drops non-Scryfall images", async () => {
     const id = await repo.createDeck(ALICE, deckInput("commander"));
     await repo.setCommander(ALICE, id, { ...LEGEND, imageUri: "https://evil.example/x.png", artUri: "javascript:x" });
@@ -181,6 +201,34 @@ describe("supabase adapter: commander", () => {
     for (const r of [other, modern, edh]) expect(r.calls.some(isDeckUpdate)).toBe(false);
   });
 
+  it("refuses a blank name or NBSP type line before writing; writes normalized colors", async () => {
+    const edh = supa((c) => {
+      if (isDeckSelect(c)) return ok(deckRow());
+      if (isDeckUpdate(c)) return ok([{ id: DECK }]);
+    });
+    await rejectsWith(edh.repo.setCommander(ALICE, DECK, { ...LEGEND, cardName: "  " }), COMMANDER_MESSAGES.notLegendaryCreature);
+    await rejectsWith(
+      edh.repo.setCommander(ALICE, DECK, { ...LEGEND, typeLine: "Legendary\u00a0Creature" }),
+      COMMANDER_MESSAGES.notLegendaryCreature,
+    );
+    expect(edh.calls.some(isDeckUpdate)).toBe(false);
+    await edh.repo.setCommander(ALICE, DECK, { ...LEGEND, colorIdentity: ["G", "U", "G"] });
+    expect(edh.calls.find(isDeckUpdate)!.payload).toMatchObject({ commander_color_identity: ["U", "G"] });
+  });
+
+  it("assertCanSetCommander reads the deck and never writes", async () => {
+    const own = supa((c) => (isDeckSelect(c) ? ok(deckRow()) : undefined));
+    await expect(own.repo.assertCanSetCommander(ALICE, DECK)).resolves.toBeUndefined();
+    const other = supa((c) => (isDeckSelect(c) ? ok(deckRow({ owner_id: BOB })) : undefined));
+    await rejectsWith(other.repo.assertCanSetCommander(ALICE, DECK), "You cannot edit this deck");
+    const modern = supa((c) => (isDeckSelect(c) ? ok(deckRow({ format: "modern" })) : undefined));
+    await rejectsWith(modern.repo.assertCanSetCommander(ALICE, DECK), COMMANDER_MESSAGES.notCommanderFormat);
+    const bad = supa(() => undefined);
+    await rejectsWith(bad.repo.assertCanSetCommander(ALICE, "not-a-uuid"), "You cannot edit this deck");
+    expect(bad.calls).toEqual([]);
+    for (const r of [own, other, modern]) expect(r.calls.some(isDeckUpdate)).toBe(false);
+  });
+
   it("maps a CHECK violation and a lost format race to clean messages", async () => {
     const check = supa((c) => (isDeckSelect(c) ? ok(deckRow()) : isDeckUpdate(c) ? pgError("23514") : undefined));
     await rejectsWith(check.repo.setCommander(ALICE, DECK, LEGEND), COMMANDER_MESSAGES.notLegendaryCreature);
@@ -207,5 +255,15 @@ describe("supabase adapter: commander", () => {
       if (c.table === "deck_cards" || c.table === "decks" || c.table === "public_profiles") return ok([]);
     });
     expect((await partial.repo.getDeck(null, DECK))?.commander).toBeNull();
+  });
+
+  it("normalizes colors read from the row", async () => {
+    const odd = supa((c) => {
+      if (isDeckSelect(c) && c.single) {
+        return ok(deckRow({ ...commanderRow, commander_color_identity: [["G", "W"], ["G"]] }));
+      }
+      if (c.table === "deck_cards" || c.table === "decks" || c.table === "public_profiles") return ok([]);
+    });
+    expect((await odd.repo.getDeck(null, DECK))?.commander?.colorIdentity).toEqual(["W", "G"]);
   });
 });
