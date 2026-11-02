@@ -244,7 +244,7 @@ function CommanderPicker({
         {showEmptyHint && (
           <p className="text-sm text-muted-foreground">No legendary creatures found.</p>
         )}
-        <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+        <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
           <ul className="max-h-[360px] space-y-1 overflow-y-auto pr-1" aria-label="Legendary creatures">
             {cards.map((card) => {
               const active = visibleSelected?.id === card.id;
@@ -294,7 +294,7 @@ function CommanderPicker({
                 </p>
                 <Button
                   size="sm"
-                  className="w-full"
+                  className="h-auto w-full whitespace-normal py-1.5"
                   onClick={choose}
                   disabled={pending || visibleSelected.id === currentId}
                 >
