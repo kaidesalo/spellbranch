@@ -23,7 +23,7 @@ export interface Call {
   order?: unknown[];
 }
 
-export type Reply = { data: unknown; error: { code?: string; message?: string } | null };
+export type Reply = { data: unknown; error: { code?: string; message?: string; hint?: string } | null };
 export type Responder = (call: Call) => Reply | undefined;
 
 export const ok = (data: unknown): Reply => ({ data, error: null });

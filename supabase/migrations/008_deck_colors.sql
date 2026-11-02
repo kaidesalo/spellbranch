@@ -17,15 +17,21 @@
 -- Constraint, trigger and function names are all new, so re-running an
 -- older migration can't replace them with a weaker version (Cipher, PR #10).
 -- The one exception is fork_deck(), which 002 and 006 also define: re-run
--- 008 after re-running either of them. Even then forks keep the deck colors,
--- because decks_inherit_fork_colors (below) copies them on insert.
+-- 008 after re-running either of them. Until then forks still keep the deck
+-- colors (decks_inherit_fork_colors copies them on insert), but forking a
+-- deck that has cards is refused, because the old fork_deck() copies no
+-- card identity.
 --
 -- Rules (same as src/lib/deck-colors.ts and src/lib/data/deck-color-rules.ts):
 --   * decks.colors: NULL = no colors picked (unrestricted); '{}' = Colorless;
 --     otherwise W/U/B/R/G, once each, 1-D, no NULL entries.
 --   * deck_cards.color_identity: the card's Scryfall color identity, stored
 --     by the app from its own Scryfall lookup. NULL for cards added before
---     008; card colors stand in for those.
+--     008; card colors stand in for those. New rows written through the API
+--     (anon / authenticated) must carry one; legacy NULL rows stay as they are.
+--     The DB checks the identity's shape, not its truth: an owner writing
+--     straight to PostgREST can still label a card in their own deck with any
+--     identity. That only affects their own deck.
 --   * A card fits when its identity is a subset of the deck colors
 --     (colorless cards fit every deck). Adding a card or raising its quantity
 --     needs a fit; lowering or removing never does.
@@ -93,21 +99,35 @@ alter table public.decks
 -- ---------------------------------------------------------------------------
 -- 3. Triggers: cards fit the deck colors
 -- ---------------------------------------------------------------------------
--- Both run as definer so they always see the deck row and its cards
--- whatever RLS lets the caller see; they only read, and only refuse.
+-- Both run as the caller (security invoker), so RLS applies to what they
+-- read. Running as definer let a stranger's insert reach the deck's colors
+-- before RLS refused it: a 23514 instead of 42501 showed that a private deck
+-- exists and what its colors are (Cipher, PR #14 L1). Now a deck the caller
+-- can't update reads as "not found" and is refused with 42501 straight away,
+-- whatever the colors; only an owner ever sees a colors error. (Only owners
+-- can write deck_cards or decks, so the owner's view is the whole deck.)
 --
 -- Races: the card trigger reads the deck row FOR SHARE and a colors change
 -- holds that row's lock, so an add and a narrowing can't both pass on stale
 -- data: whichever comes second waits, then checks against the other's
 -- committed result (each query in the trigger takes a fresh snapshot).
+--
+-- Known, not reachable today: two transactions that each add a card to the
+-- same deck (FOR SHARE) and THEN update that deck in the same transaction
+-- can deadlock; Postgres aborts one of them. The app adds a card and touches
+-- the deck in separate requests, and fork_deck() only locks its own new
+-- deck. If a future RPC adds cards and updates the deck in one transaction,
+-- take the deck row FOR NO KEY UPDATE here instead (serializes adds per deck).
 
 -- deck_cards insert / update: refused (23514) when the card doesn't fit.
 -- An update only needs to fit when it raises the quantity or changes the
 -- card's colors, identity or deck, so an off-color card can be cut down.
+-- The colors errors carry hint 'spellbranch_deck_colors', which the app maps
+-- to a readable message.
 create or replace function public.deck_card_fits_colors()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -122,15 +142,30 @@ begin
     return new;
   end if;
 
+  -- FOR SHARE follows the decks UPDATE policy: only the owner (or a role
+  -- that bypasses RLS) finds the row. Anyone else is refused here, before
+  -- anything about the deck is compared, so the answer never depends on it.
   select d.colors into deck_colors
   from public.decks d
   where d.id = new.deck_id
   for share;
+  if not found then
+    raise exception 'You cannot edit this deck' using errcode = '42501';
+  end if;
+
+  -- New rows from the API must say what their identity is (legacy rows with
+  -- NULL keep it; the server's own roles may still write NULL).
+  if new.color_identity is null
+     and (tg_op = 'INSERT' or old.color_identity is not null)
+     and current_user in ('anon', 'authenticated') then
+    raise exception 'Card "%" needs a color identity', new.card_name
+      using errcode = '23514', hint = 'spellbranch_deck_colors';
+  end if;
 
   identity := coalesce(new.color_identity, new.colors);
   if deck_colors is not null and not (identity <@ deck_colors) then
     raise exception 'Card "%" is outside the deck colors', new.card_name
-      using errcode = '23514';
+      using errcode = '23514', hint = 'spellbranch_deck_colors';
   end if;
   return new;
 end;
@@ -146,7 +181,7 @@ create trigger deck_cards_fit_deck_colors
 create or replace function public.deck_colors_fit_cards()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -157,7 +192,7 @@ begin
   end if;
   if new.colors is null then
     raise exception 'Deck colors cannot be cleared once picked'
-      using errcode = '23514';
+      using errcode = '23514', hint = 'spellbranch_deck_colors';
   end if;
 
   select count(*) into misfits
@@ -167,7 +202,7 @@ begin
 
   if misfits > 0 then
     raise exception '% card(s) in this deck are outside the new deck colors', misfits
-      using errcode = '23514';
+      using errcode = '23514', hint = 'spellbranch_deck_colors';
   end if;
   return new;
 end;
@@ -211,6 +246,11 @@ revoke execute on function public.deck_inherit_fork_colors() from public, anon, 
 -- ---------------------------------------------------------------------------
 -- 4. fork_deck(): 006's, plus the deck colors and each card's identity.
 -- ---------------------------------------------------------------------------
+-- A legacy card with no stored identity gets its WUBRG colors as identity
+-- (the same fallback the checks use), since new API rows need one. Re-running
+-- 002 or 006 brings back a fork_deck() that copies no identity, so forks of
+-- decks with cards are refused until 008 runs again; supabase/tests/
+-- deck_colors.sql fails in that state too.
 create or replace function public.fork_deck(source uuid)
 returns uuid
 language plpgsql
@@ -258,7 +298,10 @@ begin
     (deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors,
      color_identity, oracle_text, quantity)
   select new_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors,
-         color_identity, oracle_text, quantity
+         coalesce(color_identity,
+                  array(select x from unnest(array['W','U','B','R','G']) as x
+                        where x = any(colors))),
+         oracle_text, quantity
   from public.deck_cards
   where deck_id = src.id;
 

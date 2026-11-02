@@ -201,6 +201,11 @@ function supa(respond: (c: Call) => ReturnType<typeof ok> | undefined) {
   return { repo: createSupabaseRepository(mock.factory), calls: mock.calls };
 }
 const is = (c: Call, table: string, op: Call["op"]) => c.table === table && c.op === op;
+/** A 23514 raised by one of 008's deck-colors triggers (they set this hint). */
+const colorTrigger = (message: string) => ({
+  data: null,
+  error: { code: "23514", message, hint: "spellbranch_deck_colors" },
+});
 
 describe("supabase adapter: deck colors", () => {
   it("addCard refuses an off-color card before writing, and stores the identity", async () => {
@@ -214,11 +219,37 @@ describe("supabase adapter: deck colors", () => {
   it("a deck-colors trigger refusal (a race) becomes a clear message", async () => {
     const s = supa((c) =>
       is(c, "decks", "select") ? ok(deckRow({ colors: null }))
-        : is(c, "deck_cards", "insert") ? pgError("23514", 'Card "Fireball" is outside the deck colors')
+        : is(c, "deck_cards", "insert") ? colorTrigger('Card "Fireball" is outside the deck colors')
           : ok(null),
     );
     const err = await colorError(s.repo.addCard(ALICE, DECK, card("Fireball", ["R"])));
     expect(err.message).toContain("doesn't fit this deck's colors");
+  });
+
+  it("only 008's errors count as color conflicts, not any 23514 that mentions colors", async () => {
+    const older = supa((c) =>
+      is(c, "decks", "select") ? ok(deckRow({ colors: null }))
+        : is(c, "deck_cards", "insert")
+          ? pgError("23514", 'new row for relation "deck_cards" violates check constraint "deck_cards_colors_valid"')
+          : ok(null),
+    );
+    const err = await older.repo.addCard(ALICE, DECK, card("Fireball", ["R"])).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(DeckColorError);
+    // Same words, no 008 hint: not a colors conflict.
+    const lookalike = supa((c) =>
+      is(c, "decks", "select") ? ok(deckRow({ colors: null }))
+        : is(c, "deck_cards", "insert") ? pgError("23514", "Card is outside the deck colors") : ok(null),
+    );
+    const err2 = await lookalike.repo.addCard(ALICE, DECK, card("Fireball", ["R"])).catch((e: unknown) => e);
+    expect(err2).not.toBeInstanceOf(DeckColorError);
+    // 008's own constraint, named exactly: a colors conflict.
+    const named = supa((c) =>
+      is(c, "decks", "select") ? ok(deckRow({ colors: null }))
+        : is(c, "deck_cards", "insert")
+          ? pgError("23514", 'new row for relation "deck_cards" violates check constraint "deck_cards_color_identity_wubrg"')
+          : ok(null),
+    );
+    await colorError(named.repo.addCard(ALICE, DECK, card("Fireball", ["R"])));
   });
 
   it("setCardQuantity refuses raising an off-color card, allows lowering", async () => {
@@ -261,9 +292,48 @@ describe("supabase adapter: deck colors", () => {
           : is(c, "decks", "update") ? ok([{ id: DECK }]) : undefined,
     );
     await s.repo.setCommander(ALICE, DECK, legend("Rakdos, Lord of Riots", ["R", "B"]));
-    expect(s.calls.find((c) => is(c, "decks", "update"))?.payload).toMatchObject({
-      colors: ["B", "R"], commander_color_identity: ["B", "R"],
-    });
+    const update = s.calls.find((c) => is(c, "decks", "update"))!;
+    expect(update.payload).toMatchObject({ colors: ["B", "R"], commander_color_identity: ["B", "R"] });
+    // Only while the deck still has no colors.
+    expect(update.filters).toContainEqual(["is", "colors", null]);
+  });
+
+  it("setCommander: colors picked meanwhile are re-read and the commander checked against them", async () => {
+    const run = (pickedColors: string[]) => {
+      let reads = 0;
+      return supa((c) => {
+        if (is(c, "decks", "select")) return ok(deckRow({ colors: reads++ === 0 ? null : pickedColors }));
+        if (is(c, "deck_cards", "select")) return ok([]);
+        if (is(c, "decks", "update")) {
+          // The guarded write finds the colors already set: 0 rows.
+          return ok(c.filters.some((f) => f[0] === "is") ? [] : [{ id: DECK }]);
+        }
+        return undefined;
+      });
+    };
+    const fits = run(["W", "B", "R"]);
+    await fits.repo.setCommander(ALICE, DECK, legend("Rakdos, Lord of Riots", ["B", "R"]));
+    const updates = fits.calls.filter((c) => is(c, "decks", "update"));
+    expect(updates).toHaveLength(2);
+    expect(updates[1].payload).not.toHaveProperty("colors");
+    expect(updates[1].filters).not.toContainEqual(["is", "colors", null]);
+
+    const misfit = run(["U"]);
+    const err = await colorError(misfit.repo.setCommander(ALICE, DECK, legend("Rakdos, Lord of Riots", ["B", "R"])));
+    expect(err.message).toContain("doesn't fit this deck's colors (Blue)");
+    expect(misfit.calls.filter((c) => is(c, "decks", "update"))).toHaveLength(1);
+  });
+
+  it("setCommander: an older 23514 that mentions colors is still the legendary-creature message", async () => {
+    const s = supa((c) =>
+      is(c, "decks", "select") ? ok(deckRow())
+        : is(c, "decks", "update")
+          ? pgError("23514", 'new row for relation "decks" violates check constraint "decks_commander_colors_valid"')
+          : undefined,
+    );
+    const err = await s.repo.setCommander(ALICE, DECK, legend("Lazav", ["U", "B"])).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(DeckColorError);
+    expect((err as Error).message).toMatch(/legendary creature/i);
   });
 
   it("setCommander refuses a misfit commander or misfit cards, before writing", async () => {

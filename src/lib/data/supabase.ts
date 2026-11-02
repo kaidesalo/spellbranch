@@ -56,7 +56,7 @@ import type {
 type Client = SupabaseClient;
 export type ClientFactory = () => Promise<Client>;
 
-type PgError = { code?: string; message?: string } | null;
+type PgError = { code?: string; message?: string; hint?: string } | null;
 
 // The commander_* columns come from migration 006 and decks.colors /
 // deck_cards.color_identity from 008: apply them before deploying this
@@ -243,12 +243,26 @@ function check<T>(op: string, res: { data: T; error: PgError }): T {
   return res.data;
 }
 
+/** The 008 CHECK constraints that are about deck colors. */
+const COLOR_CONSTRAINTS = [
+  "decks_colors_wubrg",
+  "deck_cards_color_identity_wubrg",
+  "decks_commander_fits_colors",
+];
+/** The hint 008's deck-colors triggers put on their errors. */
+const COLOR_TRIGGER_HINT = "spellbranch_deck_colors";
+
 /**
- * A 23514 from one of the 008 deck-colors rules: the triggers say "deck
- * colors" and the CHECKs are named decks_colors_* / *_fits_colors.
+ * A 23514 from one of the 008 deck-colors rules, and nothing else: a
+ * trigger error carrying 008's hint, or a violation of one of 008's
+ * constraints, named exactly. (Older checks such as deck_cards_colors_valid
+ * or decks_commander_colors_valid keep their own handling.)
  */
 function isColorConflict(error: PgError): boolean {
-  return error?.code === "23514" && /colors/.test(error.message ?? "");
+  if (error?.code !== "23514") return false;
+  if (error.hint === COLOR_TRIGGER_HINT) return true;
+  const message = error.message ?? "";
+  return COLOR_CONSTRAINTS.some((name) => message.includes(`"${name}"`));
 }
 
 /** check() for deck_cards writes, turning a deck-colors refusal into a readable error. */
@@ -520,34 +534,53 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       }
       const problem = commander && commanderProblem(commander);
       if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
-      // The commander must fit the deck colors; a deck without colors takes
-      // the commander's identity (if every card fits it).
-      const colors = commander
-        ? colorsForCommander(
-            normalizeCommander(commander),
-            deck.colors,
-            deck.colors === null ? await cardsForColorCheck(client, deckId) : [],
-          )
-        : null;
-      let query = client
-        .from("decks")
-        .update({
-          ...commanderColumns(commander),
-          ...(commander && deck.colors === null ? { colors } : {}),
-        })
-        .eq("id", deckId)
-        .eq("owner_id", userId);
-      // Guards a format change racing this write; the CHECK is the backstop.
-      if (commander) query = query.eq("format", "commander");
-      const { data, error } = await query.select("id");
-      if (error) {
-        // 23514: one of the decks_commander_* CHECKs (format or type line),
-        // or (008) the colors changed in between so the commander no longer fits.
-        if (isColorConflict(error)) throw new DeckColorError(COLOR_CONFLICT);
-        if (error.code === "23514") throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
-        throw new SupabaseDataError("decks commander", error.code);
-      }
-      if (!data?.length) {
+
+      let deckColors = deck.colors;
+      // At most two tries: the second only when colors were picked (in
+      // another tab) between our read and our write.
+      for (let attempt = 1; ; attempt++) {
+        // A deck without colors takes the commander's identity, but only
+        // while it still has none (.is("colors", null)), so a colors pick
+        // made meanwhile is never overwritten.
+        const adoptColors = Boolean(commander) && deckColors === null;
+        // The commander must fit the deck colors (throws a clear error).
+        const colors = commander
+          ? colorsForCommander(
+              normalizeCommander(commander),
+              deckColors,
+              adoptColors ? await cardsForColorCheck(client, deckId) : [],
+            )
+          : null;
+        let query = client
+          .from("decks")
+          .update({
+            ...commanderColumns(commander),
+            ...(adoptColors ? { colors } : {}),
+          })
+          .eq("id", deckId)
+          .eq("owner_id", userId);
+        // Guards a format change racing this write; the CHECK is the backstop.
+        if (commander) query = query.eq("format", "commander");
+        if (adoptColors) query = query.is("colors", null);
+        const { data, error } = await query.select("id");
+        if (error) {
+          // 23514: one of the decks_commander_* CHECKs (format or type line),
+          // or (008) the colors changed in between so the commander no longer fits.
+          if (isColorConflict(error)) throw new DeckColorError(COLOR_CONFLICT);
+          if (error.code === "23514") throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
+          throw new SupabaseDataError("decks commander", error.code);
+        }
+        if (data?.length) return;
+
+        if (adoptColors && attempt === 1) {
+          // Nothing updated: maybe the colors were picked meanwhile. Re-read
+          // and check the commander against them instead.
+          const fresh = await requireOwnDeck(client, userId, deckId, denied);
+          if (fresh.colors !== null) {
+            deckColors = fresh.colors;
+            continue;
+          }
+        }
         throw new DataError(commander ? COMMANDER_MESSAGES.notCommanderFormat : denied);
       }
     },
