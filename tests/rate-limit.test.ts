@@ -151,6 +151,14 @@ describe("policies", () => {
     expect(POLICIES["sign-up"][0]).toEqual({ by: "ip", limit: 10, windowSec: 3600 });
   });
 
+  it("limits commander lookups per IP and per user (Cipher PR #9 L1)", () => {
+    expect(POLICIES["commander-lookup"]).toEqual([
+      { by: "ip", limit: 60, windowSec: 600 },
+      { by: "user", limit: 30, windowSec: 600 },
+    ]);
+    expect(retryAfterFor("commander-lookup")).toBe(600);
+  });
+
   it("retry-after is the policy's longest window", () => {
     expect(retryAfterFor("sign-in")).toBe(3600);
     expect(retryAfterFor("confirm")).toBe(300);

@@ -7,7 +7,8 @@ import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
 import { COMMANDER_MESSAGES } from "@/lib/data/errors";
 import { commanderFromScryfall } from "@/lib/commander";
-import { getScryfallCard } from "@/lib/scryfall/client";
+import { limit, limitError, requestIp } from "@/lib/rate-limit";
+import { getScryfallCard, ScryfallLookupError } from "@/lib/scryfall/client";
 import {
   cardInputSchema,
   check,
@@ -17,7 +18,7 @@ import {
   quantitySchema,
 } from "@/lib/actions/schemas";
 
-export type ActionResult = { error?: string; success?: boolean; id?: string };
+export type ActionResult = { error?: string; success?: boolean; id?: string; retryAfterSec?: number };
 
 function parseDeckForm(formData: unknown) {
   if (!isFormData(formData)) {
@@ -161,6 +162,16 @@ export async function removeCardFromDeckAction(
   return updateCardQuantityAction(deckId, cardId, 0);
 }
 
+function scryfallLookupMessage(err: unknown): string {
+  if (err instanceof ScryfallLookupError && err.kind === "timeout") {
+    return "Scryfall took too long to answer. Try again in a moment.";
+  }
+  if (err instanceof ScryfallLookupError && err.kind === "too-large") {
+    return "Scryfall sent an unexpected answer. Try again in a moment.";
+  }
+  return "Could not reach Scryfall";
+}
+
 /**
  * Sets (or with null, clears) a Commander deck's commander. The client sends
  * only a Scryfall id: the card itself is fetched from Scryfall here, so the
@@ -168,6 +179,11 @@ export async function removeCardFromDeckAction(
  * the legendary-creature rule is checked on Scryfall's own type line. The
  * repository re-checks ownership, the format and the rule (and the database
  * CHECKs them once more in Supabase mode).
+ *
+ * Cipher PR #9 L1: before any Scryfall lookup, the attempt is rate limited
+ * (commander-lookup, per IP and per user) and the deck must be the caller's
+ * own Commander deck, so nobody can use this to make the server fetch from
+ * Scryfall for free. Clearing makes no lookup and isn't limited.
  */
 export async function setCommanderAction(
   deckId: string,
@@ -181,11 +197,18 @@ export async function setCommanderAction(
 
   let commander = null;
   if (card.data !== null) {
+    const allowed = await limit("commander-lookup", { ip: await requestIp(), userId: user.id });
+    if (!allowed.ok) return limitError(allowed);
+    try {
+      await getRepository().assertCanSetCommander(user.id, deckId);
+    } catch (err) {
+      return { error: userMessage(err, "Could not update the commander") };
+    }
     let found;
     try {
       found = await getScryfallCard(card.data);
-    } catch {
-      return { error: "Could not reach Scryfall" };
+    } catch (err) {
+      return { error: scryfallLookupMessage(err) };
     }
     if (!found) return { error: "Card not found" };
     commander = commanderFromScryfall(found);

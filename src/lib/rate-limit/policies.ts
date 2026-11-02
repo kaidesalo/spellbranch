@@ -39,6 +39,11 @@ export const POLICIES = {
     { by: "ip", limit: 60, windowSec: 10 * MINUTE },
     { by: "user", limit: 30, windowSec: 10 * MINUTE },
   ],
+  // Each "set commander" makes one Scryfall lookup (Cipher PR #9 L1).
+  "commander-lookup": [
+    { by: "ip", limit: 60, windowSec: 10 * MINUTE },
+    { by: "user", limit: 30, windowSec: 10 * MINUTE },
+  ],
 } as const satisfies Record<string, readonly Bucket[]>;
 
 export type PolicyName = keyof typeof POLICIES;
