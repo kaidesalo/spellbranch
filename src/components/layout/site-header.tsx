@@ -33,7 +33,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
             <Sparkles className="h-4 w-4" aria-hidden />
           </span>
-          <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
+          <span className="font-heading text-2xl text-foreground">
             Spellbranch
           </span>
         </Link>
@@ -46,7 +46,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "rounded-lg px-3 py-2 label-caps transition-colors",
                     pathname.startsWith(link.href)
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
