@@ -22,3 +22,18 @@ export const COMMANDER_MESSAGES = {
   notCommanderFormat: "Only Commander decks have a commander",
   notLegendaryCreature: "Your commander must be a legendary creature",
 } as const;
+
+/**
+ * A deck-colors rule refused the write. `cards` lists the deck cards that
+ * don't fit (for narrowing the colors or picking a commander), so the UI can
+ * show them; it is empty when the problem is a single card or the commander.
+ */
+export class DeckColorError extends DataError {
+  constructor(
+    message: string,
+    readonly cards: string[] = [],
+  ) {
+    super(message);
+    this.name = "DeckColorError";
+  }
+}

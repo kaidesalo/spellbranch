@@ -46,6 +46,7 @@ function fixture(): DataStore {
         forkedFromId: null,
         preferredBranchId: null,
         commander: null,
+        colors: null,
         createdAt: now,
         updatedAt: now,
       },

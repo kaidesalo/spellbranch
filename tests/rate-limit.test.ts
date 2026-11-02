@@ -160,6 +160,14 @@ describe("policies", () => {
     expect(POLICIES["scryfall-search"]).toEqual([{ by: "ip", limit: 60, windowSec: 60 }]); // L2
   });
 
+  it("limits add-card Scryfall lookups per IP and per user (deck colors)", () => {
+    expect(POLICIES["card-lookup"]).toEqual([
+      { by: "ip", limit: 400, windowSec: 600 },
+      { by: "user", limit: 200, windowSec: 600 },
+    ]);
+    expect(retryAfterFor("card-lookup")).toBe(600);
+  });
+
   it("retry-after is the policy's longest window", () => {
     expect(retryAfterFor("sign-in")).toBe(3600);
     expect(retryAfterFor("confirm")).toBe(300);

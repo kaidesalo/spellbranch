@@ -3,6 +3,13 @@ import "server-only";
 import { v4 as uuidv4 } from "uuid";
 import { readStore, updateStore, type DataStore } from "@/lib/data/store";
 import { COMMANDER_MESSAGES, DataError } from "@/lib/data/errors";
+import {
+  assertCardFits,
+  assertColorsFitDeck,
+  assertQuantityRaiseFits,
+  colorsForCommander,
+} from "@/lib/data/deck-color-rules";
+import { normalizeDeckColors } from "@/lib/deck-colors";
 import { commanderProblem, normalizeCommander } from "@/lib/commander";
 import {
   FRIEND_MESSAGES,
@@ -57,8 +64,9 @@ function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): De
   return {
     ...deck,
     preferredBranchId,
-    // Decks saved before the commander feature have no field at all.
+    // Decks saved before the commander or colors features have no field at all.
     commander: deck.commander ?? null,
+    colors: deckColors(deck),
     owner: ownerProfile(store, deck.ownerId),
     cards,
     cardCount: cards.reduce((sum, c) => sum + c.quantity, 0),
@@ -69,6 +77,11 @@ function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): De
 }
 
 const byUpdatedDesc = (a: Deck, b: Deck) => b.updatedAt.localeCompare(a.updatedAt);
+
+/** The deck's colors as stored; null (no colors picked) for older decks. */
+function deckColors(deck: Deck): string[] | null {
+  return Array.isArray(deck.colors) ? normalizeDeckColors(deck.colors) : null;
+}
 
 function editableDeck(store: DataStore, deckId: string, userId: string, message: string): Deck {
   const deck = store.decks.find((d) => d.id === deckId);
@@ -144,6 +157,7 @@ export const localRepository: Repository = {
         id,
         ownerId: userId,
         ...input,
+        colors: input.colors ? normalizeDeckColors(input.colors) : null,
         forkedFromId: null,
         preferredBranchId: null,
         commander: null,
@@ -157,10 +171,24 @@ export const localRepository: Repository = {
   async updateDeck(userId, deckId, input) {
     await updateStore((store) => {
       const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
-      Object.assign(deck, input, { updatedAt: new Date().toISOString() });
+      const { colors, ...rest } = input;
       // Only Commander decks have a commander: leaving the format clears it
       // (same rule as the decks_commander_format CHECK in Supabase mode).
-      if (deck.format !== "commander") deck.commander = null;
+      const commander = rest.format === "commander" ? (deck.commander ?? null) : null;
+      // No colors in the input: leave them as they are.
+      const nextColors = colors ? normalizeDeckColors(colors) : deckColors(deck);
+      if (colors) {
+        assertColorsFitDeck(
+          nextColors!,
+          store.deckCards.filter((c) => c.deckId === deckId),
+          commander,
+        );
+      }
+      Object.assign(deck, rest, {
+        commander,
+        colors: nextColors,
+        updatedAt: new Date().toISOString(),
+      });
     });
   },
 
@@ -179,7 +207,15 @@ export const localRepository: Repository = {
       }
       const problem = commander && commanderProblem(commander);
       if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
-      deck.commander = commander ? normalizeCommander(commander) : null;
+      const next = commander ? normalizeCommander(commander) : null;
+      if (next) {
+        deck.colors = colorsForCommander(
+          next,
+          deckColors(deck),
+          store.deckCards.filter((c) => c.deckId === deckId),
+        );
+      }
+      deck.commander = next;
       deck.updatedAt = new Date().toISOString();
     });
   },
@@ -201,16 +237,20 @@ export const localRepository: Repository = {
   async addCard(userId, deckId, card) {
     await updateStore((store) => {
       const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
+      const colorIdentity = normalizeDeckColors(card.colorIdentity);
+      assertCardFits(card.cardName, colorIdentity, deckColors(deck));
       const existing = store.deckCards.find(
         (c) => c.deckId === deckId && c.scryfallId === card.scryfallId,
       );
       if (existing) {
         existing.quantity = Math.min(99, existing.quantity + card.quantity);
+        existing.colorIdentity = colorIdentity;
       } else {
         store.deckCards.push({
           id: uuidv4(),
           deckId,
           ...card,
+          colorIdentity,
           imageUri: scryfallImageOrNull(card.imageUri),
           createdAt: new Date().toISOString(),
         });
@@ -229,6 +269,7 @@ export const localRepository: Repository = {
       } else {
         const card = store.deckCards.find((c) => c.id === cardId && c.deckId === deckId);
         if (!card) throw new DataError("Card not found in deck");
+        if (quantity > card.quantity) assertQuantityRaiseFits(card, deckColors(deck));
         card.quantity = quantity;
       }
       deck.updatedAt = new Date().toISOString();
@@ -257,8 +298,9 @@ export const localRepository: Repository = {
         allowForks: source.visibility === "public",
         forkedFromId: source.id,
         preferredBranchId: null,
-        // The commander carries over like the cards (fork_deck() copies it too).
+        // The commander and colors carry over like the cards (fork_deck() too).
         commander: source.commander ? { ...source.commander } : null,
+        colors: deckColors(source),
         createdAt: now,
         updatedAt: now,
       });

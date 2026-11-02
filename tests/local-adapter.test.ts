@@ -72,7 +72,7 @@ async function rejectsWith(p: Promise<unknown>, message: string) {
 
 const card = {
   scryfallId: "s1", cardName: "Sol Ring", imageUri: "https://cards.scryfall.io/normal/front/x.jpg",
-  manaCost: "{1}", typeLine: "Artifact", colors: [], oracleText: null, quantity: 1,
+  manaCost: "{1}", typeLine: "Artifact", colors: [], colorIdentity: [], oracleText: null, quantity: 1,
 };
 
 describe("local adapter: decks, cards, forks, compare", () => {

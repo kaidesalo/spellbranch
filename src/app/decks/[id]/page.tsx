@@ -13,6 +13,7 @@ import { DeckList } from "@/components/decks/deck-list";
 import { CommanderSlot } from "@/components/decks/commander-slot";
 import { deckCountLabel } from "@/lib/commander";
 import { CommentSection } from "@/components/comments/comment-section";
+import { DeckColorsBadge } from "@/components/decks/deck-colors";
 
 export default async function DeckDetailPage({
   params,
@@ -63,6 +64,7 @@ export default async function DeckDetailPage({
             <Badge variant="outline">
               {deck.format}
             </Badge>
+            {deck.colors && <DeckColorsBadge colors={deck.colors} />}
             <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>
             <span>
               {deckCountLabel(deck.cardCount ?? 0, Boolean(commander))}
@@ -79,6 +81,18 @@ export default async function DeckDetailPage({
               >
                 {deck.sourceDeck.name}
               </Link>
+            </p>
+          )}
+          {canEdit && deck.colors === null && (
+            <p className="mt-3 max-w-2xl rounded-lg border-2 border-dashed border-[#4b3d44]/60 bg-[#d2c9a5]/40 px-3 py-2 text-sm">
+              This deck has no colors yet, so any card can be added.{" "}
+              <Link
+                href={`/decks/${deck.id}/edit`}
+                className="font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                Pick its colors
+              </Link>
+              {isCommanderFormat ? " or choose a commander to restrict it." : " to restrict it."}
             </p>
           )}
           {deck.notes && (
@@ -178,7 +192,7 @@ export default async function DeckDetailPage({
           <h2 className="mb-3 font-heading text-xl">
             Card search
           </h2>
-          <CardSearch deckId={deck.id} canEdit={canEdit} />
+          <CardSearch deckId={deck.id} canEdit={canEdit} deckColors={deck.colors} />
         </aside>
         <div className="space-y-8">
           {isCommanderFormat && (
@@ -187,6 +201,7 @@ export default async function DeckDetailPage({
               commander={commander}
               canEdit={canEdit}
               alsoInDeckList={commanderAlsoInList}
+              deckColors={deck.colors}
             />
           )}
           <section className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5">

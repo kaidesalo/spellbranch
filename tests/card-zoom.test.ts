@@ -206,7 +206,7 @@ describe("where cards zoom", () => {
       colorIdentity: ["W", "U", "B", "G"],
     };
     const html = renderToStaticMarkup(
-      createElement(CommanderSlot, { deckId: "d1", commander, canEdit: true, alsoInDeckList: false }),
+      createElement(CommanderSlot, { deckId: "d1", commander, canEdit: true, alsoInDeckList: false, deckColors: null }),
     );
     const label = "Atraxa, Praetors&#x27; Voice, view larger image";
     expect(html.split(`aria-label="${label}"`)).toHaveLength(3);

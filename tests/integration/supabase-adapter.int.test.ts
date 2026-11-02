@@ -62,7 +62,7 @@ async function dataError(p: Promise<unknown>): Promise<string> {
 
 const card = (scryfallId: string, cardName: string, quantity = 1) => ({
   scryfallId, cardName, imageUri: IMG, manaCost: "{1}", typeLine: "Artifact",
-  colors: [], oracleText: null, quantity,
+  colors: [], colorIdentity: [], oracleText: null, quantity,
 });
 
 describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stub", () => {

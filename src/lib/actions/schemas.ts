@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CARD_COLORS, LIMITS } from "@/lib/data/limits";
+import { LIMITS } from "@/lib/data/limits";
+import { colorsFromKey } from "@/lib/deck-colors";
 import { isUuid } from "@/lib/data/validation";
 import { MAX_CARD_QUANTITY, clampQuantity } from "@/lib/deck-quantity";
 
@@ -16,9 +17,6 @@ const QUANTITY_MESSAGE = `Quantity must be between 0 and ${MAX_CARD_QUANTITY}`;
 
 export const idSchema = z.string("Invalid id").refine(isUuid, "Invalid id");
 
-const isCardColor = (c: string): c is (typeof CARD_COLORS)[number] =>
-  (CARD_COLORS as readonly string[]).includes(c);
-
 const nullableText = (max: number) => z.string().max(max).nullable().optional();
 
 export const deckSchema = z.object({
@@ -27,22 +25,31 @@ export const deckSchema = z.object({
   notes: z.string().max(LIMITS.deckNotes, `Notes must be at most ${LIMITS.deckNotes} characters`).optional().default(""),
   visibility: z.enum(["private", "friends", "public"]),
   allowForks: z.boolean(),
+  /**
+   * The color picker's value: one of the COLOR_COMBOS keys ("UB", "WUBRG",
+   * "C" for Colorless), turned into colors. Missing = undefined (the create
+   * action then refuses; the update action leaves the colors alone).
+   */
+  colors: z
+    .string()
+    .max(8)
+    .optional()
+    .transform((key, ctx) => {
+      if (key === undefined || key === "") return undefined;
+      const colors = colorsFromKey(key);
+      if (colors) return colors;
+      ctx.addIssue({ code: "custom", message: "Pick the deck's colors" });
+      return z.NEVER;
+    }),
 });
 
-export const cardInputSchema = z.object({
-  scryfallId: z.string().min(1).max(LIMITS.scryfallId),
-  cardName: z.string().min(1).max(LIMITS.cardName),
-  imageUri: nullableText(LIMITS.imageUri),
-  manaCost: nullableText(LIMITS.manaCost),
-  typeLine: z.string().min(1).max(LIMITS.typeLine),
-  // Only W/U/B/R/G are kept (deduplicated), matching the deck_cards CHECK.
-  colors: z
-    .array(z.string().max(16))
-    .max(10)
-    .optional()
-    .default([])
-    .transform((cs) => [...new Set(cs.filter(isCardColor))]),
-  oracleText: nullableText(LIMITS.oracleText),
+/**
+ * Adding a card: only the Scryfall id and a quantity. The server fetches the
+ * card from Scryfall itself (cardFromScryfall), so anything else the client
+ * sends (name, text, colors, identity) is ignored.
+ */
+export const addCardSchema = z.object({
+  scryfallId: idSchema,
   quantity: z.number().int().min(1).max(99).optional().default(1),
 });
 
