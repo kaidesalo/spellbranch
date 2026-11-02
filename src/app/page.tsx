@@ -42,11 +42,11 @@ export default async function HomePage() {
           aria-hidden
           className="relative hidden min-h-[420px] overflow-hidden rounded-none lg:block animate-rise-delay-2"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(232,162,58,0.35),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(15,92,76,0.35),transparent_50%),linear-gradient(160deg,#0f5c4c_0%,#16352d_45%,#0b2f3a_100%)]" />
-          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
-          <div className="absolute inset-x-8 top-10 bottom-10 flex flex-col justify-between text-[#f4fff9]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(174,93,64,0.2),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(75,114,110,0.25),transparent_50%),linear-gradient(160deg,#574852_0%,#4b3d44_45%,#4d4539_100%)]" />
+          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(210,201,165,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(210,201,165,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
+          <div className="absolute inset-x-8 top-10 bottom-10 flex flex-col justify-between text-[#d2c9a5]">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/70">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#d2c9a5]">
                 Branch view
               </p>
               <p className="mt-2 font-heading text-3xl font-semibold">
@@ -54,20 +54,20 @@ export default async function HomePage() {
               </p>
             </div>
             <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between border-b border-white/15 pb-2">
-                <span className="text-emerald-200">+ Nature&apos;s Lore</span>
+              <div className="flex items-center justify-between border-b border-[#d2c9a5]/15 pb-2">
+                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#8caba1]" />+ Nature&apos;s Lore</span>
                 <span>0 → 1</span>
               </div>
-              <div className="flex items-center justify-between border-b border-white/15 pb-2">
-                <span className="text-rose-200">− Cultivate</span>
+              <div className="flex items-center justify-between border-b border-[#d2c9a5]/15 pb-2">
+                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#c77b58]" />− Cultivate</span>
                 <span>1 → 0</span>
               </div>
-              <div className="flex items-center justify-between border-b border-white/15 pb-2">
-                <span className="text-amber-200">Sol Ring qty</span>
+              <div className="flex items-center justify-between border-b border-[#d2c9a5]/15 pb-2">
+                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#b3a555]" />Sol Ring qty</span>
                 <span>1 → 2</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-white/80">Rhystic Study</span>
+                <span className="text-[#d1b187]">Rhystic Study</span>
                 <span>unchanged</span>
               </div>
             </div>
