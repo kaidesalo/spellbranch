@@ -100,6 +100,7 @@ export async function searchScryfallCards(
   const res = await fetch(url.toString(), {
     headers: SCRYFALL_HEADERS,
     next: { revalidate: 60 },
+    signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
   });
 
   if (res.status === 404) {

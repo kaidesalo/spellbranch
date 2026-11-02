@@ -157,6 +157,7 @@ describe("policies", () => {
       { by: "user", limit: 30, windowSec: 600 },
     ]);
     expect(retryAfterFor("commander-lookup")).toBe(600);
+    expect(POLICIES["scryfall-search"]).toEqual([{ by: "ip", limit: 60, windowSec: 60 }]); // L2
   });
 
   it("retry-after is the policy's longest window", () => {
