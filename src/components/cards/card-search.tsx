@@ -14,6 +14,8 @@ import {
 } from "@/lib/scryfall/client";
 import { addCardToDeckAction } from "@/lib/actions/decks";
 import { addFavoriteAction } from "@/lib/actions/favorites";
+import { zoomCardFromScryfall } from "@/lib/card-zoom";
+import { CardZoom } from "./card-zoom";
 import { pickVisibleSelection, useScryfallSearch } from "./use-scryfall-search";
 
 export function CardSearch({
@@ -117,14 +119,16 @@ export function CardSearch({
 
         <div className="self-start rounded-xl border border-border/70 bg-background/60 p-2">
           {visibleSelected && image ? (
-            <Image
-              src={image}
-              alt={visibleSelected.name}
-              width={146}
-              height={204}
-              className="mx-auto h-auto w-full rounded-lg"
-              unoptimized
-            />
+            <CardZoom card={zoomCardFromScryfall(visibleSelected)} className="block w-full">
+              <Image
+                src={image}
+                alt={visibleSelected.name}
+                width={146}
+                height={204}
+                className="mx-auto h-auto w-full rounded-lg"
+                unoptimized
+              />
+            </CardZoom>
           ) : (
             <div className="flex aspect-[5/7] items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
               Card preview

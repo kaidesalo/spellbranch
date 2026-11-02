@@ -14,6 +14,8 @@ import { setPreferredBranchAction } from "@/lib/actions/decks";
 import { compareCommanders, type CompareSide } from "@/lib/compare-dto";
 import { deckCountLabel } from "@/lib/commander";
 import { cn } from "@/lib/utils";
+import { CardZoom } from "@/components/cards/card-zoom";
+import { zoomCardFromSaved } from "@/lib/card-zoom";
 
 export function CompareView({
   source,
@@ -123,16 +125,40 @@ export function CompareView({
             {commanderChange === "same" ? (
               <p>
                 Both lead with{" "}
-                <span className="font-medium">{source.commander!.cardName}</span>.
+                <CardZoom
+                  card={zoomCardFromSaved(source.commander!.cardName, source.commander!.imageUri)}
+                  className="font-medium hover:underline"
+                >
+                  {source.commander!.cardName}
+                </CardZoom>
+                .
               </p>
             ) : (
               <p>
                 <span className={source.commander ? "text-rose-700 line-through" : "text-muted-foreground"}>
-                  {source.commander?.cardName ?? "No commander"}
+                  {source.commander ? (
+                    <CardZoom
+                      card={zoomCardFromSaved(source.commander.cardName, source.commander.imageUri)}
+                      className="hover:decoration-2"
+                    >
+                      {source.commander.cardName}
+                    </CardZoom>
+                  ) : (
+                    "No commander"
+                  )}
                 </span>
                 <span className="mx-2 text-muted-foreground">→</span>
                 <span className={branch.commander ? "font-medium text-emerald-800" : "text-muted-foreground"}>
-                  {branch.commander?.cardName ?? "No commander"}
+                  {branch.commander ? (
+                    <CardZoom
+                      card={zoomCardFromSaved(branch.commander.cardName, branch.commander.imageUri)}
+                      className="hover:underline"
+                    >
+                      {branch.commander.cardName}
+                    </CardZoom>
+                  ) : (
+                    "No commander"
+                  )}
                 </span>
               </p>
             )}
@@ -150,11 +176,21 @@ export function CompareView({
                 className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm"
               >
                 <span className="text-rose-700 line-through">
-                  {pair.removed.cardName}
+                  <CardZoom
+                    card={zoomCardFromSaved(pair.removed.cardName, pair.removed.imageUri)}
+                    className="hover:decoration-2"
+                  >
+                    {pair.removed.cardName}
+                  </CardZoom>
                 </span>
                 <span className="mx-2 text-muted-foreground">→</span>
                 <span className="font-medium text-emerald-800">
-                  {pair.added.cardName}
+                  <CardZoom
+                    card={zoomCardFromSaved(pair.added.cardName, pair.added.imageUri)}
+                    className="hover:underline"
+                  >
+                    {pair.added.cardName}
+                  </CardZoom>
                 </span>
               </li>
             ))}
@@ -187,7 +223,14 @@ export function CompareView({
                   )}
                 >
                   <div>
-                    <p className="font-medium">{diff.cardName}</p>
+                    <p className="font-medium">
+                      <CardZoom
+                        card={zoomCardFromSaved(diff.cardName, diff.imageUri)}
+                        className="hover:underline"
+                      >
+                        {diff.cardName}
+                      </CardZoom>
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {diff.manaCost ?? "—"} · {diff.typeLine}
                     </p>

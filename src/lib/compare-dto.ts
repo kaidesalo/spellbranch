@@ -11,7 +11,10 @@ export type CompareCard = Pick<
   "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity"
 >;
 
-export type CompareCommander = Pick<DeckCommander, "scryfallId" | "cardName" | "typeLine">;
+export type CompareCommander = Pick<
+  DeckCommander,
+  "scryfallId" | "cardName" | "typeLine" | "imageUri"
+>;
 
 export interface CompareSide {
   id: string;
@@ -37,6 +40,7 @@ export function toCompareSide(deck: DeckWithMeta): CompareSide {
             scryfallId: deck.commander.scryfallId,
             cardName: deck.commander.cardName,
             typeLine: deck.commander.typeLine,
+            imageUri: deck.commander.imageUri,
           }
         : null,
     cards: (deck.cards ?? []).map((c) => ({
@@ -54,8 +58,8 @@ export type CommanderChange = "none" | "same" | "added" | "removed" | "changed";
 
 /** How the branch's commander differs from the source's. */
 export function compareCommanders(
-  source: CompareCommander | null,
-  branch: CompareCommander | null,
+  source: Pick<CompareCommander, "scryfallId"> | null,
+  branch: Pick<CompareCommander, "scryfallId"> | null,
 ): CommanderChange {
   if (!source && !branch) return "none";
   if (!source) return "added";
