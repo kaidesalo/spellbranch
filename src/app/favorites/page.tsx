@@ -4,6 +4,7 @@ import { removeFavoriteAction } from "@/lib/actions/favorites";
 import { listFavorites } from "@/lib/queries/favorites";
 import { Button } from "@/components/ui/button";
 import { CardZoom } from "@/components/cards/card-zoom";
+import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
 
 export default async function FavoritesPage() {
@@ -52,7 +53,7 @@ export default async function FavoritesPage() {
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{card.cardName}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {card.manaCost ?? "—"}
+                    <ManaCost cost={card.manaCost} fallback="—" />
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                     {card.typeLine}

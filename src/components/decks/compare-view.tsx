@@ -15,6 +15,7 @@ import { compareCommanders, type CompareSide } from "@/lib/compare-dto";
 import { deckCountLabel } from "@/lib/commander";
 import { cn } from "@/lib/utils";
 import { CardZoom } from "@/components/cards/card-zoom";
+import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
 
 export function CompareView({
@@ -232,7 +233,7 @@ export function CompareView({
                       </CardZoom>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {diff.manaCost ?? "—"} · {diff.typeLine}
+                      <ManaCost cost={diff.manaCost} fallback="—" /> · {diff.typeLine}
                     </p>
                   </div>
                   <span className="w-12 text-center tabular-nums">
