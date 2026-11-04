@@ -1,7 +1,14 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { COMMANDER_MESSAGES, DataError } from "@/lib/data/errors";
+import { COMMANDER_MESSAGES, DataError, DeckColorError } from "@/lib/data/errors";
+import {
+  assertCardFits,
+  assertColorsFitDeck,
+  assertQuantityRaiseFits,
+  colorsForCommander,
+} from "@/lib/data/deck-color-rules";
+import { normalizeDeckColors } from "@/lib/deck-colors";
 import { commanderProblem, normalizeColorIdentity, normalizeCommander } from "@/lib/commander";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
@@ -49,15 +56,21 @@ import type {
 type Client = SupabaseClient;
 export type ClientFactory = () => Promise<Client>;
 
-type PgError = { code?: string; message?: string } | null;
+type PgError = { code?: string; message?: string; hint?: string } | null;
 
-// The commander_* columns come from migration 006: apply it before deploying
-// this version (PostgREST rejects a select of unknown columns).
+// The commander_* columns come from migration 006 and decks.colors /
+// deck_cards.color_identity from 008: apply them before deploying this
+// version (PostgREST rejects a select of unknown columns).
 // (One string literal: supabase-js types the result from it.)
 const DECK_COLS =
-  "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, created_at, updated_at";
+  "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, colors, created_at, updated_at";
 const CARD_COLS =
-  "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, oracle_text, quantity, created_at";
+  "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, created_at";
+/** What the deck-colors rules need from each card. */
+const CARD_COLOR_COLS = "id, card_name, colors, color_identity, quantity";
+
+/** Shown when a deck-colors CHECK or trigger (008) refuses a write the app let through (a race). */
+const COLOR_CONFLICT = "That doesn't fit this deck's colors any more. Reload the deck and try again.";
 const PROFILE_COLS = "id, username, display_name, avatar_url";
 const FRIENDSHIP_COLS = "id, requester_id, addressee_id, status, created_at";
 const FAVORITE_COLS = "id, user_id, scryfall_id, card_name, image_uri, mana_cost, type_line, created_at";
@@ -79,6 +92,7 @@ type DeckRow = {
   commander_image_uri?: string | null;
   commander_art_uri?: string | null;
   commander_color_identity?: string[] | null;
+  colors?: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -91,10 +105,12 @@ type CardRow = {
   mana_cost: string | null;
   type_line: string;
   colors: string[] | null;
+  color_identity?: string[] | null;
   oracle_text: string | null;
   quantity: number;
   created_at: string;
 };
+type CardColorRow = Pick<CardRow, "id" | "card_name" | "colors" | "color_identity" | "quantity">;
 type ProfileRow = { id: string; username: string; display_name: string; avatar_url: string | null };
 type FriendshipRow = {
   id: string;
@@ -126,6 +142,8 @@ export const toDeck = (r: DeckRow): Deck => ({
   forkedFromId: r.forked_from_id,
   preferredBranchId: r.preferred_branch_id,
   commander: toCommander(r),
+  // null (no colors picked) for decks made before 008.
+  colors: Array.isArray(r.colors) ? normalizeDeckColors(r.colors) : null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -169,6 +187,7 @@ const toCard = (r: CardRow): DeckCard => ({
   manaCost: r.mana_cost,
   typeLine: r.type_line,
   colors: r.colors ?? [],
+  colorIdentity: Array.isArray(r.color_identity) ? normalizeDeckColors(r.color_identity) : null,
   oracleText: r.oracle_text,
   quantity: r.quantity,
   createdAt: r.created_at,
@@ -222,6 +241,34 @@ class SupabaseDataError extends Error {
 function check<T>(op: string, res: { data: T; error: PgError }): T {
   if (res.error) throw new SupabaseDataError(op, res.error.code);
   return res.data;
+}
+
+/** The 008 CHECK constraints that are about deck colors. */
+const COLOR_CONSTRAINTS = [
+  "decks_colors_wubrg",
+  "deck_cards_color_identity_wubrg",
+  "decks_commander_fits_colors",
+];
+/** The hint 008's deck-colors triggers put on their errors. */
+const COLOR_TRIGGER_HINT = "spellbranch_deck_colors";
+
+/**
+ * A 23514 from one of the 008 deck-colors rules, and nothing else: a
+ * trigger error carrying 008's hint, or a violation of one of 008's
+ * constraints, named exactly. (Older checks such as deck_cards_colors_valid
+ * or decks_commander_colors_valid keep their own handling.)
+ */
+function isColorConflict(error: PgError): boolean {
+  if (error?.code !== "23514") return false;
+  if (error.hint === COLOR_TRIGGER_HINT) return true;
+  const message = error.message ?? "";
+  return COLOR_CONSTRAINTS.some((name) => message.includes(`"${name}"`));
+}
+
+/** check() for deck_cards writes, turning a deck-colors refusal into a readable error. */
+function cardColorWrite<T>(op: string, res: { data: T; error: PgError }): T {
+  if (isColorConflict(res.error)) throw new DeckColorError(COLOR_CONFLICT);
+  return check(op, res);
 }
 
 const uniq = (xs: (string | null | undefined)[]) =>
@@ -301,6 +348,21 @@ async function requireOwnDeck(client: Client, userId: string, deckId: string, me
   const deck = await fetchDeck(client, deckId);
   if (!deck || deck.ownerId !== userId) throw new DataError(message);
   return deck;
+}
+
+/** The deck's cards, as the deck-colors rules need them. */
+async function cardsForColorCheck(client: Client, deckId: string) {
+  const rows = check(
+    "deck_cards colors",
+    await client.from("deck_cards").select(CARD_COLOR_COLS).eq("deck_id", deckId),
+  ) as CardColorRow[] | null;
+  return (rows ?? []).map((r) => ({
+    id: r.id,
+    cardName: r.card_name,
+    colors: r.colors ?? [],
+    colorIdentity: r.color_identity ?? null,
+    quantity: r.quantity,
+  }));
 }
 
 async function touchDeck(client: Client, deckId: string) {
@@ -411,6 +473,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
             notes: input.notes,
             visibility: input.visibility,
             allow_forks: input.allowForks,
+            colors: input.colors ? normalizeDeckColors(input.colors) : null,
           })
           .select("id")
           .single(),
@@ -419,28 +482,39 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
     },
 
     async updateDeck(userId, deckId, input) {
-      if (!isUuid(deckId)) throw new DataError("You cannot edit this deck");
+      const denied = "You cannot edit this deck";
+      if (!isUuid(deckId)) throw new DataError(denied);
       const client = await getClient();
-      const rows = check(
-        "decks update",
-        await client
-          .from("decks")
-          .update({
-            name: input.name,
-            format: input.format,
-            notes: input.notes,
-            visibility: input.visibility,
-            allow_forks: input.allowForks,
-            // Leaving Commander clears the commander in the same UPDATE, so
-            // decks_commander_format (commander => format = 'commander')
-            // never rejects a format change.
-            ...(input.format === "commander" ? {} : commanderColumns(null)),
-          })
-          .eq("id", deckId)
-          .eq("owner_id", userId)
-          .select("id"),
-      ) as { id: string }[] | null;
-      if (!rows?.length) throw new DataError("You cannot edit this deck");
+      // No colors in the input: leave them as they are.
+      const colors = input.colors ? normalizeDeckColors(input.colors) : undefined;
+      if (colors) {
+        const deck = await requireOwnDeck(client, userId, deckId, denied);
+        const keepsCommander = input.format === "commander" ? deck.commander : null;
+        assertColorsFitDeck(colors, await cardsForColorCheck(client, deckId), keepsCommander);
+      }
+      const { data: rows, error } = await client
+        .from("decks")
+        .update({
+          name: input.name,
+          format: input.format,
+          notes: input.notes,
+          visibility: input.visibility,
+          allow_forks: input.allowForks,
+          ...(colors ? { colors } : {}),
+          // Leaving Commander clears the commander in the same UPDATE, so
+          // decks_commander_format (commander => format = 'commander')
+          // never rejects a format change.
+          ...(input.format === "commander" ? {} : commanderColumns(null)),
+        })
+        .eq("id", deckId)
+        .eq("owner_id", userId)
+        .select("id");
+      if (error) {
+        // 23514: a card or the commander was added in between and no longer fits (008).
+        if (colors && isColorConflict(error)) throw new DeckColorError(COLOR_CONFLICT);
+        throw new SupabaseDataError("decks update", error.code);
+      }
+      if (!rows?.length) throw new DataError(denied);
     },
 
     async assertCanSetCommander(userId, deckId) {
@@ -460,20 +534,53 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       }
       const problem = commander && commanderProblem(commander);
       if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
-      let query = client
-        .from("decks")
-        .update(commanderColumns(commander))
-        .eq("id", deckId)
-        .eq("owner_id", userId);
-      // Guards a format change racing this write; the CHECK is the backstop.
-      if (commander) query = query.eq("format", "commander");
-      const { data, error } = await query.select("id");
-      if (error) {
-        // 23514: one of the decks_commander_* CHECKs (format or type line).
-        if (error.code === "23514") throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
-        throw new SupabaseDataError("decks commander", error.code);
-      }
-      if (!data?.length) {
+
+      let deckColors = deck.colors;
+      // At most two tries: the second only when colors were picked (in
+      // another tab) between our read and our write.
+      for (let attempt = 1; ; attempt++) {
+        // A deck without colors takes the commander's identity, but only
+        // while it still has none (.is("colors", null)), so a colors pick
+        // made meanwhile is never overwritten.
+        const adoptColors = Boolean(commander) && deckColors === null;
+        // The commander must fit the deck colors (throws a clear error).
+        const colors = commander
+          ? colorsForCommander(
+              normalizeCommander(commander),
+              deckColors,
+              adoptColors ? await cardsForColorCheck(client, deckId) : [],
+            )
+          : null;
+        let query = client
+          .from("decks")
+          .update({
+            ...commanderColumns(commander),
+            ...(adoptColors ? { colors } : {}),
+          })
+          .eq("id", deckId)
+          .eq("owner_id", userId);
+        // Guards a format change racing this write; the CHECK is the backstop.
+        if (commander) query = query.eq("format", "commander");
+        if (adoptColors) query = query.is("colors", null);
+        const { data, error } = await query.select("id");
+        if (error) {
+          // 23514: one of the decks_commander_* CHECKs (format or type line),
+          // or (008) the colors changed in between so the commander no longer fits.
+          if (isColorConflict(error)) throw new DeckColorError(COLOR_CONFLICT);
+          if (error.code === "23514") throw new DataError(COMMANDER_MESSAGES.notLegendaryCreature);
+          throw new SupabaseDataError("decks commander", error.code);
+        }
+        if (data?.length) return;
+
+        if (adoptColors && attempt === 1) {
+          // Nothing updated: maybe the colors were picked meanwhile. Re-read
+          // and check the commander against them instead.
+          const fresh = await requireOwnDeck(client, userId, deckId, denied);
+          if (fresh.colors !== null) {
+            deckColors = fresh.colors;
+            continue;
+          }
+        }
         throw new DataError(commander ? COMMANDER_MESSAGES.notCommanderFormat : denied);
       }
     },
@@ -492,7 +599,9 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
 
     async addCard(userId, deckId, card) {
       const client = await getClient();
-      await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
+      const deck = await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
+      const colorIdentity = normalizeDeckColors(card.colorIdentity);
+      assertCardFits(card.cardName, colorIdentity, deck.colors);
       const existing = check(
         "deck_cards find",
         await client
@@ -504,15 +613,18 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       ) as { id: string; quantity: number } | null;
 
       if (existing) {
-        check(
+        cardColorWrite(
           "deck_cards update",
           await client
             .from("deck_cards")
-            .update({ quantity: Math.min(99, existing.quantity + card.quantity) })
+            .update({
+              quantity: Math.min(99, existing.quantity + card.quantity),
+              color_identity: colorIdentity,
+            })
             .eq("id", existing.id),
         );
       } else {
-        check(
+        cardColorWrite(
           "deck_cards insert",
           await client.from("deck_cards").insert({
             deck_id: deckId,
@@ -522,6 +634,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
             mana_cost: card.manaCost,
             type_line: card.typeLine,
             colors: card.colors,
+            color_identity: colorIdentity,
             oracle_text: card.oracleText,
             quantity: card.quantity,
           }),
@@ -532,7 +645,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
 
     async setCardQuantity(userId, deckId, cardId, quantity) {
       const client = await getClient();
-      await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
+      const deck = await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
       if (!isUuid(cardId)) throw new DataError("Card not found in deck");
       if (quantity === 0) {
         check(
@@ -540,7 +653,25 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
           await client.from("deck_cards").delete().eq("id", cardId).eq("deck_id", deckId),
         );
       } else {
-        const rows = check(
+        if (deck.colors !== null) {
+          const current = check(
+            "deck_cards find",
+            await client
+              .from("deck_cards")
+              .select(CARD_COLOR_COLS)
+              .eq("id", cardId)
+              .eq("deck_id", deckId)
+              .maybeSingle(),
+          ) as CardColorRow | null;
+          if (!current) throw new DataError("Card not found in deck");
+          if (quantity > current.quantity) {
+            assertQuantityRaiseFits(
+              { cardName: current.card_name, colors: current.colors ?? [], colorIdentity: current.color_identity },
+              deck.colors,
+            );
+          }
+        }
+        const rows = cardColorWrite(
           "deck_cards quantity",
           await client
             .from("deck_cards")

@@ -40,27 +40,27 @@ select throws_ok($$update public.decks set notes = repeat('x', 2001) where id = 
   '23514', null, 'owner PATCH to 2001-character notes is rejected');
 
 -- deck_cards
-select lives_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, mana_cost, oracle_text, image_uri, colors, quantity)
+select lives_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, mana_cost, oracle_text, image_uri, colors, quantity, color_identity)
   values ('d2000000-0000-4000-8000-000000000001', repeat('s', 64), repeat('c', 200), repeat('t', 200), repeat('m', 100),
-          repeat('o', 4000), 'https://cards.scryfall.io/' || repeat('i', 486), array['W','U','B','R','G'], 1)$$,
+          repeat('o', 4000), 'https://cards.scryfall.io/' || repeat('i', 486), array['W','U','B','R','G'], 1, '{}')$$,
   'a card exactly at every limit is accepted');
 select is((select char_length(image_uri) from public.deck_cards where scryfall_id = repeat('s', 64)), 512, 'the 512-character image URL was saved');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', repeat('s', 65), 'c', 't', 1)$$, '23514', null, 'scryfall_id of 65 rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a1', repeat('c', 201), 't', 1)$$, '23514', null, 'card_name of 201 rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a2', 'c', repeat('t', 201), 1)$$, '23514', null, 'type_line of 201 rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, mana_cost, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a3', 'c', 't', repeat('m', 101), 1)$$, '23514', null, 'mana_cost of 101 rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, oracle_text, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a4', 'c', 't', repeat('o', 4001), 1)$$, '23514', null, 'oracle_text of 4001 rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, image_uri, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a5', 'c', 't', 'https://cards.scryfall.io/' || repeat('i', 487), 1)$$, '23514', null, 'image_uri of 513 rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, colors, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a6', 'c', 't', array['X'], 1)$$, '23514', null, 'a color outside WUBRG rejected');
-select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, colors, quantity)
-  values ('d2000000-0000-4000-8000-000000000001', 'a7', 'c', 't', array['W','W','W','W','W','W'], 1)$$, '23514', null, 'more than 5 colors rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', repeat('s', 65), 'c', 't', 1, '{}')$$, '23514', null, 'scryfall_id of 65 rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a1', repeat('c', 201), 't', 1, '{}')$$, '23514', null, 'card_name of 201 rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a2', 'c', repeat('t', 201), 1, '{}')$$, '23514', null, 'type_line of 201 rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, mana_cost, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a3', 'c', 't', repeat('m', 101), 1, '{}')$$, '23514', null, 'mana_cost of 101 rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, oracle_text, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a4', 'c', 't', repeat('o', 4001), 1, '{}')$$, '23514', null, 'oracle_text of 4001 rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, image_uri, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a5', 'c', 't', 'https://cards.scryfall.io/' || repeat('i', 487), 1, '{}')$$, '23514', null, 'image_uri of 513 rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, colors, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a6', 'c', 't', array['X'], 1, '{}')$$, '23514', null, 'a color outside WUBRG rejected');
+select throws_ok($$insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, colors, quantity, color_identity)
+  values ('d2000000-0000-4000-8000-000000000001', 'a7', 'c', 't', array['W','W','W','W','W','W'], 1, '{}')$$, '23514', null, 'more than 5 colors rejected');
 select throws_ok($$update public.deck_cards set oracle_text = repeat('o', 4001) where scryfall_id = repeat('s', 64)$$,
   '23514', null, 'owner PATCH to a 4001-character oracle_text is rejected');
 

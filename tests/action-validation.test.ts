@@ -48,8 +48,8 @@ function form(fields: Record<string, string>) {
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   return fd;
 }
-const goodDeck = { name: "Deck", format: "modern", notes: "", visibility: "public", allowForks: "on" };
-const goodCard = { scryfallId: "s1", cardName: "Sol Ring", typeLine: "Artifact", colors: [], quantity: 1 };
+const goodDeck = { name: "Deck", format: "modern", notes: "", visibility: "public", allowForks: "on", colors: "UB" };
+const goodCard = { scryfallId: "11111111-2222-4333-8444-555555555555", quantity: 1 };
 const goodFav = { scryfallId: "s1", cardName: "Sol Ring" };
 
 type AnyFn = (...args: unknown[]) => Promise<unknown>;
@@ -143,14 +143,21 @@ describe("card and favorite payloads", () => {
     ["cardName", "c".repeat(LIMITS.cardName + 1)],
     ["typeLine", "t".repeat(LIMITS.typeLine + 1)],
     ["manaCost", "m".repeat(LIMITS.manaCost + 1)],
-    ["oracleText", "o".repeat(LIMITS.oracleText + 1)],
     ["imageUri", `https://cards.scryfall.io/${"i".repeat(LIMITS.imageUri)}`],
-    ["colors", Array(11).fill("W")],
-    ["quantity", 100],
-    ["quantity", "1"],
     ["cardName", 42],
   ];
-  for (const [field, value] of over) {
+  // addCardToDeckAction takes only a Scryfall id and a quantity (the server
+  // fetches the card itself: tests/add-card-action.test.ts).
+  const badAdds: [string, unknown][] = [
+    ["scryfallId", "s1"],
+    ["scryfallId", "s".repeat(LIMITS.scryfallId + 1)],
+    ["scryfallId", 42],
+    ["quantity", 0],
+    ["quantity", 100],
+    ["quantity", 1.5],
+    ["quantity", "1"],
+  ];
+  for (const [field, value] of badAdds) {
     it(`addCardToDeckAction refuses ${field}=${String(value).slice(0, 12)}…`, async () => {
       expect(await call(decks.addCardToDeckAction, OTHER, { ...goodCard, [field]: value })).toEqual({ error: expect.any(String) });
       expect(repoCalls()).toEqual([]);
@@ -162,20 +169,6 @@ describe("card and favorite payloads", () => {
       expect(await call(decks.addCardToDeckAction, OTHER, bad)).toEqual({ error: expect.any(String) });
     }
     expect(repoCalls()).toEqual([]);
-  });
-
-  it("colors keep only W/U/B/R/G, once each", async () => {
-    await decks.addCardToDeckAction(OTHER, { ...goodCard, colors: ["G", "X", "W", "G", "wubrg"] });
-    expect(repo.addCard.mock.calls[0][2].colors).toEqual(["G", "W"]);
-  });
-
-  it("a card exactly at every limit is accepted", async () => {
-    const atLimit = {
-      scryfallId: "s".repeat(LIMITS.scryfallId), cardName: "c".repeat(LIMITS.cardName), typeLine: "t".repeat(LIMITS.typeLine),
-      manaCost: "m".repeat(LIMITS.manaCost), oracleText: "o".repeat(LIMITS.oracleText),
-      imageUri: `https://cards.scryfall.io/${"i".repeat(LIMITS.imageUri - 26)}`, colors: ["W", "U", "B", "R", "G"], quantity: 99,
-    };
-    expect(await decks.addCardToDeckAction(OTHER, atLimit)).toEqual({ success: true });
   });
 
   it("updateCardQuantityAction checks the quantity type and range", async () => {
@@ -225,5 +218,41 @@ describe("auth form actions", () => {
       expect(await call(auth.signInAction, bad)).toEqual({ error: "Invalid input" });
       expect(await call(auth.updateProfileAction, bad)).toEqual({ error: "Invalid input" });
     }
+  });
+});
+
+describe("deck colors in the deck form", () => {
+  it("createDeckAction requires a color pick and refuses unknown picks", async () => {
+    const { colors: _omit, ...noColors } = goodDeck;
+    void _omit;
+    expect(await decks.createDeckAction(form(noColors))).toEqual({ error: "Pick the deck's colors" });
+    for (const bad of ["XX", "UBX", "BU", "wubrg", "c", "W,U"]) {
+      expect(await decks.createDeckAction(form({ ...goodDeck, colors: bad })), bad).toEqual({ error: "Pick the deck's colors" });
+    }
+    expect(repoCalls()).toEqual([]);
+  });
+
+  it("createDeckAction stores the picked colors (C = Colorless)", async () => {
+    for (const [key, colors] of [["UB", ["U", "B"]], ["C", []], ["WUBRG", ["W", "U", "B", "R", "G"]], ["WG", ["W", "G"]]] as const) {
+      repo.createDeck.mockClear();
+      await expect(decks.createDeckAction(form({ ...goodDeck, colors: key }))).rejects.toThrow("NEXT_REDIRECT");
+      expect(repo.createDeck.mock.calls[0][1].colors, key).toEqual(colors);
+    }
+  });
+
+  it("updateDeckMetaAction leaves colors alone when the form has none (older decks)", async () => {
+    const { colors: _omit, ...noColors } = goodDeck;
+    void _omit;
+    expect(await decks.updateDeckMetaAction(OTHER, form(noColors))).toEqual({ success: true });
+    expect(repo.updateDeck.mock.calls[0][2].colors).toBeUndefined();
+  });
+
+  it("a blocked narrowing returns the cards that don't fit", async () => {
+    const { DeckColorError } = await import("@/lib/data/errors");
+    repo.updateDeck.mockRejectedValueOnce(new DeckColorError("Can't change the deck to Dimir: 2 cards don't fit.", ["Fireball", "Kitchen Finks"]));
+    expect(await decks.updateDeckMetaAction(OTHER, form(goodDeck))).toEqual({
+      error: "Can't change the deck to Dimir: 2 cards don't fit.",
+      offColorCards: ["Fireball", "Kitchen Finks"],
+    });
   });
 });

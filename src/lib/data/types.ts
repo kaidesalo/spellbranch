@@ -31,6 +31,13 @@ export interface DeckInput {
   notes: string;
   visibility: Visibility;
   allowForks: boolean;
+  /**
+   * Deck colors (src/lib/deck-colors.ts). createDeck: null/undefined stores
+   * no colors. updateDeck: null/undefined leaves them as they are; an array
+   * replaces them, and is refused (DeckColorError) if any card or the
+   * commander wouldn't fit. Nothing is ever removed to make them fit.
+   */
+  colors?: string[] | null;
 }
 
 export interface CardInput {
@@ -40,6 +47,8 @@ export interface CardInput {
   manaCost: string | null;
   typeLine: string;
   colors: string[];
+  /** Scryfall color identity; the adapters refuse a card outside the deck colors. */
+  colorIdentity: string[];
   oracleText: string | null;
   quantity: number;
 }
@@ -96,22 +105,29 @@ export interface Repository {
   /** Changing the format away from "commander" clears the commander. */
   updateDeck(userId: string, deckId: string, input: DeckInput): Promise<void>;
   deleteDeck(userId: string, deckId: string): Promise<void>;
+  /** Refused (DeckColorError) when the card's identity is outside the deck colors. */
   addCard(userId: string, deckId: string, card: CardInput): Promise<void>;
-  /** quantity 0 removes the card. */
-  setCardQuantity(userId: string, deckId: string, cardId: string, quantity: number): Promise<void>;
   /**
-   * Owner only, Commander decks only. `commander` must already be built from
-   * Scryfall data (commanderFromScryfall); null clears it. Both adapters
-   * re-check the legendary-creature rule, and the database CHECKs it again.
+   * quantity 0 removes the card. Raising the quantity of a card outside the
+   * deck colors is refused; lowering it never is.
    */
+  setCardQuantity(userId: string, deckId: string, cardId: string, quantity: number): Promise<void>;
   /**
    * Throws a DataError unless userId owns a Commander-format deck deckId.
    * A cheap pre-check, so setCommanderAction refuses before it spends a
    * Scryfall lookup (Cipher L1); setCommander checks again when it writes.
    */
   assertCanSetCommander(userId: string, deckId: string): Promise<void>;
+  /**
+   * Owner only, Commander decks only. `commander` must already be built from
+   * Scryfall data (commanderFromScryfall); null clears it. Both adapters
+   * re-check the legendary-creature rule, and the database CHECKs it again.
+   * Deck colors: the commander's identity must fit them; a deck with no
+   * colors takes the commander's identity as its colors (refused if any card
+   * falls outside it).
+   */
   setCommander(userId: string, deckId: string, commander: DeckCommander | null): Promise<void>;
-  /** Copies cards and the commander (forks carry the commander over). */
+  /** Copies cards, the commander and the deck colors. */
   forkDeck(userId: string, deckId: string): Promise<string>;
   setPreferredBranch(userId: string, sourceId: string, branchId: string | null): Promise<void>;
 

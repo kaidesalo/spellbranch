@@ -29,6 +29,7 @@ import {
 import { CardZoom } from "@/components/cards/card-zoom";
 import { ManaCost, ManaText } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved, zoomCardFromScryfall } from "@/lib/card-zoom";
+import { offColorReason } from "@/lib/deck-colors";
 
 // Lost Century palette swatches for the color identity pips.
 const PIP: Record<string, { label: string; className: string }> = {
@@ -67,11 +68,14 @@ export function CommanderSlot({
   commander,
   canEdit,
   alsoInDeckList,
+  deckColors,
 }: {
   deckId: string;
   commander: DeckCommander | null;
   canEdit: boolean;
   alsoInDeckList: boolean;
+  /** null: no deck colors yet; choosing a commander sets them. */
+  deckColors: string[] | null;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -185,6 +189,7 @@ export function CommanderSlot({
           open={open}
           onOpenChange={setOpen}
           currentId={commander?.scryfallId ?? null}
+          deckColors={deckColors}
         />
       )}
     </section>
@@ -196,11 +201,13 @@ function CommanderPicker({
   open,
   onOpenChange,
   currentId,
+  deckColors,
 }: {
   deckId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentId: string | null;
+  deckColors: string[] | null;
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ScryfallCard | null>(null);
@@ -208,9 +215,12 @@ function CommanderPicker({
   const { cards, loading, error, showEmptyHint } = useScryfallSearch(query, "commander");
   const visibleSelected = pickVisibleSelection(cards, selected);
   const image = visibleSelected ? getCardImage(visibleSelected) : null;
+  // Display only: the server checks the identity it fetches from Scryfall.
+  const offColor = (card: ScryfallCard) => offColorReason(card.color_identity ?? [], deckColors);
+  const selectedOffColor = visibleSelected ? offColor(visibleSelected) : null;
 
   function choose() {
-    if (!visibleSelected) return;
+    if (!visibleSelected || selectedOffColor) return;
     const card = visibleSelected;
     startTransition(async () => {
       // Only the id goes to the server; it fetches the card from Scryfall
@@ -232,7 +242,10 @@ function CommanderPicker({
           <DialogTitle>Choose commander</DialogTitle>
           <DialogDescription>
             Legendary creatures only. Partners, backgrounds and planeswalker
-            commanders aren&apos;t supported yet.
+            commanders aren&apos;t supported yet.{" "}
+            {deckColors === null
+              ? "This deck has no colors yet: it takes your commander's color identity."
+              : "Your commander's color identity must fit the deck's colors."}
           </DialogDescription>
         </DialogHeader>
         <div className="relative">
@@ -259,15 +272,18 @@ function CommanderPicker({
           <ul className="max-h-[360px] space-y-1 overflow-y-auto pr-1" aria-label="Legendary creatures">
             {cards.map((card) => {
               const active = visibleSelected?.id === card.id;
+              const reason = offColor(card);
               return (
                 <li key={card.id}>
                   <button
                     type="button"
                     onClick={() => setSelected(card)}
                     aria-pressed={active}
+                    aria-describedby={reason ? `cmd-off-color-${card.id}` : undefined}
+                    data-off-color={reason ? "true" : undefined}
                     className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
                       active ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
-                    }`}
+                    } ${reason && !active ? "opacity-55 grayscale" : ""}`}
                   >
                     <div className="font-medium">
                       {card.name}
@@ -278,6 +294,11 @@ function CommanderPicker({
                     <div className={`text-xs ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                       <ManaCost cost={getCardManaCost(card)} fallback="—" /> · {scryfallFrontTypeLine(card)}
                     </div>
+                    {reason && (
+                      <div id={`cmd-off-color-${card.id}`} className="mt-0.5 text-xs font-semibold">
+                        Off-color: {reason}
+                      </div>
+                    )}
                   </button>
                 </li>
               );
@@ -313,11 +334,17 @@ function CommanderPicker({
                   size="sm"
                   className="h-auto w-full whitespace-normal py-1.5"
                   onClick={choose}
-                  disabled={pending || visibleSelected.id === currentId}
+                  disabled={pending || visibleSelected.id === currentId || Boolean(selectedOffColor)}
+                  aria-describedby={selectedOffColor ? "set-off-color" : undefined}
                 >
                   <Crown data-icon="inline-start" />
                   Set as commander
                 </Button>
+                {selectedOffColor && (
+                  <p id="set-off-color" className="text-xs font-semibold text-[#4b3d44]">
+                    Can&apos;t set: {selectedOffColor}
+                  </p>
+                )}
               </div>
             )}
           </div>

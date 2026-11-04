@@ -1,4 +1,5 @@
-import { CARD_COLORS, LIMITS } from "@/lib/data/limits";
+import { LIMITS } from "@/lib/data/limits";
+import { normalizeDeckColors } from "@/lib/deck-colors";
 import { isUuid, scryfallImageOrNull } from "@/lib/data/validation";
 import { getCardImage, getCardManaCost, type ScryfallCard } from "@/lib/scryfall/client";
 import type { DeckCommander } from "@/lib/types";
@@ -79,12 +80,12 @@ export function isLegendaryCreatureCard(card: ScryfallCard): boolean {
   return isLegendaryCreatureTypeLine(scryfallFrontTypeLine(card));
 }
 
-/** W/U/B/R/G only, once each, in WUBRG order. */
+/**
+ * W/U/B/R/G only, once each, in WUBRG order. (Flattens, because a 2-D array
+ * from a direct API write reads back nested.) Same as deck colors.
+ */
 export function normalizeColorIdentity(colors: readonly unknown[] | null | undefined): string[] {
-  // flat(): a 2-D array from a direct API write reads back nested.
-  const flat = Array.isArray(colors) ? (colors as unknown[]).flat(Infinity) : [];
-  const set = new Set(flat.filter((c): c is string => typeof c === "string"));
-  return CARD_COLORS.filter((c) => set.has(c));
+  return normalizeDeckColors(colors);
 }
 
 function artCrop(card: ScryfallCard): string | null {

@@ -60,6 +60,11 @@ export interface DeckCard {
   manaCost: string | null;
   typeLine: string;
   colors: string[];
+  /**
+   * Scryfall color identity (W/U/B/R/G, WUBRG order), fetched by the server
+   * when the card was added. null for cards added before deck colors.
+   */
+  colorIdentity?: string[] | null;
   oracleText: string | null;
   quantity: number;
   createdAt: string;
@@ -97,6 +102,12 @@ export interface Deck {
   preferredBranchId: string | null;
   /** Only ever set when format is "commander" (DB CHECK decks_commander_format). */
   commander: DeckCommander | null;
+  /**
+   * The deck's color combination (W/U/B/R/G, WUBRG order; [] = Colorless).
+   * Cards must fit inside it (src/lib/deck-colors.ts). null: no colors
+   * picked yet (decks made before this feature), so nothing is restricted.
+   */
+  colors: string[] | null;
   createdAt: string;
   updatedAt: string;
 }

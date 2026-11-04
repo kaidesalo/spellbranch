@@ -205,7 +205,7 @@ describe("where costs render as icons", () => {
       artUri: null,
       colorIdentity: ["B", "R"],
     };
-    const html = render(createElement(CommanderSlot, { deckId: "d1", commander, canEdit: false, alsoInDeckList: false }));
+    const html = render(createElement(CommanderSlot, { deckId: "d1", commander, canEdit: false, alsoInDeckList: false, deckColors: null }));
     expect(html).toContain('aria-label="Mana cost: Black, Black, Red, Red"');
     expect(html).not.toContain("{B}");
   });

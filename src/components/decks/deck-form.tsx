@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DECK_FORMATS, VISIBILITY_OPTIONS, type Deck } from "@/lib/types";
 import type { ActionResult } from "@/lib/actions/decks";
+import { ColorPicker } from "./deck-colors";
 
 export function DeckForm({
   deck,
@@ -19,6 +20,9 @@ export function DeckForm({
   submitLabel: string;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [offColorCards, setOffColorCards] = useState<string[]>([]);
+  // New decks must pick colors; a deck from before deck colors may keep none.
+  const colorsRequired = !deck || deck.colors !== null;
   const [pending, startTransition] = useTransition();
   const [format, setFormat] = useState<string>(deck?.format ?? "commander");
   const commanderWillClear =
@@ -31,9 +35,13 @@ export function DeckForm({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         setError(null);
+        setOffColorCards([]);
         startTransition(async () => {
           const result = await action(formData);
-          if (result?.error) setError(result.error);
+          if (result?.error) {
+            setError(result.error);
+            setOffColorCards(result.offColorCards ?? []);
+          }
         });
       }}
     >
@@ -90,6 +98,20 @@ export function DeckForm({
         </div>
       </div>
 
+      <div className="rounded-xl border-2 border-[#4b3d44] bg-[#d2c9a5]/40 p-4">
+        <ColorPicker
+          defaultColors={deck?.colors ?? null}
+          required={colorsRequired}
+          describedBy="colors-hint"
+        />
+        <p id="colors-hint" className="mt-3 text-xs text-muted-foreground">
+          {deck && deck.colors === null
+            ? "This deck has no colors yet, so any card can be added. Pick colors to restrict it to cards whose color identity fits."
+            : "Only cards whose color identity fits inside these colors can be added. Colorless cards always fit."}
+          {deck?.commander && " The colors must include your commander's color identity."}
+        </p>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>
         <Textarea
@@ -115,7 +137,16 @@ export function DeckForm({
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            <p>{error}</p>
+            {offColorCards.length > 0 && (
+              <ul className="mt-2 list-disc pl-5" aria-label="Cards that don't fit">
+                {offColorCards.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

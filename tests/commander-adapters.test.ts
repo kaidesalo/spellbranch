@@ -143,6 +143,7 @@ const DECK = "d0000000-0000-4000-8000-000000000001";
 const deckRow = (over: Record<string, unknown> = {}) => ({
   id: DECK, owner_id: ALICE, name: "EDH", format: "commander", notes: "", visibility: "public",
   allow_forks: true, forked_from_id: null, preferred_branch_id: null, created_at: T, updated_at: T,
+  colors: ["W", "U", "B", "R", "G"],
   ...over,
 });
 const commanderRow = {

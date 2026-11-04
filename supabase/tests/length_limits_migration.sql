@@ -23,13 +23,13 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"d9000000-0000-4000-8000-000000000001","role":"authenticated"}';
 insert into public.decks (id, owner_id, name, format, visibility, notes) values
  ('d9100000-0000-4000-8000-000000000001','d9000000-0000-4000-8000-000000000001', repeat('n', 150), 'modern', 'private', repeat('x', 5000));
-insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, oracle_text, colors) values
+insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, oracle_text, colors, color_identity) values
  -- over-long id: can never be a real card
- ('d9100000-0000-4000-8000-000000000001', repeat('L', 65), 'long id', 't', 1, null, '{}'),
+ ('d9100000-0000-4000-8000-000000000001', repeat('L', 65), 'long id', 't', 1, null, '{}', '{}'),
  -- planted row whose id is exactly what the old migration renamed L to
- ('d9100000-0000-4000-8000-000000000001', 'invalid-' || md5(repeat('L', 65)), 'planted', 't', 1, null, '{}'),
+ ('d9100000-0000-4000-8000-000000000001', 'invalid-' || md5(repeat('L', 65)), 'planted', 't', 1, null, '{}', '{}'),
  -- a normal card with over-limit text
- ('d9100000-0000-4000-8000-000000000001', 'ok-id', repeat('c', 300), 't', 1, repeat('o', 5000), array['G','X','W','G']);
+ ('d9100000-0000-4000-8000-000000000001', 'ok-id', repeat('c', 300), 't', 1, repeat('o', 5000), array['G','X','W','G'], '{}');
 insert into public.favorite_cards (user_id, scryfall_id, card_name) values
  ('d9000000-0000-4000-8000-000000000001', repeat('F', 65), 'long id'),
  ('d9000000-0000-4000-8000-000000000001', 'invalid-' || md5(repeat('F', 65)), 'planted'),

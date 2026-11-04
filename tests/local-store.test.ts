@@ -23,7 +23,7 @@ const dataDir = () => path.dirname(file());
 
 const deck = (id: string, visibility: Deck["visibility"] = "public"): Deck => ({
   id, ownerId: "u", name: id, format: "modern", notes: "", visibility, allowForks: true,
-  forkedFromId: null, preferredBranchId: null, commander: null, createdAt: "t", updatedAt: "t",
+  forkedFromId: null, preferredBranchId: null, commander: null, colors: null, createdAt: "t", updatedAt: "t",
 });
 
 describe("local store: reads", () => {

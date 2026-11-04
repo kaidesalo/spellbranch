@@ -44,6 +44,13 @@ export const POLICIES = {
     { by: "ip", limit: 60, windowSec: 10 * MINUTE },
     { by: "user", limit: 30, windowSec: 10 * MINUTE },
   ],
+  // Each "add card" fetches the card from Scryfall so its color identity
+  // comes from Scryfall, not the client. Roomy: building a 100-card deck in
+  // one sitting is normal.
+  "card-lookup": [
+    { by: "ip", limit: 400, windowSec: 10 * MINUTE },
+    { by: "user", limit: 200, windowSec: 10 * MINUTE },
+  ],
   // Public card search proxy (Cipher PR #9 L2); the picker debounces to 300 ms.
   "scryfall-search": [{ by: "ip", limit: 60, windowSec: MINUTE }],
 } as const satisfies Record<string, readonly Bucket[]>;

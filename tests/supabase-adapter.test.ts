@@ -133,11 +133,12 @@ describe("supabase adapter: decks", () => {
   it("createDeck never sends forked_from_id or preferred_branch_id", async () => {
     const { repo, calls } = repoWith((c) => (isTable(c, "decks", "insert") ? ok({ id: DECK }) : undefined));
     const id = await repo.createDeck(ME, {
-      name: "New", format: "modern", notes: "", visibility: "private", allowForks: true,
+      name: "New", format: "modern", notes: "", visibility: "private", allowForks: true, colors: ["B", "U"],
     });
     expect(id).toBe(DECK);
     expect(calls[0].payload).toEqual({
       owner_id: ME, name: "New", format: "modern", notes: "", visibility: "private", allow_forks: true,
+      colors: ["U", "B"],
     });
   });
 
@@ -199,7 +200,7 @@ describe("supabase adapter: cards", () => {
     const { repo, calls } = repoWith((c) => (isTable(c, "decks") ? ok(deckRow()) : undefined));
     const card = {
       scryfallId: "s1", cardName: "Sol Ring", imageUri: null, manaCost: null, typeLine: "Artifact",
-      colors: [], oracleText: null, quantity: 1,
+      colors: [], colorIdentity: [], oracleText: null, quantity: 1,
     };
     expect(await dataError(repo.addCard(ME, DECK, card))).toBe("You cannot edit this deck");
     expect(calls.every((c) => c.op === "select")).toBe(true);
@@ -214,17 +215,17 @@ describe("supabase adapter: cards", () => {
     });
     const card = {
       scryfallId: "s1", cardName: "Sol Ring", imageUri: "https://evil.example/x.png", manaCost: "{1}",
-      typeLine: "Artifact", colors: ["C"], oracleText: null, quantity: 1,
+      typeLine: "Artifact", colors: ["C"], colorIdentity: [], oracleText: null, quantity: 1,
     };
     await repo.addCard(ME, DECK, card);
     const insert = calls.find((c) => isTable(c, "deck_cards", "insert"))!;
-    expect(insert.payload).toMatchObject({ deck_id: DECK, scryfall_id: "s1", image_uri: null, quantity: 1 });
+    expect(insert.payload).toMatchObject({ deck_id: DECK, scryfall_id: "s1", image_uri: null, quantity: 1, color_identity: [] });
     expect(calls.at(-1)).toMatchObject({ table: "decks", op: "update" });
 
     existing = { id: CARD, quantity: 98 };
     await repo.addCard(ME, DECK, { ...card, quantity: 4 });
     const update = calls.find((c) => isTable(c, "deck_cards", "update"))!;
-    expect(update.payload).toEqual({ quantity: 99 });
+    expect(update.payload).toEqual({ quantity: 99, color_identity: [] });
     expect(update.filters).toEqual([["eq", "id", CARD]]);
   });
 
