@@ -43,12 +43,57 @@ function isRealValue(value: string | undefined): value is string {
   return !PLACEHOLDER_MARKERS.some((marker) => value.includes(marker));
 }
 
-export function hasSupabaseKeys(env: Env = process.env): boolean {
+export function hasSupabaseKeys(env: Env = publicSupabaseEnv()): boolean {
   return (
     isRealValue(env.NEXT_PUBLIC_SUPABASE_URL) &&
+    normalizeSupabaseUrl(env.NEXT_PUBLIC_SUPABASE_URL) !== null &&
     isRealValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   );
 }
+
+/**
+ * The two public Supabase variables, read with static `process.env.NAME`
+ * references. Next.js inlines NEXT_PUBLIC_ values only where they are written
+ * out like this, so the same code works in a browser bundle too.
+ */
+function publicSupabaseEnv(): Env {
+  return {
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  };
+}
+
+/** API paths people paste by mistake (supabase-js adds these itself). */
+const SUPABASE_API_SUFFIX = /\/(rest|auth|storage|realtime)\/v1\/*$/i;
+
+/**
+ * The project URL supabase-js expects: the bare origin,
+ * e.g. "https://abcd.supabase.co".
+ *
+ * A pasted "https://abcd.supabase.co/rest/v1/" made supabase-js call
+ * /rest/v1/rest/v1/rpc/..., which PostgREST answers with PGRST125 (invalid
+ * path). This trims whitespace, drops trailing slashes and one trailing
+ * /rest/v1, /auth/v1, /storage/v1 or /realtime/v1, and keeps only the origin.
+ * Returns null for anything that isn't an http(s) URL.
+ * `changed` is true when more than whitespace or a trailing slash was dropped.
+ */
+export function normalizeSupabaseUrl(
+  value: string | undefined,
+): { url: string; changed: boolean } | null {
+  if (!value || !value.trim()) return null;
+  const trimmed = value.trim().replace(/\/+$/, "");
+  const withoutSuffix = trimmed.replace(SUPABASE_API_SUFFIX, "");
+  let parsed: URL;
+  try {
+    parsed = new URL(withoutSuffix);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  return { url: parsed.origin, changed: parsed.origin !== trimmed };
+}
+
+let warnedAboutUrl = false;
 
 /**
  * True when serving in production. `next build` also runs with
@@ -159,11 +204,25 @@ export function isSupabaseConfigured(env: Env = process.env): boolean {
   return getBackend(env) === "supabase";
 }
 
-export function getSupabaseEnv(env: Env = process.env): { url: string; key: string } {
-  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+/**
+ * The Supabase URL and publishable key for every Supabase client (server.ts,
+ * proxy.ts, service.ts, and any future browser client). The URL is always
+ * normalized to the bare project origin (normalizeSupabaseUrl).
+ */
+export function getSupabaseEnv(env: Env = publicSupabaseEnv()): { url: string; key: string } {
+  const rawUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!isRealValue(url) || !isRealValue(key)) {
+  const normalized = isRealValue(rawUrl) ? normalizeSupabaseUrl(rawUrl) : null;
+  if (!normalized || !isRealValue(key)) {
     throw new Error("Supabase is not configured");
   }
-  return { url, key };
+  if (normalized.changed && !warnedAboutUrl) {
+    warnedAboutUrl = true;
+    // Never the value itself: only that it was fixed.
+    console.warn(
+      "NEXT_PUBLIC_SUPABASE_URL had a path (e.g. /rest/v1) after the project origin; it was stripped. " +
+        "Set it to the bare project URL.",
+    );
+  }
+  return { url: normalized.url, key };
 }
