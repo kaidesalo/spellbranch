@@ -45,6 +45,9 @@ describe("DeckList quantity", () => {
     for (const label of ["Decrease Swamp", "Increase Swamp", "Remove Swamp"]) {
       expect(html).toContain(`aria-label="${label}"`);
     }
+    // Phone rows stack the quantity controls under the name; sm+ stays one row.
+    expect(html).toContain("flex-col");
+    expect(html).toContain("sm:flex-row");
   });
 
   it("viewers see the plain number and no input or buttons", () => {

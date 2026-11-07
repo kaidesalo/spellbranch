@@ -75,6 +75,8 @@ export function QuantityInput({
         "hover:border-border focus-visible:border-ring focus-visible:bg-background/70 focus-visible:ring-2 focus-visible:ring-ring/50",
         "selection:bg-primary selection:text-primary-foreground",
         busy && "cursor-progress opacity-70",
+        // Phone rows give this a 32px target; sm+ keeps the original footprint.
+        "max-sm:h-8! max-sm:w-8!",
       )}
     />
   );
