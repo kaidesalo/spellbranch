@@ -50,8 +50,8 @@ export default async function DeckDetailPage({
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <div className="flex flex-col gap-4 border-b border-border/70 pb-5 lg:flex-row lg:items-start lg:justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
+      <div className="flex flex-col gap-3 border-b border-border/70 pb-4 lg:flex-row lg:items-start lg:justify-between lg:pb-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
@@ -102,11 +102,12 @@ export default async function DeckDetailPage({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {canEdit && (
             <Button
               variant="outline"
               size="sm"
+              className="max-sm:px-2 max-sm:tracking-normal!"
               render={<Link href={`/decks/${deck.id}/edit`} />}
             >
               <Settings2 data-icon="inline-start" />
@@ -115,14 +116,22 @@ export default async function DeckDetailPage({
           )}
           {canFork && user && (
             <form
+              className="inline-flex"
               action={async () => {
                 "use server";
                 await forkDeckAction(deck.id);
               }}
             >
-              <Button type="submit" size="sm" variant="outline">
+              <Button
+                type="submit"
+                size="sm"
+                variant="outline"
+                className="max-sm:px-2 max-sm:tracking-normal!"
+                aria-label="Fork deck"
+              >
                 <GitBranch data-icon="inline-start" />
-                Fork deck
+                <span className="sm:hidden">Fork</span>
+                <span className="hidden sm:inline">Fork deck</span>
               </Button>
             </form>
           )}
@@ -132,6 +141,7 @@ export default async function DeckDetailPage({
           {deck.sourceDeck && (
             <Button
               size="sm"
+              className="max-sm:px-2 max-sm:tracking-normal!"
               render={
                 <Link
                   href={`/decks/${deck.sourceDeck.id}/compare?branch=${deck.id}`}
@@ -146,6 +156,8 @@ export default async function DeckDetailPage({
             <Button
               size="sm"
               variant="outline"
+              className="max-sm:px-2 max-sm:tracking-normal!"
+              aria-label="Compare branch"
               render={
                 <Link
                   href={`/decks/${deck.id}/compare?branch=${defaultCompareId}`}
@@ -153,14 +165,15 @@ export default async function DeckDetailPage({
               }
             >
               <GitCompareArrows data-icon="inline-start" />
-              Compare branch
+              <span className="sm:hidden">Compare</span>
+              <span className="hidden sm:inline">Compare branch</span>
             </Button>
           )}
         </div>
       </div>
 
       {!deck.forkedFromId && (deck.branches?.length ?? 0) > 0 && (
-        <div className="mt-4 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
+        <div className="mt-3 rounded-xl border border-border/70 bg-card/60 px-3 py-2.5 sm:mt-4 sm:px-4 sm:py-3">
           <p className="text-sm font-medium">Branches</p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {deck.branches!.map((branch) => (
@@ -187,8 +200,8 @@ export default async function DeckDetailPage({
         </div>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr]">
-        <aside className="rounded-2xl border border-border/80 bg-card/70 p-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
+      <div className="mt-4 grid gap-4 lg:mt-6 lg:grid-cols-[340px_1fr] lg:gap-6 xl:grid-cols-[380px_1fr]">
+        <aside className="rounded-2xl border border-border/80 bg-card/70 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
           <h2 className="mb-3 font-heading text-xl">
             Card search
           </h2>

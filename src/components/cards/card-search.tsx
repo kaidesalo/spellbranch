@@ -6,6 +6,7 @@ import { Loader2, Plus, Search, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   getCardImage,
   getCardManaCost,
@@ -93,8 +94,8 @@ export function CardSearch({
         <p className="text-sm text-muted-foreground">No cards found.</p>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_160px]">
-        <ul className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
+      <div className="grid min-h-0 gap-3 lg:flex-1 lg:grid-cols-[1fr_160px]">
+        <ul className="max-h-60 space-y-1 overflow-y-auto pr-1 lg:max-h-[420px]">
           {visibleCards.map((card) => {
             const reason = offColor(card);
             const active = visibleSelected?.id === card.id;
@@ -135,7 +136,15 @@ export function CardSearch({
           })}
         </ul>
 
-        <div className="self-start rounded-xl border border-border/70 bg-background/60 p-2">
+        {/* The empty slab is a desktop sidebar affordance. On a phone it
+            stays hidden until a search result is actually selected, and even
+            then it stays card-sized instead of stretching to the viewport. */}
+        <div
+          className={cn(
+            "self-start rounded-xl border border-border/70 bg-background/60 p-2",
+            visibleSelected ? "max-w-[11rem] lg:max-w-none" : "hidden lg:block",
+          )}
+        >
           {visibleSelected && image ? (
             <CardZoom card={zoomCardFromScryfall(visibleSelected)} className="block w-full">
               <Image

@@ -134,7 +134,7 @@ export function CommanderSlot({
               </p>
             )}
             {canEdit && (
-              <div className="flex gap-2 border-t border-border/70 px-4 py-3">
+              <div className="flex flex-wrap gap-2 border-t border-border/70 px-4 py-3">
                 <Button size="sm" onClick={() => setOpen(true)} disabled={pending}>
                   Change commander
                 </Button>
@@ -304,7 +304,11 @@ function CommanderPicker({
               );
             })}
           </ul>
-          <div className="self-start rounded-xl border border-border/70 bg-background/60 p-2">
+          <div
+            className={`self-start rounded-xl border border-border/70 bg-background/60 p-2 ${
+              visibleSelected ? "max-w-[11rem] sm:max-w-none" : "hidden sm:block"
+            }`}
+          >
             {visibleSelected && image ? (
               <CardZoom card={zoomCardFromScryfall(visibleSelected)} className="block w-full">
                 <Image
