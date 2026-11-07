@@ -64,7 +64,8 @@ export function DeckList({
       <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
         <p className="font-medium">No cards yet</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Search Scryfall on the left to add your first card.
+          <span className="lg:hidden">Search Scryfall above to add your first card.</span>
+          <span className="hidden lg:inline">Search Scryfall on the left to add your first card.</span>
         </p>
       </div>
     );
@@ -85,7 +86,7 @@ export function DeckList({
             {group.cards.map((card) => (
               <li
                 key={card.id}
-                className="flex items-center gap-3 px-3 py-2"
+                className="flex flex-col gap-2 px-2.5 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-3 sm:py-2"
               >
                 <CardZoom
                   card={zoomCardFromSaved(card.cardName, card.imageUri)}
@@ -114,10 +115,11 @@ export function DeckList({
                   </span>
                 </CardZoom>
                 {canEdit ? (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 pl-12 sm:shrink-0 sm:gap-1 sm:pl-0">
                     <Button
                       size="icon-xs"
                       variant="outline"
+                      className="max-sm:size-8! max-sm:[&_svg]:size-4!"
                       disabled={pending}
                       onClick={() => setQuantity(card, card.quantity - 1)}
                       aria-label={`Decrease ${card.cardName}`}
@@ -133,6 +135,7 @@ export function DeckList({
                     <Button
                       size="icon-xs"
                       variant="outline"
+                      className="max-sm:size-8! max-sm:[&_svg]:size-4!"
                       disabled={pending || card.quantity >= MAX_CARD_QUANTITY}
                       onClick={() => setQuantity(card, card.quantity + 1)}
                       aria-label={`Increase ${card.cardName}`}
@@ -142,6 +145,7 @@ export function DeckList({
                     <Button
                       size="icon-xs"
                       variant="ghost"
+                      className="max-sm:size-8! max-sm:[&_svg]:size-4!"
                       disabled={pending}
                       onClick={() => setQuantity(card, 0)}
                       aria-label={`Remove ${card.cardName}`}

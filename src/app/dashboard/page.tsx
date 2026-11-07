@@ -31,7 +31,7 @@ export default async function DashboardPage() {
             Your decks, branches, and friend activity in one place.
           </p>
         </div>
-        <Button render={<Link href="/decks/new" />}>
+        <Button className="self-start sm:self-auto" render={<Link href="/decks/new" />}>
           <Plus data-icon="inline-start" />
           New deck
         </Button>

@@ -25,18 +25,18 @@ export default async function DecksPage() {
             Your lists, forks, and decks shared with friends.
           </p>
         </div>
-        <Button render={<Link href="/decks/new" />}>
+        <Button className="self-start sm:self-auto" render={<Link href="/decks/new" />}>
           <Plus data-icon="inline-start" />
           New deck
         </Button>
       </div>
 
-      <Tabs defaultValue="mine" className="mt-8">
-        <TabsList>
-          <TabsTrigger value="mine">Mine ({mine.length})</TabsTrigger>
-          <TabsTrigger value="branches">Branches ({branches.length})</TabsTrigger>
-          <TabsTrigger value="friends">Friends ({friends.length})</TabsTrigger>
-          <TabsTrigger value="public">Public ({pub.length})</TabsTrigger>
+      <Tabs defaultValue="mine" className="mt-8 min-w-0">
+        <TabsList className="max-sm:h-auto! max-sm:w-full max-sm:flex-wrap max-sm:justify-start max-sm:gap-1">
+          <TabsTrigger className="max-sm:flex-none!" value="mine">Mine ({mine.length})</TabsTrigger>
+          <TabsTrigger className="max-sm:flex-none!" value="branches">Branches ({branches.length})</TabsTrigger>
+          <TabsTrigger className="max-sm:flex-none!" value="friends">Friends ({friends.length})</TabsTrigger>
+          <TabsTrigger className="max-sm:flex-none!" value="public">Public ({pub.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="mine" className="mt-4">

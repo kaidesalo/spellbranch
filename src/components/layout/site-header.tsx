@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Sparkles } from "lucide-react";
@@ -25,6 +26,10 @@ const links = [
 
 export function SiteHeader({ user }: { user: SessionUser | null }) {
   const pathname = usePathname();
+  // Open only for the path it was opened on, so a navigation closes it
+  // without a setState effect.
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const menuOpen = openPath === pathname;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-md">
@@ -66,10 +71,13 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                 </Button>
               </form>
             </div>
-            <Sheet>
+            <Sheet
+              open={menuOpen}
+              onOpenChange={(open) => setOpenPath(open ? pathname : null)}
+            >
               <SheetTrigger
                 render={
-                  <Button variant="outline" size="icon" className="md:hidden" />
+                  <Button variant="outline" size="icon" className="shrink-0 md:hidden" />
                 }
               >
                 <Menu className="h-4 w-4" />
@@ -84,8 +92,9 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                     <Link
                       key={link.href}
                       href={link.href}
+                      onClick={() => setOpenPath(null)}
                       className={cn(
-                        "rounded-lg px-3 py-2 text-sm font-medium",
+                        "rounded-lg px-3 py-3 text-sm font-medium",
                         pathname.startsWith(link.href)
                           ? "bg-primary/10 text-primary"
                           : "text-foreground",
