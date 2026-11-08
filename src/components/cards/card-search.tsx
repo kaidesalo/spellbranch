@@ -136,69 +136,81 @@ export function CardSearch({
           })}
         </ul>
 
-        {/* The empty slab is a desktop sidebar affordance. On a phone it
-            stays hidden until a search result is actually selected, and even
-            then it stays card-sized instead of stretching to the viewport. */}
+        {/* Empty slab stays a desktop sidebar affordance. Once a card is
+            selected, phones put the rules text and actions beside the art
+            (the space to the right of a card-sized image). lg+ keeps the
+            sidebar stack. Below 370px the art shrinks so the buttons still
+            have a column of their own instead of dropping back underneath. */}
         <div
           className={cn(
             "self-start rounded-xl border border-border/70 bg-background/60 p-2",
-            visibleSelected ? "max-w-[11rem] lg:max-w-none" : "hidden lg:block",
+            visibleSelected ? "w-full" : "hidden lg:block",
           )}
         >
-          {visibleSelected && image ? (
-            <CardZoom card={zoomCardFromScryfall(visibleSelected)} className="block w-full">
-              <Image
-                src={image}
-                alt={visibleSelected.name}
-                width={146}
-                height={204}
-                className="mx-auto h-auto w-full rounded-lg"
-                unoptimized
-              />
-            </CardZoom>
-          ) : (
-            <div className="flex aspect-[5/7] items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
-              Card preview
+          <div className={cn(visibleSelected && "flex items-start gap-2.5 lg:block")}>
+            <div
+              className={cn(
+                visibleSelected ? "w-[7rem] shrink-0 min-[370px]:w-40 lg:w-full" : "w-full",
+              )}
+            >
+              {visibleSelected && image ? (
+                <CardZoom card={zoomCardFromScryfall(visibleSelected)} className="block w-full">
+                  <Image
+                    src={image}
+                    alt={visibleSelected.name}
+                    width={146}
+                    height={204}
+                    className="mx-auto h-auto w-full rounded-lg"
+                    unoptimized
+                  />
+                </CardZoom>
+              ) : (
+                <div className="flex aspect-[5/7] items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
+                  Card preview
+                </div>
+              )}
             </div>
-          )}
-          {visibleSelected && (
-            <div className="mt-2 space-y-2">
-              <p className="text-xs text-muted-foreground line-clamp-4">
-                {getCardOracleText(visibleSelected) ? (
-                  <ManaText text={getCardOracleText(visibleSelected)} />
-                ) : (
-                  "No rules text."
-                )}
-              </p>
-              <div className="flex flex-col gap-2">
-                {canEdit && (
+            {visibleSelected && (
+              <div className="min-w-0 flex-1 space-y-2 lg:mt-2">
+                <p className="line-clamp-4 text-xs text-muted-foreground">
+                  {getCardOracleText(visibleSelected) ? (
+                    <ManaText text={getCardOracleText(visibleSelected)} />
+                  ) : (
+                    "No rules text."
+                  )}
+                </p>
+                <div className="flex flex-col gap-2">
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      className="max-lg:h-8 max-lg:w-full max-lg:tracking-normal!"
+                      onClick={addSelected}
+                      disabled={pending || Boolean(selectedOffColor)}
+                      aria-describedby={selectedOffColor ? "add-off-color" : undefined}
+                    >
+                      <Plus data-icon="inline-start" />
+                      Add card
+                    </Button>
+                  )}
+                  {canEdit && selectedOffColor && (
+                    <p id="add-off-color" className="text-xs font-semibold text-[#4b3d44]">
+                      Can&apos;t add: {selectedOffColor}
+                    </p>
+                  )}
                   <Button
                     size="sm"
-                    onClick={addSelected}
-                    disabled={pending || Boolean(selectedOffColor)}
-                    aria-describedby={selectedOffColor ? "add-off-color" : undefined}
+                    variant="outline"
+                    className="max-lg:h-8 max-lg:w-full max-lg:tracking-normal!"
+                    onClick={favoriteSelected}
+                    disabled={pending}
                   >
-                    <Plus data-icon="inline-start" />
-                    Add card
+                    <Star data-icon="inline-start" />
+                    Favorite
                   </Button>
-                )}
-                {canEdit && selectedOffColor && (
-                  <p id="add-off-color" className="text-xs font-semibold text-[#4b3d44]">
-                    Can&apos;t add: {selectedOffColor}
-                  </p>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={favoriteSelected}
-                  disabled={pending}
-                >
-                  <Star data-icon="inline-start" />
-                  Favorite
-                </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
