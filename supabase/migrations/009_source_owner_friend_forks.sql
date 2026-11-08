@@ -16,6 +16,14 @@
 -- through the decks SELECT policy. Table owner bypasses RLS here; the
 -- function returns only a boolean.
 --
+-- The new branch also requires viewer = auth.uid(). can_view_deck stays
+-- executable (RLS calls it) and is therefore reachable as
+-- /rpc/can_view_deck, where the caller picks both arguments. Without this
+-- check a made-up deck row could ask whether some deck id belongs to a
+-- friend. Policies, enforce_deck_links, and fork_deck already pass
+-- auth.uid(), so those paths are unchanged. A direct call can only ask
+-- "is this deck mine?".
+--
 -- Not granted: update, delete, or deck_cards writes stay owner-only (001).
 -- A non-friend's fork stays hidden. The branch owner's other friends still
 -- cannot see a private fork. fork_deck() defaults are unchanged.
@@ -37,6 +45,7 @@ as $$
     )
     or (
       viewer is not null
+      and viewer = (select auth.uid())
       and deck.forked_from_id is not null
       and public.is_friend(deck.owner_id, viewer)
       and exists (

@@ -13,7 +13,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(22);
+select plan(25);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 
@@ -29,7 +29,8 @@ insert into public.friendships (id, requester_id, addressee_id, status) values
  ('d1000000-0000-4000-8000-000000000003','d0000000-0000-4000-8000-000000000001','d0000000-0000-4000-8000-000000000005','accepted');
 insert into public.decks (id, owner_id, name, format, notes, visibility, allow_forks) values
  ('d2000000-0000-4000-8000-000000000001','d0000000-0000-4000-8000-000000000001','Ann friends','modern','secret','friends',true),
- ('d2000000-0000-4000-8000-000000000002','d0000000-0000-4000-8000-000000000001','Ann public','modern','','public',true);
+ ('d2000000-0000-4000-8000-000000000002','d0000000-0000-4000-8000-000000000001','Ann public','modern','','public',true),
+ ('d2000000-0000-4000-8000-000000000003','d0000000-0000-4000-8000-000000000002','Ben private','modern','','private',false);
 insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, color_identity) values
  ('d2000000-0000-4000-8000-000000000001','bolt','Lightning Bolt','Instant',1,'{R}');
 
@@ -37,10 +38,11 @@ select ok(
   (select prosecdef
       and proconfig @> array['search_path=""']
       and prosrc like '%from public.decks src%'
+      and prosrc like '%viewer = (select auth.uid())%'
       and prosrc not like '%can_view_deck(%'
    from pg_proc
    where oid = 'public.can_view_deck(public.decks, uuid)'::regprocedure),
-  'can_view_deck is security definer, empty search_path, PK lookup, no recursive call');
+  'can_view_deck is security definer, empty search_path, PK lookup, no recursive call, viewer is auth.uid()');
 select ok(
   has_function_privilege('anon', 'public.can_view_deck(public.decks, uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.can_view_deck(public.decks, uuid)', 'execute'),
@@ -72,6 +74,43 @@ select is(
   (select count(*) from public.deck_cards where deck_id = (select id from f_ben)),
   1::bigint,
   'ann can read cards on that fork');
+-- L1: /rpc/can_view_deck lets the caller pick both arguments. A made-up row
+-- {owner_id: caller, forked_from_id: X} with viewer = friend used to be true
+-- exactly when X existed and that friend owned it. viewer must be auth.uid().
+select is(
+  (select count(*) from public.decks where id = 'd2000000-0000-4000-8000-000000000003'),
+  0::bigint,
+  'ann cannot see ben''s unrelated private deck through RLS');
+select is(
+  public.can_view_deck(
+    json_populate_record(null::public.decks, json_build_object(
+      'owner_id', 'd0000000-0000-4000-8000-000000000001',
+      'name', 'probe',
+      'format', 'modern',
+      'notes', '',
+      'visibility', 'private',
+      'allow_forks', false,
+      'forked_from_id', 'd2000000-0000-4000-8000-000000000003'
+    )),
+    'd0000000-0000-4000-8000-000000000002'::uuid
+  ),
+  false,
+  'L1: forged viewer cannot confirm a deck id belongs to a friend');
+select is(
+  public.can_view_deck(
+    json_populate_record(null::public.decks, json_build_object(
+      'owner_id', 'd0000000-0000-4000-8000-000000000002',
+      'name', 'probe',
+      'format', 'modern',
+      'notes', '',
+      'visibility', 'private',
+      'allow_forks', false,
+      'forked_from_id', 'd2000000-0000-4000-8000-000000000001'
+    )),
+    'd0000000-0000-4000-8000-000000000001'::uuid
+  ),
+  true,
+  'L1: can_view_deck still answers the source-owner rule for auth.uid()');
 update public.decks set name = 'hijacked', visibility = 'public', allow_forks = true
   where id = (select id from f_ben);
 select is(
