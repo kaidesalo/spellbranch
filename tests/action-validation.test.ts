@@ -116,6 +116,26 @@ describe("comment bodies", () => {
   });
 });
 
+describe("fork names", () => {
+  it("refuses a missing, blank, or over-long name before forking", async () => {
+    expect(await call(decks.forkDeckAction, OTHER)).toEqual({ error: "Deck name is required" });
+    expect(await call(decks.forkDeckAction, OTHER, form({ name: "   " }))).toEqual({
+      error: "Deck name is required",
+    });
+    expect(await call(decks.forkDeckAction, OTHER, form({ name: "n".repeat(LIMITS.deckName + 1) }))).toEqual({
+      error: `Deck name must be at most ${LIMITS.deckName} characters`,
+    });
+    expect(await call(decks.forkDeckAction, OTHER, { name: "x" })).toEqual({ error: "Deck name is required" });
+    expect(repoCalls()).toEqual([]);
+  });
+
+  it("passes the trimmed name through and redirects to the new deck", async () => {
+    const fd = form({ name: "  My branch  " });
+    await expect(call(decks.forkDeckAction, OTHER, fd)).rejects.toThrow(`NEXT_REDIRECT /decks/${OTHER}`);
+    expect(repo.forkDeck.mock.calls).toEqual([[ME, OTHER, "My branch"]]);
+  });
+});
+
 describe("deck forms", () => {
   it("non-FormData payloads are refused", async () => {
     for (const bad of [undefined, null, "name=x", { name: "x" }, 1]) {

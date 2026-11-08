@@ -133,8 +133,15 @@ export interface Repository {
    * falls outside it).
    */
   setCommander(userId: string, deckId: string, commander: DeckCommander | null): Promise<void>;
-  /** Copies cards, the commander and the deck colors. */
-  forkDeck(userId: string, deckId: string): Promise<string>;
+  /**
+   * Copies cards, the commander and the deck colors. Visibility and
+   * allow_forks follow the F4 rule either way. `name`, when given, is the
+   * new deck's name (trimmed, 1–80 characters). Omitted, the deck is named
+   * "<source> (branch)" — fork_deck() hardcodes that suffix, and the
+   * Supabase adapter applies `name` with a follow-up owner UPDATE of the
+   * name column only.
+   */
+  forkDeck(userId: string, deckId: string, name?: string): Promise<string>;
   setPreferredBranch(userId: string, sourceId: string, branchId: string | null): Promise<void>;
 
   // Comments

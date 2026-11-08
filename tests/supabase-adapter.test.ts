@@ -128,6 +128,34 @@ describe("supabase adapter: decks", () => {
     const deck = await repo.getDeck(ME, FORK);
     expect(deck?.cards?.[0]).toMatchObject({ cardName: "Sol Ring", colors: [] });
     expect(deck?.sourceDeck?.id).toBe(DECK);
+    expect(deck?.sourceBranches).toEqual([]);
+  });
+
+  it("getDeck on a fork loads sibling branches of the source, not forks of the fork", async () => {
+    const SIB = "d0000000-0000-4000-8000-000000000003";
+    const self = deckRow({ id: FORK, forked_from_id: DECK, name: "Mine", owner_id: ME });
+    const sibling = deckRow({ id: SIB, forked_from_id: DECK, name: "Sibling", owner_id: BOB });
+    const { repo, calls } = repoWith((c) => {
+      if (isTable(c, "decks") && c.single) return ok(self);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([bobProfile]);
+      if (isTable(c, "decks") && c.filters.some((f) => f[0] === "in" && f[1] === "id")) return ok([deckRow()]);
+      if (
+        isTable(c, "decks") &&
+        c.filters.some((f) => f[0] === "in" && f[1] === "forked_from_id" && Array.isArray(f[2]) && f[2][0] === DECK)
+      ) {
+        return ok([sibling, self]);
+      }
+      if (isTable(c, "decks")) return ok([]);
+      return undefined;
+    });
+    const deck = await repo.getDeck(ME, FORK);
+    expect(deck?.branches).toEqual([]);
+    expect(deck?.sourceDeck).toMatchObject({ id: DECK, owner: { username: "bob_u" } });
+    expect(deck?.sourceBranches?.map((b) => [b.id, b.owner?.username]).sort()).toEqual(
+      [[FORK, undefined], [SIB, "bob_u"]].sort(),
+    );
+    expect(calls.some((c) => c.op === "select" && c.filters.some((f) => f[1] === "forked_from_id" && Array.isArray(f[2]) && f[2][0] === DECK))).toBe(true);
   });
 
   it("createDeck never sends forked_from_id or preferred_branch_id", async () => {
@@ -149,6 +177,35 @@ describe("supabase adapter: decks", () => {
     expect(await dataError(repo.deleteDeck(ME, DECK))).toBe("You cannot delete this deck");
     expect(calls[0].filters).toContainEqual(["eq", "owner_id", ME]);
     expect(calls[1]).toMatchObject({ op: "delete", returning: "id" });
+  });
+
+  it("forkDeck with a name renames only the new row, and drops it if that fails", async () => {
+    const named = repoWith((c) => {
+      if (c.fn === "fork_deck") return ok(FORK);
+      if (isTable(c, "decks", "update")) return ok([{ id: FORK }]);
+      return undefined;
+    });
+    expect(await named.repo.forkDeck(ME, DECK, "  My branch  ")).toBe(FORK);
+    expect(named.calls[0]).toEqual({ fn: "fork_deck", op: "rpc", args: { source: DECK }, filters: [] });
+    expect(named.calls[1]).toMatchObject({ table: "decks", op: "update", payload: { name: "My branch" } });
+    expect(named.calls[1].filters).toEqual([
+      ["eq", "id", FORK],
+      ["eq", "owner_id", ME],
+    ]);
+
+    const tooLong = repoWith(() => ok(FORK));
+    expect(await dataError(tooLong.repo.forkDeck(ME, DECK, "  "))).toBe("Deck name is required");
+    expect(await dataError(tooLong.repo.forkDeck(ME, DECK, "n".repeat(81)))).toMatch(/at most 80/);
+    expect(tooLong.calls).toEqual([]);
+
+    const failed = repoWith((c) => {
+      if (c.fn === "fork_deck") return ok(FORK);
+      if (isTable(c, "decks", "update")) return pgError("23514", 'new row violates check constraint "decks_name_length"');
+      if (isTable(c, "decks", "delete")) return ok([]);
+      return undefined;
+    });
+    expect(await dataError(failed.repo.forkDeck(ME, DECK, "Ok name"))).toMatch(/at most 80/);
+    expect(failed.calls.some((c) => c.op === "delete" && c.filters.some((f) => f[0] === "eq" && f[1] === "id" && f[2] === FORK))).toBe(true);
   });
 
   it("forkDeck goes through rpc('fork_deck') and maps 42501/P0002", async () => {

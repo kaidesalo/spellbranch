@@ -19,6 +19,12 @@ export const idSchema = z.string("Invalid id").refine(isUuid, "Invalid id");
 
 const nullableText = (max: number) => z.string().max(max).nullable().optional();
 
+export const forkNameSchema = z
+  .string("Deck name is required")
+  .trim()
+  .min(1, "Deck name is required")
+  .max(LIMITS.deckName, `Deck name must be at most ${LIMITS.deckName} characters`);
+
 export const deckSchema = z.object({
   name: z.string().trim().min(1, "Deck name is required").max(LIMITS.deckName, `Deck name must be at most ${LIMITS.deckName} characters`),
   format: z.enum(["commander", "standard", "modern", "pioneer", "legacy", "pauper", "casual"]),

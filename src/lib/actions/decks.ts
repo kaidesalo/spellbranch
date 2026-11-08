@@ -13,6 +13,7 @@ import {
   addCardSchema,
   check,
   deckSchema,
+  forkNameSchema,
   idSchema,
   isFormData,
   quantitySchema,
@@ -273,14 +274,17 @@ export async function setCommanderAction(
   return { success: true };
 }
 
-export async function forkDeckAction(deckId: string): Promise<ActionResult> {
+export async function forkDeckAction(deckId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = check(idSchema, deckId, "You are not allowed to fork this deck");
   if (!id.ok) return { error: id.error };
+  if (!isFormData(formData)) return { error: "Deck name is required" };
+  const name = check(forkNameSchema, formData.get("name"), "Deck name is required");
+  if (!name.ok) return { error: name.error };
   let newId: string;
 
   try {
-    newId = await getRepository().forkDeck(user.id, deckId);
+    newId = await getRepository().forkDeck(user.id, deckId, name.data);
   } catch (err) {
     return { error: userMessage(err, "Fork failed") };
   }

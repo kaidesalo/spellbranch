@@ -28,6 +28,7 @@ import {
   canViewDeck,
 } from "@/lib/permissions";
 import { toPublicProfile } from "@/lib/data/profiles";
+import { requireForkName } from "@/lib/fork-name";
 import type { Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
 
 /**
@@ -48,7 +49,12 @@ function ownerProfile(store: DataStore, id: string) {
  * viewer may see are included (Cipher PR #3 review, M1), and a preferred
  * branch the viewer can't see is reported as null (L1).
  */
-function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): DeckWithMeta {
+function decorateDeck(
+  store: DataStore,
+  deck: Deck,
+  viewerId: string | null,
+  withSourceBranches = false,
+): DeckWithMeta {
   const cards = store.deckCards.filter((c) => c.deckId === deck.id);
   const branches = store.decks
     .filter((d) => d.forkedFromId === deck.id && canViewDeck(store, d, viewerId))
@@ -56,7 +62,19 @@ function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): De
   const source = deck.forkedFromId
     ? store.decks.find((d) => d.id === deck.forkedFromId)
     : undefined;
-  const sourceDeck = source && canViewDeck(store, source, viewerId) ? source : null;
+  const sourceDeck =
+    source && canViewDeck(store, source, viewerId)
+      ? { ...source, owner: ownerProfile(store, source.ownerId) }
+      : null;
+  // Siblings for the branch menu on a deck page. The source row is not
+  // included; a hidden source stays out even though its id is on this deck.
+  // List views skip this so they don't carry every sibling's notes.
+  const sourceBranches =
+    withSourceBranches && deck.forkedFromId
+      ? store.decks
+          .filter((d) => d.forkedFromId === deck.forkedFromId && canViewDeck(store, d, viewerId))
+          .map((d) => ({ ...d, owner: ownerProfile(store, d.ownerId) }))
+      : undefined;
   const preferredBranchId =
     deck.preferredBranchId && branches.some((b) => b.id === deck.preferredBranchId)
       ? deck.preferredBranchId
@@ -74,6 +92,7 @@ function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): De
     forkCount: branches.length,
     sourceDeck,
     branches,
+    sourceBranches,
   };
 }
 
@@ -138,7 +157,7 @@ export const localRepository: Repository = {
     const store = await readStore();
     const deck = store.decks.find((d) => d.id === deckId);
     if (!deck || !canViewDeck(store, deck, viewerId)) return null;
-    return decorateDeck(store, deck, viewerId);
+    return decorateDeck(store, deck, viewerId, true);
   },
 
   async getCompareData(viewerId, sourceId, branchId) {
@@ -295,12 +314,15 @@ export const localRepository: Repository = {
     });
   },
 
-  async forkDeck(userId, deckId) {
+  async forkDeck(userId, deckId, name) {
     return updateStore((store) => {
       const source = store.decks.find((d) => d.id === deckId);
       if (!source || !canForkDeck(store, source, userId)) {
         throw new DataError("You are not allowed to fork this deck");
       }
+      // Checked after the permission test so a bad name can't confirm that a
+      // hidden deck exists. Omitted: the same suffix fork_deck() writes.
+      const forkName = name === undefined ? `${source.name} (branch)` : requireForkName(name);
       const now = new Date().toISOString();
       const newId = uuidv4();
       // Same rule as fork_deck() in the database (review F4): a fork of a
@@ -310,7 +332,7 @@ export const localRepository: Repository = {
       store.decks.push({
         id: newId,
         ownerId: userId,
-        name: `${source.name} (branch)`,
+        name: forkName,
         format: source.format,
         notes: source.notes,
         visibility: source.visibility === "public" ? "friends" : "private",

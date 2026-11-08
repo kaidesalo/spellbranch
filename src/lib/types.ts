@@ -132,9 +132,15 @@ export interface DeckWithMeta extends Deck {
   cards?: DeckCard[];
   cardCount?: number;
   forkCount?: number;
-  sourceDeck?: Deck | null;
-  /** Visible forks only. `owner` is set when the branch author's profile loaded. */
+  sourceDeck?: (Deck & { owner?: PublicProfile }) | null;
+  /** Visible forks of this deck. `owner` is set when the branch author's profile loaded. */
   branches?: Array<Deck & { owner?: PublicProfile }>;
+  /**
+   * Visible forks of this deck's source, including this deck. Set on fork
+   * pages (getDeck) so the branch menu can list siblings. Same visibility
+   * cut as `branches`. Undefined on decks that are not forks.
+   */
+  sourceBranches?: Array<Deck & { owner?: PublicProfile }>;
 }
 
 export type DiffKind = "added" | "removed" | "quantity" | "unchanged";
