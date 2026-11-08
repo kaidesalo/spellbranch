@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { GitBranch, Layers3, Plus, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
-import { listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
+import { listFriendBranchesOnMyDecks, listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { getFriendsData } from "@/lib/queries/friends";
 import { getRequestedUsername } from "@/lib/auth/session";
 import { usernameChangedNotice } from "@/lib/auth/username-notice";
@@ -12,9 +12,10 @@ import { DeckCardSummary } from "@/components/decks/deck-card-summary";
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [decks, branches, friendsData, requestedUsername] = await Promise.all([
+  const [decks, branches, friendBranches, friendsData, requestedUsername] = await Promise.all([
     listVisibleDecks("mine"),
     listMyBranches(),
+    listFriendBranchesOnMyDecks(),
     getFriendsData(),
     getRequestedUsername(),
   ]);
@@ -106,6 +107,27 @@ export default async function DashboardPage() {
                 key={deck.id}
                 deck={deck}
                 badge={<Badge variant="secondary">Branch</Badge>}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {friendBranches.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-1 font-heading text-xl font-semibold">
+            Friend branches on your decks
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Forks your friends made of decks you own. You can open and compare them.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {friendBranches.slice(0, 6).map((deck) => (
+              <DeckCardSummary
+                key={deck.id}
+                deck={deck}
+                showSource
+                badge={<Badge variant="secondary">Friend branch</Badge>}
               />
             ))}
           </div>

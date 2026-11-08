@@ -23,6 +23,12 @@ export async function listMyBranches() {
   return getRepository().listMyBranches(user.id);
 }
 
+/** Friend forks of decks the signed-in user owns. Not listMyBranches. */
+export async function listFriendBranchesOnMyDecks() {
+  const user = await requireUser();
+  return getRepository().listFriendBranchesOnMyDecks(user.id);
+}
+
 export async function getDeckById(deckId: string): Promise<DeckWithMeta | null> {
   return getRepository().getDeck(await viewerId(), deckId);
 }

@@ -91,7 +91,13 @@ export interface DeckPermissions {
 export interface Repository {
   // Decks (reads)
   listDecks(viewerId: string | null, scope: DeckScope): Promise<DeckWithMeta[]>;
+  /** Forks this user created. Not forks other people made of their decks. */
   listMyBranches(userId: string): Promise<DeckWithMeta[]>;
+  /**
+   * Forks of decks `userId` owns, made by their friends, that `userId` can
+   * see (including a private fork). Not listMyBranches.
+   */
+  listFriendBranchesOnMyDecks(userId: string): Promise<DeckWithMeta[]>;
   getDeck(viewerId: string | null, deckId: string): Promise<DeckWithMeta | null>;
   getCompareData(
     viewerId: string | null,

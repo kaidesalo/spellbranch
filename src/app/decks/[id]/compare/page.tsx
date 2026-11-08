@@ -77,6 +77,7 @@ export default async function ComparePage({
               }
             >
               {b.name}
+              {b.owner?.username ? ` @${b.owner.username}` : ""}
             </Button>
           ))}
         </div>

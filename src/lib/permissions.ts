@@ -22,10 +22,22 @@ export function canViewDeck(
   if (deck.visibility === "public") return true;
   if (!viewerId) return false;
   if (deck.ownerId === viewerId) return true;
-  if (deck.visibility === "friends") {
-    return areFriends(store.friendships, deck.ownerId, viewerId);
+  if (
+    deck.visibility === "friends" &&
+    areFriends(store.friendships, deck.ownerId, viewerId)
+  ) {
+    return true;
   }
-  return false;
+  // Same extra case as public.can_view_deck (009): the owner of the source
+  // deck may view a friend's fork, including a private one (review F4).
+  // Look up the source row directly. Do not call canViewDeck on it.
+  if (!deck.forkedFromId) return false;
+  const source = store.decks.find((d) => d.id === deck.forkedFromId);
+  return Boolean(
+    source &&
+      source.ownerId === viewerId &&
+      areFriends(store.friendships, deck.ownerId, viewerId),
+  );
 }
 
 export function canEditDeck(deck: Deck, userId: string | null): boolean {

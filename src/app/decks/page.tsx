@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
-import { listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
+import { listFriendBranchesOnMyDecks, listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,9 +9,10 @@ import { DeckCardSummary } from "@/components/decks/deck-card-summary";
 
 export default async function DecksPage() {
   await requireUser();
-  const [mine, branches, friends, pub] = await Promise.all([
+  const [mine, branches, friendBranches, friends, pub] = await Promise.all([
     listVisibleDecks("mine"),
     listMyBranches(),
+    listFriendBranchesOnMyDecks(),
     listVisibleDecks("friends"),
     listVisibleDecks("public"),
   ]);
@@ -51,17 +52,39 @@ export default async function DecksPage() {
             <Grid decks={mine} />
           )}
         </TabsContent>
-        <TabsContent value="branches" className="mt-4">
-          {branches.length === 0 ? (
+        <TabsContent value="branches" className="mt-4 space-y-8">
+          {branches.length === 0 && friendBranches.length === 0 ? (
             <Empty
               title="No branches yet"
               body="Fork a friend's deck (or your own) to experiment safely."
             />
           ) : (
-            <Grid
-              decks={branches}
-              badge={<Badge variant="secondary">Branch</Badge>}
-            />
+            <>
+              {branches.length > 0 && (
+                <section>
+                  <h2 className="mb-4 font-heading text-xl font-semibold">Your branches</h2>
+                  <Grid
+                    decks={branches}
+                    badge={<Badge variant="secondary">Branch</Badge>}
+                  />
+                </section>
+              )}
+              {friendBranches.length > 0 && (
+                <section>
+                  <h2 className="mb-1 font-heading text-xl font-semibold">
+                    Friend branches on your decks
+                  </h2>
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    Forks your friends made of decks you own. These are not branches you created.
+                  </p>
+                  <Grid
+                    decks={friendBranches}
+                    showSource
+                    badge={<Badge variant="secondary">Friend branch</Badge>}
+                  />
+                </section>
+              )}
+            </>
           )}
         </TabsContent>
         <TabsContent value="friends" className="mt-4">
@@ -94,14 +117,16 @@ export default async function DecksPage() {
 function Grid({
   decks,
   badge,
+  showSource = false,
 }: {
   decks: Awaited<ReturnType<typeof listVisibleDecks>>;
   badge?: React.ReactNode;
+  showSource?: boolean;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {decks.map((deck) => (
-        <DeckCardSummary key={deck.id} deck={deck} badge={badge} />
+        <DeckCardSummary key={deck.id} deck={deck} badge={badge} showSource={showSource} />
       ))}
     </div>
   );
