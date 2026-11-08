@@ -14,6 +14,7 @@ import { CommanderSlot } from "@/components/decks/commander-slot";
 import { deckCountLabel } from "@/lib/commander";
 import { CommentSection } from "@/components/comments/comment-section";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
+import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 
 export default async function DeckDetailPage({
   params,
@@ -114,6 +115,7 @@ export default async function DeckDetailPage({
               Settings
             </Button>
           )}
+          {canEdit && <DeleteDeckButton deckId={deck.id} deckName={deck.name} />}
           {canFork && user && (
             <form
               className="inline-flex"

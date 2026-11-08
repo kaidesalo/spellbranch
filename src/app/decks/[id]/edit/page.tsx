@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/require-user";
-import { deleteDeckAction, updateDeckMetaAction } from "@/lib/actions/decks";
+import { updateDeckMetaAction } from "@/lib/actions/decks";
 import { canUserEdit, getDeckById } from "@/lib/queries/decks";
 import { DeckForm } from "@/components/decks/deck-form";
+import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 import { Button } from "@/components/ui/button";
 
 export default async function EditDeckPage({
@@ -46,17 +47,9 @@ export default async function EditDeckPage({
           This removes the deck, its cards, and its comments. Branches that
           forked from it keep their own lists.
         </p>
-        <form
-          action={async () => {
-            "use server";
-            await deleteDeckAction(id);
-          }}
-          className="mt-4"
-        >
-          <Button type="submit" variant="destructive">
-            Delete permanently
-          </Button>
-        </form>
+        <div className="mt-4">
+          <DeleteDeckButton deckId={id} deckName={deck.name} size="default" />
+        </div>
       </div>
     </div>
   );
