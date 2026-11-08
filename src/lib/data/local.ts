@@ -21,6 +21,7 @@ import {
 import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, scryfallImageOrNull } from "@/lib/data/validation";
 import {
+  areFriends,
   canCommentOnDeck,
   canEditDeck,
   canForkDeck,
@@ -49,9 +50,9 @@ function ownerProfile(store: DataStore, id: string) {
  */
 function decorateDeck(store: DataStore, deck: Deck, viewerId: string | null): DeckWithMeta {
   const cards = store.deckCards.filter((c) => c.deckId === deck.id);
-  const branches = store.decks.filter(
-    (d) => d.forkedFromId === deck.id && canViewDeck(store, d, viewerId),
-  );
+  const branches = store.decks
+    .filter((d) => d.forkedFromId === deck.id && canViewDeck(store, d, viewerId))
+    .map((d) => ({ ...d, owner: ownerProfile(store, d.ownerId) }));
   const source = deck.forkedFromId
     ? store.decks.find((d) => d.id === deck.forkedFromId)
     : undefined;
@@ -111,6 +112,24 @@ export const localRepository: Repository = {
     const store = await readStore();
     return store.decks
       .filter((d) => d.ownerId === userId && d.forkedFromId)
+      .map((d) => decorateDeck(store, d, userId))
+      .sort(byUpdatedDesc);
+  },
+
+  async listFriendBranchesOnMyDecks(userId) {
+    const store = await readStore();
+    const owned = new Set(
+      store.decks.filter((d) => d.ownerId === userId).map((d) => d.id),
+    );
+    return store.decks
+      .filter((d) => {
+        if (!d.forkedFromId || !owned.has(d.forkedFromId)) return false;
+        return (
+          d.ownerId !== userId &&
+          areFriends(store.friendships, userId, d.ownerId) &&
+          canViewDeck(store, d, userId)
+        );
+      })
       .map((d) => decorateDeck(store, d, userId))
       .sort(byUpdatedDesc);
   },

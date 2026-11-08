@@ -8,9 +8,12 @@ import { deckCountLabel } from "@/lib/commander";
 export function DeckCardSummary({
   deck,
   badge,
+  showSource = false,
 }: {
   deck: DeckWithMeta;
   badge?: ReactNode;
+  /** "Branched from {source name}" — used for friend forks of your decks. */
+  showSource?: boolean;
 }) {
   return (
     <Link
@@ -38,6 +41,11 @@ export function DeckCardSummary({
         {deck.forkCount ? ` · ${deck.forkCount} forks` : ""}
         {deck.owner ? ` · @${deck.owner.username}` : ""}
       </p>
+      {showSource && deck.sourceDeck && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Branched from {deck.sourceDeck.name}
+        </p>
+      )}
     </Link>
   );
 }

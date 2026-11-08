@@ -186,6 +186,9 @@ export default async function DeckDetailPage({
                 >
                   <GitBranch className="h-3.5 w-3.5 text-primary" />
                   {branch.name}
+                  {branch.owner?.username && (
+                    <span className="text-muted-foreground">@{branch.owner.username}</span>
+                  )}
                   {preferred?.id === branch.id && (
                     <Badge className="ml-1">Preferred</Badge>
                   )}

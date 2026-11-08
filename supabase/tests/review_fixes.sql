@@ -9,7 +9,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(41);
+select plan(42);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
@@ -76,9 +76,14 @@ select is((select visibility||'/'||allow_forks from public.decks where id=(selec
 select is((select visibility||'/'||allow_forks from public.decks where id=(select id from f_public)),'friends/true','F4: fork of public deck unchanged (friends, forkable)');
 set local "request.jwt.claims" = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
 select is((select count(*) from public.decks where id=(select id from f_friends)),0::bigint,'F4: cat (ben''s friend) cannot see the fork of ann''s friends-only deck');
--- ann: preferred branch must be visible
+-- Cat is not friends with Ann. Her fork of Ann's public deck stays invisible
+-- to Ann (009 requires friendship). That is the fork Ann still cannot prefer.
+create temp table f_stranger on commit drop as select public.fork_deck('c2000000-0000-4000-8000-000000000001') as id;
+grant select on f_stranger to anon, authenticated, service_role;
+-- ann: a friend's private fork of her deck is visible (009); a non-friend's is not
 set local "request.jwt.claims" = '{"sub":"c0000000-0000-4000-8000-000000000001","role":"authenticated"}';
-select throws_ok(format($$update public.decks set preferred_branch_id=%L where id='c2000000-0000-4000-8000-000000000002'$$,(select id from f_friends)),'23514',null,'F3: cannot point at a fork you cannot see');
+select is((select count(*) from public.decks where id=(select id from f_friends)),1::bigint,'009: ann (source owner, friends with ben) can see ben''s private fork of her friends-only deck');
+select throws_ok(format($$update public.decks set preferred_branch_id=%L where id='c2000000-0000-4000-8000-000000000001'$$,(select id from f_stranger)),'23514',null,'F3: cannot point at a fork you cannot see');
 select lives_ok(format($$update public.decks set preferred_branch_id=%L where id='c2000000-0000-4000-8000-000000000001'$$,(select id from f_public)),'F3: can point at a visible fork');
 select throws_ok($$insert into public.decks (owner_id,name,format,visibility,forked_from_id) values ('c0000000-0000-4000-8000-000000000001','p','modern','private','c2000000-0000-4000-8000-0000000000ee')$$,'42501',null,'F3: missing source -> same 42501 as invisible source');
 -- id-reuse probe: API INSERT with a preferred_branch_id always fails the same way

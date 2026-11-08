@@ -310,6 +310,10 @@ async function decorate(
   const cardRows = (check("deck_cards", cardsRes) ?? []) as unknown as CardRow[];
   const branches = ((check("decks", branchesRes) ?? []) as DeckRow[]).map(toDeck);
   const sources = ((check("decks", sourcesRes) ?? []) as DeckRow[]).map(toDeck);
+  const branchOwners = await loadProfiles(
+    client,
+    uniq(branches.map((b) => b.ownerId)).filter((id) => !owners.has(id)),
+  );
 
   return decks.map((deck) => {
     const mine = cardRows.filter((c) => c.deck_id === deck.id);
@@ -330,7 +334,10 @@ async function decorate(
       sourceDeck: deck.forkedFromId
         ? (sources.find((s) => s.id === deck.forkedFromId) ?? null)
         : null,
-      branches: deckBranches,
+      branches: deckBranches.map((b) => ({
+        ...b,
+        owner: owners.get(b.ownerId) ?? branchOwners.get(b.ownerId),
+      })),
     };
   });
 }
@@ -426,6 +433,40 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
           .select(DECK_COLS)
           .eq("owner_id", userId)
           .not("forked_from_id", "is", null)
+          .order("updated_at", { ascending: false }),
+      ) as DeckRow[] | null;
+      const decks = await decorate(client, (rows ?? []).map(toDeck), false);
+      return decks.sort(byUpdatedDesc);
+    },
+
+    async listFriendBranchesOnMyDecks(userId) {
+      const client = await getClient();
+      const [sourcesRes, friendsRes] = await Promise.all([
+        client.from("decks").select("id").eq("owner_id", userId),
+        client
+          .from("friendships")
+          .select("requester_id, addressee_id")
+          .eq("status", "accepted"),
+      ]);
+      const sourceIds = ((check("decks owned", sourcesRes) ?? []) as { id: string }[]).map(
+        (row) => row.id,
+      );
+      const friendIds = new Set<string>();
+      for (const row of (check("friendships", friendsRes) ?? []) as {
+        requester_id: string;
+        addressee_id: string;
+      }[]) {
+        if (row.requester_id === userId) friendIds.add(row.addressee_id);
+        else if (row.addressee_id === userId) friendIds.add(row.requester_id);
+      }
+      if (sourceIds.length === 0 || friendIds.size === 0) return [];
+      const rows = check(
+        "friend branches",
+        await client
+          .from("decks")
+          .select(DECK_COLS)
+          .in("forked_from_id", sourceIds)
+          .in("owner_id", [...friendIds])
           .order("updated_at", { ascending: false }),
       ) as DeckRow[] | null;
       const decks = await decorate(client, (rows ?? []).map(toDeck), false);

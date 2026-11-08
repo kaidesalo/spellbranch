@@ -133,7 +133,8 @@ export interface DeckWithMeta extends Deck {
   cardCount?: number;
   forkCount?: number;
   sourceDeck?: Deck | null;
-  branches?: Deck[];
+  /** Visible forks only. `owner` is set when the branch author's profile loaded. */
+  branches?: Array<Deck & { owner?: PublicProfile }>;
 }
 
 export type DiffKind = "added" | "removed" | "quantity" | "unchanged";

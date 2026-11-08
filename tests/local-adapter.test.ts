@@ -399,3 +399,94 @@ describe("local adapter: fork rules match fork_deck() (review F4)", () => {
     expect(`${deck(fPriv).visibility}/${deck(fPriv).allowForks}`).toBe("private/false");
   });
 });
+
+describe("local adapter: source owner sees friend forks (009)", () => {
+  // Mirrors supabase/tests/friend_branch_visibility.sql. Ann owns the source,
+  // Ben is her friend, Cat is Ben's friend (and later a non-friend forker).
+  const ann = ALICE;
+  const ben = BOB;
+  const cat = CAROL;
+
+  async function befriend(a: string, b: string) {
+    await repo.sendFriendRequest(a, b);
+    const f = db.friendships.find((x) => x.requesterId === a && x.addresseeId === b)!;
+    await repo.respondFriendRequest(b, f.id, true);
+    return f.id;
+  }
+
+  it("shows a friend's private fork to the source owner only, and only while they are friends", async () => {
+    await befriend(ann, ben);
+    await befriend(ben, cat);
+    const friends = await repo.createDeck(ann, {
+      name: "Ann friends", format: "modern", notes: "secret", visibility: "friends", allowForks: true,
+    });
+    await repo.addCard(ann, friends, card);
+    const pub = await repo.createDeck(ann, {
+      name: "Ann public", format: "modern", notes: "", visibility: "public", allowForks: true,
+    });
+
+    const benFork = await repo.forkDeck(ben, friends);
+    const stored = (id: string) => db.decks.find((d) => d.id === id)!;
+    expect(`${stored(benFork).visibility}/${stored(benFork).allowForks}`).toBe("private/false");
+
+    const seen = await repo.getDeck(ann, benFork);
+    expect(seen).toMatchObject({ name: "Ann friends (branch)", visibility: "private", cardCount: 1 });
+    const onSource = await repo.getDeck(ann, friends);
+    expect(onSource?.branches?.map((b) => [b.id, b.owner?.username])).toEqual([[benFork, "bob_u"]]);
+    expect(await repo.getCompareData(ann, friends, benFork)).not.toBeNull();
+    await repo.setPreferredBranch(ann, friends, benFork);
+    expect((await repo.getDeck(ann, friends))?.preferredBranchId).toBe(benFork);
+
+    expect(await repo.getDeck(cat, benFork)).toBeNull();
+    expect(await repo.getCompareData(cat, friends, benFork)).toBeNull();
+
+    await rejectsWith(
+      repo.updateDeck(ann, benFork, {
+        name: "nope", format: "modern", notes: "", visibility: "public", allowForks: true,
+      }),
+      "You cannot edit this deck",
+    );
+    await rejectsWith(repo.deleteDeck(ann, benFork), "You cannot delete this deck");
+    await rejectsWith(repo.addCard(ann, benFork, card), "You cannot edit this deck");
+    const copiedId = (await repo.getDeck(ben, benFork))!.cards![0].id;
+    await rejectsWith(repo.setCardQuantity(ann, benFork, copiedId, 4), "You cannot edit this deck");
+    await rejectsWith(repo.forkDeck(ann, benFork), "You are not allowed to fork this deck");
+    expect(stored(benFork).name).toBe("Ann friends (branch)");
+
+    const strangerFork = await repo.forkDeck(cat, pub);
+    expect(`${stored(strangerFork).visibility}/${stored(strangerFork).allowForks}`).toBe("friends/true");
+    expect(await repo.getDeck(ann, strangerFork)).toBeNull();
+    expect((await repo.getDeck(ann, pub))?.branches ?? []).toEqual([]);
+    await rejectsWith(
+      repo.setPreferredBranch(ann, pub, strangerFork),
+      "Branch does not belong to this deck",
+    );
+
+    const listed = await repo.listFriendBranchesOnMyDecks(ann);
+    expect(listed.map((d) => d.id)).toEqual([benFork]);
+    expect(listed[0].owner?.username).toBe("bob_u");
+    expect(listed[0].sourceDeck?.name).toBe("Ann friends");
+    expect((await repo.listMyBranches(ann)).map((d) => d.id)).not.toContain(benFork);
+    expect((await repo.listMyBranches(ben)).map((d) => d.id)).toContain(benFork);
+    expect(await repo.listFriendBranchesOnMyDecks(ben)).toEqual([]);
+
+    const withCat = await befriend(ann, cat);
+    expect(await repo.getDeck(ann, strangerFork)).not.toBeNull();
+    await repo.updateDeck(cat, strangerFork, {
+      name: "Cat private", format: "modern", notes: "cat-notes", visibility: "private", allowForks: false,
+    });
+    expect((await repo.getDeck(ann, strangerFork))?.visibility).toBe("private");
+    expect((await repo.getDeck(ann, pub))?.branches?.map((b) => [b.id, b.owner?.username])).toEqual([
+      [strangerFork, "carol_u"],
+    ]);
+    expect((await repo.listFriendBranchesOnMyDecks(ann)).map((d) => d.id).sort()).toEqual(
+      [benFork, strangerFork].sort(),
+    );
+
+    await repo.removeFriendship(ann, withCat);
+    expect(await repo.getDeck(ann, strangerFork)).toBeNull();
+    expect((await repo.getDeck(ann, pub))?.branches ?? []).toEqual([]);
+    expect(await repo.getDeck(cat, benFork)).toBeNull();
+    expect((await repo.listFriendBranchesOnMyDecks(ann)).map((d) => d.id)).toEqual([benFork]);
+  });
+});
