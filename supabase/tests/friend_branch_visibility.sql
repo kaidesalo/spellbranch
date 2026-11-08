@@ -1,19 +1,20 @@
--- Spellbranch: a source owner can see forks their friends make (migration 009).
+-- Spellbranch: a source owner can see every direct fork (migration 009).
 --
 -- Self-contained; rolled back. Ann owns a friends-only deck and a public deck.
--- Ben is Ann's friend. Cat is Ben's friend, not Ann's. Dan starts as a
--- stranger. Eve is Ann's friend, not Ben's.
+-- Ben is Ann's friend. Cat is Ben's friend, not Ann's. Dan is not Ann's friend.
+-- Eve is Ann's friend, not Ben's.
 --
--- F4 defaults stay. Ann can read Ben's private fork and compare it (mark it
--- preferred on her own deck) but cannot edit, delete, add cards, or fork it.
--- Cat and Eve cannot see it. Dan's fork of the public deck stays hidden until
--- they are friends, remains visible after he makes it private, and disappears
--- when they unfriend.
+-- F4 defaults stay. Ann can read Ben's private fork and Dan's fork (friendship
+-- not required), including after Dan makes his fork private, and she can read
+-- his card edits. She cannot edit, delete, add cards, comment, or fork further.
+-- Cat and Eve cannot see Ben's private fork. Unfriending Dan does not hide his
+-- fork. A grandchild of Ann's deck stays hidden. L1 forged and null viewers
+-- fail closed.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(25);
+select plan(30);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 
@@ -47,6 +48,11 @@ select ok(
   has_function_privilege('anon', 'public.can_view_deck(public.decks, uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.can_view_deck(public.decks, uuid)', 'execute'),
   'can_view_deck stays executable by anon and authenticated');
+select ok(
+  has_function_privilege('authenticated', 'public.can_comment_on_deck(public.decks, uuid)', 'execute')
+  and not has_function_privilege('anon', 'public.can_comment_on_deck(public.decks, uuid)', 'execute')
+  and (select not prosecdef from pg_proc where oid = 'public.can_comment_on_deck(public.decks, uuid)'::regprocedure),
+  'can_comment_on_deck is invoker, executable by authenticated only');
 
 set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000002","role":"authenticated"}';
@@ -111,6 +117,21 @@ select is(
   ),
   true,
   'L1: can_view_deck still answers the source-owner rule for auth.uid()');
+select is(
+  public.can_view_deck(
+    json_populate_record(null::public.decks, json_build_object(
+      'owner_id', 'd0000000-0000-4000-8000-000000000002',
+      'name', 'probe',
+      'format', 'modern',
+      'notes', '',
+      'visibility', 'private',
+      'allow_forks', false,
+      'forked_from_id', 'd2000000-0000-4000-8000-000000000001'
+    )),
+    null
+  ),
+  false,
+  'L1: a null viewer does not take the source-owner branch');
 update public.decks set name = 'hijacked', visibility = 'public', allow_forks = true
   where id = (select id from f_ben);
 select is(
@@ -162,25 +183,15 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 select is(
   (select count(*) from public.decks where id = (select id from f_dan)),
-  0::bigint,
-  'ann cannot see a non-friend fork of her public deck');
-select throws_ok(
-  format($$update public.decks set preferred_branch_id = %L where id = 'd2000000-0000-4000-8000-000000000002'$$, (select id from f_dan)),
-  '23514', null,
-  'ann cannot prefer a fork she cannot see');
-
-reset role;
-set local "request.jwt.claims" = '';
-insert into public.friendships (id, requester_id, addressee_id, status) values
- ('d1000000-0000-4000-8000-000000000004','d0000000-0000-4000-8000-000000000001','d0000000-0000-4000-8000-000000000004','accepted');
-set local role authenticated;
-set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
-select is(
-  (select count(*) from public.decks where id = (select id from f_dan)),
   1::bigint,
-  'once dan and ann are friends, ann can see his fork of her public deck');
+  'ann sees a non-friend fork of her public deck');
+select lives_ok(
+  format($$update public.decks set preferred_branch_id = %L where id = 'd2000000-0000-4000-8000-000000000002'$$, (select id from f_dan)),
+  'ann may prefer a visible non-friend fork on her own deck');
 
 set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000004","role":"authenticated"}';
+insert into public.deck_cards (deck_id, scryfall_id, card_name, type_line, quantity, color_identity)
+  values ((select id from f_dan), 'edit', 'Edited Bolt', 'Instant', 3, '{}');
 update public.decks set visibility = 'private', allow_forks = false where id = (select id from f_dan);
 select is(
   (select visibility || '/' || allow_forks::text from public.decks where id = (select id from f_dan)),
@@ -192,22 +203,44 @@ select is(
   (select count(*) from public.decks where id = (select id from f_dan)),
   1::bigint,
   'ann still sees the fork after dan makes it private');
+select is(
+  (select quantity from public.deck_cards where deck_id = (select id from f_dan) and scryfall_id = 'edit'),
+  3,
+  'ann can read card edits on a non-friend private fork');
+select throws_ok(
+  format($$insert into public.comments (deck_id, author_id, body) values (%L, 'd0000000-0000-4000-8000-000000000001', 'note')$$, (select id from f_dan)),
+  '42501', null,
+  'ann cannot comment on a non-friend private fork');
+select lives_ok(
+  $$insert into public.comments (deck_id, author_id, body) values ('d2000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000001', 'on mine')$$,
+  'ann can still comment on her own deck');
 
 reset role;
 set local "request.jwt.claims" = '';
+insert into public.friendships (id, requester_id, addressee_id, status) values
+ ('d1000000-0000-4000-8000-000000000004','d0000000-0000-4000-8000-000000000001','d0000000-0000-4000-8000-000000000004','accepted');
 delete from public.friendships where id = 'd1000000-0000-4000-8000-000000000004';
 set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 select is(
   (select count(*) from public.decks where id = (select id from f_dan)),
-  0::bigint,
-  'unfriending hides dan''s private fork from ann again');
+  1::bigint,
+  'unfriending does not hide dan''s private fork from ann');
 
 set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000003","role":"authenticated"}';
 select is(
   (select count(*) from public.decks where id = (select id from f_ben)),
   0::bigint,
   'cat still cannot see ben''s private fork of ann''s deck');
+
+set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000002","role":"authenticated"}';
+create temp table f_grand on commit drop as select public.fork_deck((select id from f_ben)) as id;
+grant select on f_grand to anon, authenticated, service_role;
+set local "request.jwt.claims" = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+select is(
+  (select count(*) from public.decks where id = (select id from f_grand)),
+  0::bigint,
+  'ann cannot see a grandchild fork of her deck');
 
 select * from finish();
 rollback;

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
-import { listFriendBranchesOnMyDecks, listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
+import { listBranchesOnMyDecks, listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,10 +9,10 @@ import { DeckCardSummary } from "@/components/decks/deck-card-summary";
 
 export default async function DecksPage() {
   await requireUser();
-  const [mine, branches, friendBranches, friends, pub] = await Promise.all([
+  const [mine, branches, branchesOnMine, friends, pub] = await Promise.all([
     listVisibleDecks("mine"),
     listMyBranches(),
-    listFriendBranchesOnMyDecks(),
+    listBranchesOnMyDecks(),
     listVisibleDecks("friends"),
     listVisibleDecks("public"),
   ]);
@@ -53,7 +53,7 @@ export default async function DecksPage() {
           )}
         </TabsContent>
         <TabsContent value="branches" className="mt-4 space-y-8">
-          {branches.length === 0 && friendBranches.length === 0 ? (
+          {branches.length === 0 && branchesOnMine.length === 0 ? (
             <Empty
               title="No branches yet"
               body="Fork a friend's deck (or your own) to experiment safely."
@@ -69,18 +69,18 @@ export default async function DecksPage() {
                   />
                 </section>
               )}
-              {friendBranches.length > 0 && (
+              {branchesOnMine.length > 0 && (
                 <section>
                   <h2 className="mb-1 font-heading text-xl font-semibold">
-                    Friend branches on your decks
+                    Branches on your decks
                   </h2>
                   <p className="mb-4 text-sm text-muted-foreground">
-                    Forks your friends made of decks you own. These are not branches you created.
+                    Forks other people made of decks you own. These are not branches you created.
                   </p>
                   <Grid
-                    decks={friendBranches}
+                    decks={branchesOnMine}
                     showSource
-                    badge={<Badge variant="secondary">Friend branch</Badge>}
+                    badge={<Badge variant="secondary">Fork</Badge>}
                   />
                 </section>
               )}

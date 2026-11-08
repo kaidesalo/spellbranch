@@ -21,7 +21,6 @@ import {
 import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, scryfallImageOrNull } from "@/lib/data/validation";
 import {
-  areFriends,
   canCommentOnDeck,
   canEditDeck,
   canForkDeck,
@@ -116,7 +115,7 @@ export const localRepository: Repository = {
       .sort(byUpdatedDesc);
   },
 
-  async listFriendBranchesOnMyDecks(userId) {
+  async listBranchesOnMyDecks(userId) {
     const store = await readStore();
     const owned = new Set(
       store.decks.filter((d) => d.ownerId === userId).map((d) => d.id),
@@ -124,11 +123,7 @@ export const localRepository: Repository = {
     return store.decks
       .filter((d) => {
         if (!d.forkedFromId || !owned.has(d.forkedFromId)) return false;
-        return (
-          d.ownerId !== userId &&
-          areFriends(store.friendships, userId, d.ownerId) &&
-          canViewDeck(store, d, userId)
-        );
+        return d.ownerId !== userId && canViewDeck(store, d, userId);
       })
       .map((d) => decorateDeck(store, d, userId))
       .sort(byUpdatedDesc);

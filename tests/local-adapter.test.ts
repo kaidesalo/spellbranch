@@ -97,13 +97,13 @@ describe("local adapter: decks, cards, forks, compare", () => {
     // The source is untouched.
     expect((await repo.getDeck(null, id))?.cardCount).toBe(3);
 
-    // The branch is friends-only: Alice can't compare it until they're friends.
-    expect(await repo.getCompareData(ALICE, id, forkId)).toBeNull();
-    await repo.sendFriendRequest(BOB, ALICE);
-    await repo.respondFriendRequest(ALICE, db.friendships[0].id, true);
+    // Alice owns the source, so she can compare Bob's fork before they are friends.
     const cmp = await repo.getCompareData(ALICE, id, forkId);
     expect(cmp?.canSetPreferred).toBe(true);
+    expect(cmp?.source.cardCount).toBe(3);
     expect(cmp?.branch.cardCount).toBe(1);
+    expect(cmp?.branch.cards?.find((c) => c.scryfallId === "s1")?.quantity).toBe(1);
+    expect((await repo.getDeckPermissions(ALICE, forkId)).canComment).toBe(false);
     expect(await repo.getCompareData(ALICE, forkId, id)).toBeNull();
 
     await rejectsWith(repo.setPreferredBranch(BOB, id, forkId), "Only the source deck owner");
@@ -295,24 +295,33 @@ describe("local adapter: branch visibility (review M1, L1)", () => {
     return { source, privateBranch, friendsBranch, publicBranch };
   }
 
-  for (const [label, viewer] of [["signed out", null], ["a non-friend", ALICE]] as const) {
-    it(`${label} can't see private or friends-only branch names or notes`, async () => {
-      const { source, publicBranch, privateBranch, friendsBranch } = await setup();
-      const deck = await repo.getDeck(viewer, source);
-      expect(deck?.branches?.map((b) => b.id)).toEqual([publicBranch]);
-      expect(deck?.forkCount).toBe(1);
-      expect(JSON.stringify(deck)).not.toMatch(SECRET);
+  it("signed out can't see private or friends-only branch names or notes", async () => {
+    const { source, publicBranch, privateBranch, friendsBranch } = await setup();
+    const deck = await repo.getDeck(null, source);
+    expect(deck?.branches?.map((b) => b.id)).toEqual([publicBranch]);
+    expect(deck?.forkCount).toBe(1);
+    expect(JSON.stringify(deck)).not.toMatch(SECRET);
 
-      const listed = await repo.listDecks(viewer, "public");
-      expect(JSON.stringify(listed)).not.toMatch(SECRET);
+    const listed = await repo.listDecks(null, "public");
+    expect(JSON.stringify(listed)).not.toMatch(SECRET);
 
-      const cmp = await repo.getCompareData(viewer, source, publicBranch);
-      expect(cmp).not.toBeNull();
-      expect(JSON.stringify(cmp)).not.toMatch(SECRET);
-      expect(await repo.getCompareData(viewer, source, privateBranch)).toBeNull();
-      expect(await repo.getCompareData(viewer, source, friendsBranch)).toBeNull();
-    });
-  }
+    const cmp = await repo.getCompareData(null, source, publicBranch);
+    expect(cmp).not.toBeNull();
+    expect(JSON.stringify(cmp)).not.toMatch(SECRET);
+    expect(await repo.getCompareData(null, source, privateBranch)).toBeNull();
+    expect(await repo.getCompareData(null, source, friendsBranch)).toBeNull();
+  });
+
+  it("the source owner sees every direct fork, including private ones", async () => {
+    const { source, publicBranch, privateBranch, friendsBranch } = await setup();
+    const deck = await repo.getDeck(ALICE, source);
+    expect(deck?.branches?.map((b) => b.id).sort()).toEqual(
+      [privateBranch, friendsBranch, publicBranch].sort(),
+    );
+    const cmp = await repo.getCompareData(ALICE, source, privateBranch);
+    expect(cmp?.branch.notes).toBe("BEN-PRIVATE-NOTES");
+    expect(cmp?.branch.name).toBe("Private branch");
+  });
 
   it("a friend sees the friends-only branch but not the private one; the owner sees both", async () => {
     const { source, publicBranch, friendsBranch, privateBranch } = await setup();
@@ -337,26 +346,25 @@ describe("local adapter: branch visibility (review M1, L1)", () => {
     expect(JSON.stringify(branch)).not.toMatch(/now private/);
   });
 
-  it("setPreferredBranch refuses a branch the owner can't see (same message as a non-branch)", async () => {
-    const { source, privateBranch, friendsBranch, publicBranch } = await setup();
-    await rejectsWith(repo.setPreferredBranch(ALICE, source, privateBranch), "Branch does not belong to this deck");
-    await rejectsWith(repo.setPreferredBranch(ALICE, source, friendsBranch), "Branch does not belong to this deck");
+  it("setPreferredBranch accepts every direct fork and refuses a missing id", async () => {
+    const { source, privateBranch } = await setup();
+    await repo.setPreferredBranch(ALICE, source, privateBranch);
+    expect(db.decks.find((d) => d.id === source)?.preferredBranchId).toBe(privateBranch);
     await rejectsWith(repo.setPreferredBranch(ALICE, source, NOBODY), "Branch does not belong to this deck");
-    await repo.setPreferredBranch(ALICE, source, publicBranch);
-    expect(db.decks.find((d) => d.id === source)?.preferredBranchId).toBe(publicBranch);
   });
 
-  it("L1: a preferred branch that later becomes hidden is reported as null", async () => {
+  it("L1: a preferred branch hidden from signed-out viewers stays visible to the source owner", async () => {
     const { source, publicBranch } = await setup();
     await repo.setPreferredBranch(ALICE, source, publicBranch);
     await repo.updateDeck(CAROL, publicBranch, {
       name: "Public branch", format: "modern", notes: "", visibility: "private", allowForks: true,
     });
-    for (const viewer of [null, ALICE]) {
-      const deck = await repo.getDeck(viewer, source);
-      expect(deck?.preferredBranchId).toBeNull();
-      expect(deck?.branches?.some((b) => b.id === publicBranch)).toBe(false);
-    }
+    const signedOut = await repo.getDeck(null, source);
+    expect(signedOut?.preferredBranchId).toBeNull();
+    expect(signedOut?.branches?.some((b) => b.id === publicBranch)).toBe(false);
+    const asAlice = await repo.getDeck(ALICE, source);
+    expect(asAlice?.preferredBranchId).toBe(publicBranch);
+    expect(asAlice?.branches?.some((b) => b.id === publicBranch)).toBe(true);
     expect((await repo.getDeck(CAROL, source))?.preferredBranchId).toBe(publicBranch);
   });
 });
@@ -400,9 +408,10 @@ describe("local adapter: fork rules match fork_deck() (review F4)", () => {
   });
 });
 
-describe("local adapter: source owner sees friend forks (009)", () => {
+describe("local adapter: source owner sees every direct fork (009)", () => {
   // Mirrors supabase/tests/friend_branch_visibility.sql. Ann owns the source,
-  // Ben is her friend, Cat is Ben's friend (and later a non-friend forker).
+  // Ben is her friend, Cat is Ben's friend and also forks Ann's public deck
+  // without being Ann's friend.
   const ann = ALICE;
   const ben = BOB;
   const cat = CAROL;
@@ -414,7 +423,7 @@ describe("local adapter: source owner sees friend forks (009)", () => {
     return f.id;
   }
 
-  it("shows a friend's private fork to the source owner only, and only while they are friends", async () => {
+  it("shows every direct fork to the source owner, including a non-friend's private fork", async () => {
     await befriend(ann, ben);
     await befriend(ben, cat);
     const friends = await repo.createDeck(ann, {
@@ -453,40 +462,41 @@ describe("local adapter: source owner sees friend forks (009)", () => {
     await rejectsWith(repo.forkDeck(ann, benFork), "You are not allowed to fork this deck");
     expect(stored(benFork).name).toBe("Ann friends (branch)");
 
+    await repo.addCard(ann, pub, card);
     const strangerFork = await repo.forkDeck(cat, pub);
     expect(`${stored(strangerFork).visibility}/${stored(strangerFork).allowForks}`).toBe("friends/true");
-    expect(await repo.getDeck(ann, strangerFork)).toBeNull();
-    expect((await repo.getDeck(ann, pub))?.branches ?? []).toEqual([]);
-    await rejectsWith(
-      repo.setPreferredBranch(ann, pub, strangerFork),
-      "Branch does not belong to this deck",
-    );
-
-    const listed = await repo.listFriendBranchesOnMyDecks(ann);
-    expect(listed.map((d) => d.id)).toEqual([benFork]);
-    expect(listed[0].owner?.username).toBe("bob_u");
-    expect(listed[0].sourceDeck?.name).toBe("Ann friends");
-    expect((await repo.listMyBranches(ann)).map((d) => d.id)).not.toContain(benFork);
-    expect((await repo.listMyBranches(ben)).map((d) => d.id)).toContain(benFork);
-    expect(await repo.listFriendBranchesOnMyDecks(ben)).toEqual([]);
-
-    const withCat = await befriend(ann, cat);
-    expect(await repo.getDeck(ann, strangerFork)).not.toBeNull();
+    const strangerCard = (await repo.getDeck(cat, strangerFork))!.cards![0].id;
+    await repo.setCardQuantity(cat, strangerFork, strangerCard, 4);
     await repo.updateDeck(cat, strangerFork, {
       name: "Cat private", format: "modern", notes: "cat-notes", visibility: "private", allowForks: false,
     });
+
     expect((await repo.getDeck(ann, strangerFork))?.visibility).toBe("private");
     expect((await repo.getDeck(ann, pub))?.branches?.map((b) => [b.id, b.owner?.username])).toEqual([
       [strangerFork, "carol_u"],
     ]);
-    expect((await repo.listFriendBranchesOnMyDecks(ann)).map((d) => d.id).sort()).toEqual(
-      [benFork, strangerFork].sort(),
-    );
+    const cmp = await repo.getCompareData(ann, pub, strangerFork);
+    expect(cmp?.source.cards?.find((c) => c.scryfallId === "s1")?.quantity).toBe(1);
+    expect(cmp?.branch.cards?.find((c) => c.scryfallId === "s1")?.quantity).toBe(4);
+    expect((await repo.getDeckPermissions(ann, strangerFork)).canComment).toBe(false);
+    await rejectsWith(repo.addComment(ann, strangerFork, "hi"), "You cannot comment on this deck");
 
-    await repo.removeFriendship(ann, withCat);
-    expect(await repo.getDeck(ann, strangerFork)).toBeNull();
-    expect((await repo.getDeck(ann, pub))?.branches ?? []).toEqual([]);
+    const listed = await repo.listBranchesOnMyDecks(ann);
+    expect(listed.map((d) => d.id).sort()).toEqual([benFork, strangerFork].sort());
+    expect(listed.find((d) => d.id === benFork)?.owner?.username).toBe("bob_u");
+    expect(listed.find((d) => d.id === benFork)?.sourceDeck?.name).toBe("Ann friends");
+    expect((await repo.listMyBranches(ann)).map((d) => d.id)).not.toContain(benFork);
+    expect((await repo.listMyBranches(ben)).map((d) => d.id)).toContain(benFork);
+    expect(await repo.listBranchesOnMyDecks(ben)).toEqual([]);
+
+    const grand = await repo.forkDeck(ben, benFork);
+    expect(await repo.getDeck(ann, grand)).toBeNull();
+    expect((await repo.getDeck(ann, friends))?.branches?.map((b) => b.id)).toEqual([benFork]);
+
+    const priv = await repo.createDeck(ann, {
+      name: "Ann private", format: "modern", notes: "", visibility: "private", allowForks: false,
+    });
+    expect(await repo.getDeck(ben, priv)).toBeNull();
     expect(await repo.getDeck(cat, benFork)).toBeNull();
-    expect((await repo.listFriendBranchesOnMyDecks(ann)).map((d) => d.id)).toEqual([benFork]);
   });
 });

@@ -403,6 +403,29 @@ async function fetchPair(client: Client, a: string, b: string): Promise<Friendsh
   return findPair((rows ?? []).map(toFriendship), a, b);
 }
 
+/**
+ * public.can_comment_on_deck: public, owner, or friends-only plus an accepted
+ * friendship. Owning the source of a private fork does not qualify.
+ */
+async function canCommentOnVisibleDeck(client: Client, deck: Deck, viewerId: string): Promise<boolean> {
+  if (deck.visibility === "public" || deck.ownerId === viewerId) return true;
+  if (deck.visibility !== "friends") return false;
+  const rows = check(
+    "friendships comment",
+    await client
+      .from("friendships")
+      .select("requester_id, addressee_id")
+      .eq("status", "accepted")
+      .in("requester_id", [viewerId, deck.ownerId])
+      .in("addressee_id", [viewerId, deck.ownerId]),
+  ) as { requester_id: string; addressee_id: string }[] | null;
+  return (rows ?? []).some(
+    (row) =>
+      (row.requester_id === viewerId && row.addressee_id === deck.ownerId) ||
+      (row.addressee_id === viewerId && row.requester_id === deck.ownerId),
+  );
+}
+
 export function createSupabaseRepository(getClient: ClientFactory): Repository {
   return {
     async listDecks(viewerId, scope) {
@@ -439,34 +462,20 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       return decks.sort(byUpdatedDesc);
     },
 
-    async listFriendBranchesOnMyDecks(userId) {
+    async listBranchesOnMyDecks(userId) {
       const client = await getClient();
-      const [sourcesRes, friendsRes] = await Promise.all([
-        client.from("decks").select("id").eq("owner_id", userId),
-        client
-          .from("friendships")
-          .select("requester_id, addressee_id")
-          .eq("status", "accepted"),
-      ]);
+      const sourcesRes = await client.from("decks").select("id").eq("owner_id", userId);
       const sourceIds = ((check("decks owned", sourcesRes) ?? []) as { id: string }[]).map(
         (row) => row.id,
       );
-      const friendIds = new Set<string>();
-      for (const row of (check("friendships", friendsRes) ?? []) as {
-        requester_id: string;
-        addressee_id: string;
-      }[]) {
-        if (row.requester_id === userId) friendIds.add(row.addressee_id);
-        else if (row.addressee_id === userId) friendIds.add(row.requester_id);
-      }
-      if (sourceIds.length === 0 || friendIds.size === 0) return [];
+      if (sourceIds.length === 0) return [];
       const rows = check(
-        "friend branches",
+        "branches on my decks",
         await client
           .from("decks")
           .select(DECK_COLS)
           .in("forked_from_id", sourceIds)
-          .in("owner_id", [...friendIds])
+          .neq("owner_id", userId)
           .order("updated_at", { ascending: false }),
       ) as DeckRow[] | null;
       const decks = await decorate(client, (rows ?? []).map(toDeck), false);
@@ -498,7 +507,11 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const deck = await fetchDeck(client, deckId); // visible under RLS, or null
       if (!deck || !viewerId) return none;
       const isOwner = deck.ownerId === viewerId;
-      return { canEdit: isOwner, canFork: isOwner || deck.allowForks, canComment: true };
+      return {
+        canEdit: isOwner,
+        canFork: isOwner || deck.allowForks,
+        canComment: await canCommentOnVisibleDeck(client, deck, viewerId),
+      };
     },
 
     async createDeck(userId, input) {

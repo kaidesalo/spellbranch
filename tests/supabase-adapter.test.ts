@@ -178,14 +178,11 @@ describe("supabase adapter: decks", () => {
   });
 });
 
-describe("supabase adapter: friend branches on your decks", () => {
-  it("loads forks of the caller's decks made by accepted friends", async () => {
+describe("supabase adapter: branches on your decks", () => {
+  it("loads every direct fork of the caller's decks, not only friends", async () => {
     const { repo, calls } = repoWith((c) => {
-      if (isTable(c, "friendships")) {
-        return ok([{ requester_id: ME, addressee_id: BOB, status: "accepted" }]);
-      }
       if (isTable(c, "decks") && c.columns === "id") return ok([{ id: DECK }]);
-      if (isTable(c, "decks") && c.filters.some((f) => f[0] === "in" && f[1] === "owner_id")) {
+      if (isTable(c, "decks") && c.filters.some((f) => f[0] === "neq" && f[1] === "owner_id")) {
         return ok([
           deckRow({
             id: FORK, owner_id: BOB, forked_from_id: DECK, visibility: "private",
@@ -202,7 +199,7 @@ describe("supabase adapter: friend branches on your decks", () => {
       return undefined;
     });
 
-    const decks = await repo.listFriendBranchesOnMyDecks(ME);
+    const decks = await repo.listBranchesOnMyDecks(ME);
     expect(decks).toHaveLength(1);
     expect(decks[0]).toMatchObject({
       id: FORK,
@@ -211,30 +208,21 @@ describe("supabase adapter: friend branches on your decks", () => {
       owner: { username: "bob_u" },
       sourceDeck: { id: DECK, name: "Mine" },
     });
-    const forkQuery = calls.find((c) => c.filters.some((f) => f[0] === "in" && f[1] === "owner_id"));
+    const forkQuery = calls.find((c) => c.filters.some((f) => f[0] === "neq" && f[1] === "owner_id"));
     expect(forkQuery?.filters).toEqual(expect.arrayContaining([
       ["in", "forked_from_id", [DECK]],
-      ["in", "owner_id", [BOB]],
+      ["neq", "owner_id", ME],
     ]));
-    expect(calls.some((c) => c.filters.some((f) => f[0] === "eq" && f[1] === "owner_id" && f[2] === ME && c.columns !== "id"))).toBe(false);
+    expect(calls.some((c) => c.table === "friendships")).toBe(false);
   });
 
-  it("does not query forks when there are no owned decks or no friends", async () => {
+  it("does not query forks when the caller owns no decks", async () => {
     const noneOwned = repoWith((c) => {
-      if (isTable(c, "friendships")) return ok([{ requester_id: ME, addressee_id: BOB }]);
       if (isTable(c, "decks")) return ok([]);
       return undefined;
     });
-    expect(await noneOwned.repo.listFriendBranchesOnMyDecks(ME)).toEqual([]);
+    expect(await noneOwned.repo.listBranchesOnMyDecks(ME)).toEqual([]);
     expect(noneOwned.calls.some((c) => c.filters.some((f) => f[1] === "forked_from_id"))).toBe(false);
-
-    const noFriends = repoWith((c) => {
-      if (isTable(c, "friendships")) return ok([]);
-      if (isTable(c, "decks")) return ok([{ id: DECK }]);
-      return undefined;
-    });
-    expect(await noFriends.repo.listFriendBranchesOnMyDecks(ME)).toEqual([]);
-    expect(noFriends.calls.some((c) => c.filters.some((f) => f[1] === "forked_from_id"))).toBe(false);
   });
 });
 

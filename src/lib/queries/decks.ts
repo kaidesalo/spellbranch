@@ -23,10 +23,10 @@ export async function listMyBranches() {
   return getRepository().listMyBranches(user.id);
 }
 
-/** Friend forks of decks the signed-in user owns. Not listMyBranches. */
-export async function listFriendBranchesOnMyDecks() {
+/** Other people's forks of decks the signed-in user owns. Not listMyBranches. */
+export async function listBranchesOnMyDecks() {
   const user = await requireUser();
-  return getRepository().listFriendBranchesOnMyDecks(user.id);
+  return getRepository().listBranchesOnMyDecks(user.id);
 }
 
 export async function getDeckById(deckId: string): Promise<DeckWithMeta | null> {

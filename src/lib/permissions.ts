@@ -29,27 +29,34 @@ export function canViewDeck(
     return true;
   }
   // Same extra case as public.can_view_deck (009): the owner of the source
-  // deck may view a friend's fork, including a private one (review F4).
-  // Look up the source row directly. Do not call canViewDeck on it.
+  // deck may view every direct fork, including a private fork by someone
+  // who is not a friend. One lookup of that source row. Do not call
+  // canViewDeck on it, and do not walk to grandchildren.
   if (!deck.forkedFromId) return false;
   const source = store.decks.find((d) => d.id === deck.forkedFromId);
-  return Boolean(
-    source &&
-      source.ownerId === viewerId &&
-      areFriends(store.friendships, deck.ownerId, viewerId),
-  );
+  return Boolean(source && source.ownerId === viewerId);
 }
 
 export function canEditDeck(deck: Deck, userId: string | null): boolean {
   return Boolean(userId && deck.ownerId === userId);
 }
 
+/**
+ * Pre-009 visibility (public.can_comment_on_deck). Seeing a fork because you
+ * own its source does not let you comment on it.
+ */
 export function canCommentOnDeck(
   store: DataStore,
   deck: Deck,
   userId: string | null,
 ): boolean {
-  return canViewDeck(store, deck, userId);
+  if (deck.visibility === "public") return true;
+  if (!userId) return false;
+  if (deck.ownerId === userId) return true;
+  if (deck.visibility === "friends") {
+    return areFriends(store.friendships, deck.ownerId, userId);
+  }
+  return false;
 }
 
 export function canForkDeck(

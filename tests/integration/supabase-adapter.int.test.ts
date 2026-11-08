@@ -133,11 +133,10 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
     await ben().setCardQuantity(BEN, forkId, forkCard.id, 1);
     expect((await anon().getDeck(null, deckId))?.cardCount).toBe(4); // source untouched
 
-    // Ben's branch is friends-only and they aren't friends yet.
-    expect(await ann().getCompareData(ANN, deckId, forkId)).toBeNull();
-    expect(await dataError(ann().setPreferredBranch(ANN, deckId, forkId))).toBe(
-      "Branch does not belong to this deck",
-    );
+    // Ann owns the source, so she can compare Ben's fork before they are friends.
+    const early = await ann().getCompareData(ANN, deckId, forkId);
+    expect(early?.canSetPreferred).toBe(true);
+    expect(early?.branch.cardCount).toBe(2);
     expect(await dataError(ben().setPreferredBranch(BEN, deckId, forkId))).toMatch(/source deck owner/);
   });
 
