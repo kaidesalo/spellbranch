@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GitBranch, GitCompareArrows, Settings2 } from "lucide-react";
+import { GitCompareArrows, Settings2 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
-import { forkDeckAction } from "@/lib/actions/decks";
 import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
 import { visibilityLabel } from "@/lib/permissions";
+import { branchSwitcherModel } from "@/lib/branch-switcher";
+import { defaultBranchName } from "@/lib/fork-name";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardSearch } from "@/components/cards/card-search";
@@ -13,8 +14,10 @@ import { DeckList } from "@/components/decks/deck-list";
 import { CommanderSlot } from "@/components/decks/commander-slot";
 import { deckCountLabel } from "@/lib/commander";
 import { CommentSection } from "@/components/comments/comment-section";
+import { BranchSwitcher } from "@/components/decks/branch-switcher";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
 import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
+import { ForkDeckForm } from "@/components/decks/fork-deck-form";
 
 export default async function DeckDetailPage({
   params,
@@ -38,6 +41,7 @@ export default async function DeckDetailPage({
     ? deck.branches?.find((b) => b.id === deck.preferredBranchId)
     : undefined;
   const defaultCompareId = preferred?.id ?? deck.branches?.[0]?.id;
+  const switcher = branchSwitcherModel(deck);
 
   // The commander is its own slot, not a deck-list entry (it isn't one of
   // the 99). Only Commander decks show the slot.
@@ -103,7 +107,7 @@ export default async function DeckDetailPage({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
           {canEdit && (
             <Button
               variant="outline"
@@ -116,27 +120,6 @@ export default async function DeckDetailPage({
             </Button>
           )}
           {canEdit && <DeleteDeckButton deckId={deck.id} deckName={deck.name} />}
-          {canFork && user && (
-            <form
-              className="inline-flex"
-              action={async () => {
-                "use server";
-                await forkDeckAction(deck.id);
-              }}
-            >
-              <Button
-                type="submit"
-                size="sm"
-                variant="outline"
-                className="max-sm:px-2 max-sm:tracking-normal!"
-                aria-label="Fork deck"
-              >
-                <GitBranch data-icon="inline-start" />
-                <span className="sm:hidden">Fork</span>
-                <span className="hidden sm:inline">Fork deck</span>
-              </Button>
-            </form>
-          )}
           {/* sourceDeck is null when the viewer can't see the source: then
               there's nothing to compare with, and its id stays out of the
               page (Cipher re-review N2). */}
@@ -171,38 +154,18 @@ export default async function DeckDetailPage({
               <span className="hidden sm:inline">Compare branch</span>
             </Button>
           )}
+          {canFork && user && (
+            <ForkDeckForm deckId={deck.id} defaultName={defaultBranchName(deck.name)} />
+          )}
         </div>
       </div>
 
-      {!deck.forkedFromId && (deck.branches?.length ?? 0) > 0 && (
-        <div className="mt-3 rounded-xl border border-border/70 bg-card/60 px-3 py-2.5 sm:mt-4 sm:px-4 sm:py-3">
-          <p className="text-sm font-medium">Branches</p>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {deck.branches!.map((branch) => (
-              <li key={branch.id}>
-                <Link
-                  href={`/decks/${branch.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm hover:border-primary/40"
-                >
-                  <GitBranch className="h-3.5 w-3.5 text-primary" />
-                  {branch.name}
-                  {branch.owner?.username && (
-                    <span className="text-muted-foreground">@{branch.owner.username}</span>
-                  )}
-                  {preferred?.id === branch.id && (
-                    <Badge className="ml-1">Preferred</Badge>
-                  )}
-                </Link>
-                <Link
-                  href={`/decks/${deck.id}/compare?branch=${branch.id}`}
-                  className="ml-1 text-xs text-primary underline-offset-4 hover:underline"
-                >
-                  diff
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {switcher && (
+        <BranchSwitcher
+          currentId={deck.id}
+          options={switcher.options}
+          diffHref={switcher.diffHref}
+        />
       )}
 
       <div className="mt-4 grid gap-4 lg:mt-6 lg:grid-cols-[340px_1fr] lg:gap-6 xl:grid-cols-[380px_1fr]">

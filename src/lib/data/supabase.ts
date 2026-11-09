@@ -20,6 +20,8 @@ import {
 } from "@/lib/data/friend-rules";
 import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, isUuid, scryfallImageOrNull } from "@/lib/data/validation";
+import { LIMITS } from "@/lib/data/limits";
+import { requireForkName } from "@/lib/fork-name";
 import type {
   Comment,
   Deck,
@@ -45,7 +47,9 @@ import type {
  *   display_name, avatar_url), for signed-in and signed-out visitors alike.
  *   Nothing here reads an email; the caller's own email comes from the session.
  * - Forks go through rpc('fork_deck'); friend lookup through
- *   rpc('find_profile') (exact username, 0 or 1 rows).
+ *   rpc('find_profile') (exact username, 0 or 1 rows). A caller-chosen
+ *   branch name is a second UPDATE of that new row's name column only
+ *   (fork_deck still names it "<source> (branch)").
  * - Deck inserts never send forked_from_id / preferred_branch_id:
  *   enforce_deck_links() rejects preferred_branch_id on API INSERTs, so a
  *   preferred branch is only ever set by a later UPDATE (setPreferredBranch).
@@ -285,17 +289,22 @@ async function loadProfiles(client: Client, ids: string[]): Promise<Map<string, 
   return new Map((rows ?? []).map((r) => [r.id, toProfile(r)]));
 }
 
-/** Adds owner, card counts (and cards), branches and source, all under RLS. */
+/**
+ * Adds owner, card counts (and cards), branches and source, all under RLS.
+ * `withSourceBranches` (deck pages) also loads visible forks of each deck's
+ * source, for the branch menu. List views skip that query.
+ */
 async function decorate(
   client: Client,
   decks: Deck[],
   withCards: boolean,
+  withSourceBranches = false,
 ): Promise<DeckWithMeta[]> {
   if (decks.length === 0) return [];
   const ids = decks.map((d) => d.id);
   const sourceIds = uniq(decks.map((d) => d.forkedFromId));
 
-  const [cardsRes, branchesRes, sourcesRes, owners] = await Promise.all([
+  const [cardsRes, branchesRes, sourcesRes, sourceBranchesRes, owners] = await Promise.all([
     client
       .from("deck_cards")
       .select(withCards ? CARD_COLS : "deck_id, quantity")
@@ -304,16 +313,27 @@ async function decorate(
     sourceIds.length
       ? client.from("decks").select(DECK_COLS).in("id", sourceIds)
       : Promise.resolve({ data: [], error: null }),
+    withSourceBranches && sourceIds.length
+      ? client.from("decks").select(DECK_COLS).in("forked_from_id", sourceIds)
+      : Promise.resolve({ data: [], error: null }),
     loadProfiles(client, uniq(decks.map((d) => d.ownerId))),
   ]);
 
   const cardRows = (check("deck_cards", cardsRes) ?? []) as unknown as CardRow[];
   const branches = ((check("decks", branchesRes) ?? []) as DeckRow[]).map(toDeck);
   const sources = ((check("decks", sourcesRes) ?? []) as DeckRow[]).map(toDeck);
+  const sourceBranchRows = withSourceBranches
+    ? ((check("source branches", sourceBranchesRes) ?? []) as DeckRow[]).map(toDeck)
+    : [];
   const branchOwners = await loadProfiles(
     client,
-    uniq(branches.map((b) => b.ownerId)).filter((id) => !owners.has(id)),
+    uniq([
+      ...branches.map((b) => b.ownerId),
+      ...sourceBranchRows.map((b) => b.ownerId),
+      ...sources.map((s) => s.ownerId),
+    ]).filter((id) => !owners.has(id)),
   );
+  const profile = (ownerId: string) => owners.get(ownerId) ?? branchOwners.get(ownerId);
 
   return decks.map((deck) => {
     const mine = cardRows.filter((c) => c.deck_id === deck.id);
@@ -324,6 +344,9 @@ async function decorate(
       deck.preferredBranchId && deckBranches.some((b) => b.id === deck.preferredBranchId)
         ? deck.preferredBranchId
         : null;
+    const sourceRow = deck.forkedFromId
+      ? sources.find((s) => s.id === deck.forkedFromId)
+      : undefined;
     return {
       ...deck,
       preferredBranchId,
@@ -332,12 +355,19 @@ async function decorate(
       cardCount: mine.reduce((sum, c) => sum + c.quantity, 0),
       forkCount: deckBranches.length,
       sourceDeck: deck.forkedFromId
-        ? (sources.find((s) => s.id === deck.forkedFromId) ?? null)
+        ? sourceRow
+          ? { ...sourceRow, owner: profile(sourceRow.ownerId) }
+          : null
         : null,
       branches: deckBranches.map((b) => ({
         ...b,
-        owner: owners.get(b.ownerId) ?? branchOwners.get(b.ownerId),
+        owner: profile(b.ownerId),
       })),
+      sourceBranches: deck.forkedFromId
+        ? sourceBranchRows
+            .filter((b) => b.forkedFromId === deck.forkedFromId)
+            .map((b) => ({ ...b, owner: profile(b.ownerId) }))
+        : undefined,
     };
   });
 }
@@ -477,7 +507,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const deck = await fetchDeck(client, deckId);
       if (!deck) return null;
-      const [decorated] = await decorate(client, [deck], true);
+      const [decorated] = await decorate(client, [deck], true, true);
       return decorated;
     },
 
@@ -726,9 +756,12 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       await touchDeck(client, deckId);
     },
 
-    async forkDeck(_userId, deckId) {
+    async forkDeck(_userId, deckId, name) {
       const denied = "You are not allowed to fork this deck";
       if (!isUuid(deckId)) throw new DataError(denied);
+      // Before the RPC, so a rejected name never inserts a deck. fork_deck()
+      // still writes "<source> (branch)"; the name is applied below.
+      const forkName = name === undefined ? undefined : requireForkName(name);
       const client = await getClient();
       const { data, error } = await client.rpc("fork_deck", { source: deckId });
       if (error) {
@@ -737,6 +770,25 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         throw new SupabaseDataError("fork_deck", error.code);
       }
       if (typeof data !== "string") throw new SupabaseDataError("fork_deck", "bad-result");
+      if (forkName === undefined) return data;
+
+      // Owner-only rename of the row just created. Visibility, allow_forks,
+      // owner and forked_from_id stay whatever fork_deck() set (review F4).
+      const { data: rows, error: renameError } = await client
+        .from("decks")
+        .update({ name: forkName })
+        .eq("id", data)
+        .eq("owner_id", _userId)
+        .select("id");
+      if (renameError || !rows?.length) {
+        await client.from("decks").delete().eq("id", data).eq("owner_id", _userId);
+        const message = renameError?.message ?? "";
+        if (renameError?.code === "23514" && message.includes("decks_name_length")) {
+          throw new DataError(`Deck name must be at most ${LIMITS.deckName} characters`);
+        }
+        if (renameError) throw new SupabaseDataError("fork rename", renameError.code);
+        throw new DataError("Fork failed");
+      }
       return data;
     },
 

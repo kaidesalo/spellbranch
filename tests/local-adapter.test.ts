@@ -334,6 +334,8 @@ describe("local adapter: branch visibility (review M1, L1)", () => {
     const branch = await repo.getDeck(null, publicBranch);
     expect(branch?.forkedFromId).toBe(source);
     expect(branch?.sourceDeck).toBeNull();
+    // The fork page still lists visible siblings, and not the hidden source.
+    expect(branch?.sourceBranches?.map((b) => b.id)).toEqual([publicBranch]);
     expect(JSON.stringify(branch)).not.toMatch(/now private/);
   });
 
@@ -358,6 +360,64 @@ describe("local adapter: branch visibility (review M1, L1)", () => {
       expect(deck?.branches?.some((b) => b.id === publicBranch)).toBe(false);
     }
     expect((await repo.getDeck(CAROL, source))?.preferredBranchId).toBe(publicBranch);
+  });
+
+  it("a fork page lists the source and only the siblings that viewer can see", async () => {
+    const { source, publicBranch, privateBranch, friendsBranch } = await setup();
+    const signedOut = await repo.getDeck(null, publicBranch);
+    expect(signedOut?.sourceDeck?.id).toBe(source);
+    expect(signedOut?.sourceBranches?.map((b) => b.id)).toEqual([publicBranch]);
+
+    await repo.sendFriendRequest(BOB, CAROL);
+    await repo.respondFriendRequest(CAROL, db.friendships[0].id, true);
+    const asCarol = await repo.getDeck(CAROL, publicBranch);
+    expect(asCarol?.sourceBranches?.map((b) => b.id).sort()).toEqual([friendsBranch, publicBranch].sort());
+    expect(JSON.stringify(asCarol?.sourceBranches)).not.toMatch(/Private branch|BEN-PRIVATE-NOTES/);
+
+    const asBob = await repo.getDeck(BOB, privateBranch);
+    expect(asBob?.sourceDeck?.owner?.username).toBe("alice_u");
+    expect(asBob?.sourceBranches?.map((b) => b.id).sort()).toEqual(
+      [privateBranch, friendsBranch, publicBranch].sort(),
+    );
+
+    // Alice owns the source but is not Bob's friend, so private and
+    // friends-only branches stay off her fork page too.
+    const asAlice = await repo.getDeck(ALICE, publicBranch);
+    expect(asAlice?.sourceBranches?.map((b) => b.id)).toEqual([publicBranch]);
+  });
+});
+
+describe("local adapter: fork names", () => {
+  it("uses the given name and still applies the F4 visibility rule", async () => {
+    const pub = await repo.createDeck(ALICE, {
+      name: "Public", format: "modern", notes: "keep", visibility: "public", allowForks: true,
+    });
+    const friends = await repo.createDeck(ALICE, {
+      name: "Friends", format: "modern", notes: "", visibility: "friends", allowForks: true,
+    });
+    const named = await repo.forkDeck(BOB, pub, "  My branch  ");
+    const locked = await repo.forkDeck(ALICE, friends, "Owner branch");
+    const namedDeck = db.decks.find((d) => d.id === named)!;
+    const lockedDeck = db.decks.find((d) => d.id === locked)!;
+    expect(namedDeck.name).toBe("My branch");
+    expect(`${namedDeck.visibility}/${namedDeck.allowForks}`).toBe("friends/true");
+    expect(namedDeck.notes).toBe("keep");
+    expect(`${lockedDeck.visibility}/${lockedDeck.allowForks}`).toBe("private/false");
+    expect(lockedDeck.name).toBe("Owner branch");
+
+    const before = db.decks.length;
+    await rejectsWith(repo.forkDeck(BOB, pub, "   "), "Deck name is required");
+    await rejectsWith(repo.forkDeck(BOB, pub, "n".repeat(81)), "Deck name must be at most 80 characters");
+    expect(db.decks).toHaveLength(before);
+    expect(await repo.forkDeck(BOB, pub, "n".repeat(80))).toBeTruthy();
+  });
+
+  it("a bad name does not reveal a deck the caller cannot fork", async () => {
+    const secret = await repo.createDeck(ALICE, {
+      name: "Secret", format: "modern", notes: "", visibility: "private", allowForks: false,
+    });
+    await rejectsWith(repo.forkDeck(BOB, secret, "   "), "You are not allowed to fork this deck");
+    expect(db.decks).toHaveLength(1);
   });
 });
 
@@ -431,6 +491,9 @@ describe("local adapter: source owner sees friend forks (009)", () => {
 
     const seen = await repo.getDeck(ann, benFork);
     expect(seen).toMatchObject({ name: "Ann friends (branch)", visibility: "private", cardCount: 1 });
+    expect(seen?.sourceDeck?.id).toBe(friends);
+    expect(seen?.sourceBranches?.map((b) => [b.id, b.owner?.username])).toEqual([[benFork, "bob_u"]]);
+    expect((await repo.getDeckPermissions(ann, benFork)).canEdit).toBe(false);
     const onSource = await repo.getDeck(ann, friends);
     expect(onSource?.branches?.map((b) => [b.id, b.owner?.username])).toEqual([[benFork, "bob_u"]]);
     expect(await repo.getCompareData(ann, friends, benFork)).not.toBeNull();
