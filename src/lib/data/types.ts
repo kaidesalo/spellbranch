@@ -80,6 +80,8 @@ export interface CompareData {
   source: DeckWithMeta;
   branch: DeckWithMeta;
   canSetPreferred: boolean;
+  /** True when `branch` is an independent copy of `source`, not a branch of it. */
+  copy: boolean;
 }
 
 export interface DeckPermissions {
@@ -146,6 +148,14 @@ export interface Repository {
    * visibility already allows sees it; anyone it doesn't, doesn't.
    */
   forkDeck(userId: string, deckId: string, name?: string): Promise<string>;
+  /**
+   * An independent deck: new id, `forkedFromId` null, its own branch tree.
+   * `copiedFromId` records the source so the copy can be compared to it.
+   * Same permission and F4 visibility defaults as forkDeck. `name`, when
+   * given, is trimmed to 1–80 characters; omitted, the deck is named
+   * "<source> (copy)".
+   */
+  copyDeck(userId: string, deckId: string, name?: string): Promise<string>;
   setPreferredBranch(userId: string, sourceId: string, branchId: string | null): Promise<void>;
 
   // Comments

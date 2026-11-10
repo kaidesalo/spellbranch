@@ -37,6 +37,20 @@ export function eqValue(call: Call, column: string): unknown {
   return call.filters.find((f) => f[0] === "eq" && f[1] === column)?.[2];
 }
 
+/**
+ * getDeck and getCompareData always ask copy_source_link(). Tests that don't
+ * care about copies get "no source" instead of an unexpected-call failure.
+ * A responder that returns its own reply for that RPC still wins.
+ */
+export function answeringCopyLink(respond: Responder): Responder {
+  return (call) => {
+    const reply = respond(call);
+    if (reply) return reply;
+    if (call.fn === "copy_source_link") return ok([]);
+    return undefined;
+  };
+}
+
 export function createMockClient(respond: Responder) {
   const calls: Call[] = [];
 

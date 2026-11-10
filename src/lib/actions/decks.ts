@@ -294,6 +294,26 @@ export async function forkDeckAction(deckId: string, formData: FormData): Promis
   redirect(`/decks/${newId}`);
 }
 
+export async function copyDeckAction(deckId: string, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "You are not allowed to copy this deck");
+  if (!id.ok) return { error: id.error };
+  if (!isFormData(formData)) return { error: "Deck name is required" };
+  const name = check(forkNameSchema, formData.get("name"), "Deck name is required");
+  if (!name.ok) return { error: name.error };
+  let newId: string;
+
+  try {
+    newId = await getRepository().copyDeck(user.id, deckId, name.data);
+  } catch (err) {
+    return { error: userMessage(err, "Copy failed") };
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  revalidatePath("/decks");
+  redirect(`/decks/${newId}`);
+}
+
 export async function setPreferredBranchAction(
   sourceDeckId: string,
   branchId: string | null,

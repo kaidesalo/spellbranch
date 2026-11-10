@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DataStore, LocalUser } from "@/lib/data/store";
 import type { DeckCommander } from "@/lib/types";
-import { createMockClient, eqValue, ok, pgError, type Call } from "./helpers/supabase-mock";
+import { answeringCopyLink, createMockClient, eqValue, ok, pgError, type Call } from "./helpers/supabase-mock";
 
 // setCommander in both repositories, plus the format-change and fork rules.
 
@@ -159,7 +159,7 @@ const cleared = {
 };
 
 function supa(respond: (c: Call) => ReturnType<typeof ok> | undefined) {
-  const mock = createMockClient(respond);
+  const mock = createMockClient(answeringCopyLink(respond));
   return { repo: createSupabaseRepository(mock.factory), calls: mock.calls };
 }
 const isDeckSelect = (c: Call) => c.table === "decks" && c.op === "select";

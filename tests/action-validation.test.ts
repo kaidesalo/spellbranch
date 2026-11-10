@@ -9,7 +9,7 @@ const OTHER = "a0000000-0000-4000-8000-000000000002";
 
 const repo = new Proxy({} as Record<string, ReturnType<typeof vi.fn>>, {
   get(target, key: string) {
-    target[key] ??= vi.fn(async () => (key === "findProfile" ? [] : key === "createDeck" || key === "forkDeck" ? OTHER : undefined));
+    target[key] ??= vi.fn(async () => (key === "findProfile" ? [] : key === "createDeck" || key === "forkDeck" || key === "copyDeck" ? OTHER : undefined));
     return target[key];
   },
 });
@@ -64,6 +64,7 @@ describe("id arguments must be UUIDs", () => {
     ["updateCardQuantityAction (card)", (id) => call(decks.updateCardQuantityAction, OTHER, id, 1)],
     ["removeCardFromDeckAction", (id) => call(decks.removeCardFromDeckAction, OTHER, id)],
     ["forkDeckAction", (id) => call(decks.forkDeckAction, id)],
+    ["copyDeckAction", (id) => call(decks.copyDeckAction, id)],
     ["setPreferredBranchAction (source)", (id) => call(decks.setPreferredBranchAction, id, OTHER)],
     ["setCommanderAction (deck)", (id) => call(decks.setCommanderAction, id, null)],
     ["addCommentAction", (id) => call(comments.addCommentAction, id, "hi")],
@@ -133,6 +134,26 @@ describe("fork names", () => {
     const fd = form({ name: "  My branch  " });
     await expect(call(decks.forkDeckAction, OTHER, fd)).rejects.toThrow(`NEXT_REDIRECT /decks/${OTHER}`);
     expect(repo.forkDeck.mock.calls).toEqual([[ME, OTHER, "My branch"]]);
+  });
+});
+
+describe("copy names", () => {
+  it("refuses a missing, blank, or over-long name before copying", async () => {
+    expect(await call(decks.copyDeckAction, OTHER)).toEqual({ error: "Deck name is required" });
+    expect(await call(decks.copyDeckAction, OTHER, form({ name: "   " }))).toEqual({
+      error: "Deck name is required",
+    });
+    expect(await call(decks.copyDeckAction, OTHER, form({ name: "n".repeat(LIMITS.deckName + 1) }))).toEqual({
+      error: `Deck name must be at most ${LIMITS.deckName} characters`,
+    });
+    expect(await call(decks.copyDeckAction, OTHER, { name: "x" })).toEqual({ error: "Deck name is required" });
+    expect(repoCalls()).toEqual([]);
+  });
+
+  it("passes the trimmed name through and redirects to the new deck", async () => {
+    const fd = form({ name: "  My copy  " });
+    await expect(call(decks.copyDeckAction, OTHER, fd)).rejects.toThrow(`NEXT_REDIRECT /decks/${OTHER}`);
+    expect(repo.copyDeck.mock.calls).toEqual([[ME, OTHER, "My copy"]]);
   });
 });
 

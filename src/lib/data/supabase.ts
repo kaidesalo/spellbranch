@@ -46,13 +46,16 @@ import type {
  * - Other people's names come from the `public_profiles` view (id, username,
  *   display_name, avatar_url), for signed-in and signed-out visitors alike.
  *   Nothing here reads an email; the caller's own email comes from the session.
- * - Forks go through rpc('fork_deck'); friend lookup through
- *   rpc('find_profile') (exact username, 0 or 1 rows). A caller-chosen
- *   branch name is a second UPDATE of that new row's name column only
- *   (fork_deck still names it "<source> (branch)"). The decks SELECT
- *   policy returns that column with the rest of the row, so every viewer
- *   who can already see the branch reads the chosen name. Nothing here
- *   keeps a second, forker-only copy.
+ * - Forks go through rpc('fork_deck'); copies through rpc('copy_deck');
+ *   friend lookup through rpc('find_profile') (exact username, 0 or 1 rows).
+ *   A caller-chosen name is a second UPDATE of that new row's name column
+ *   only (fork_deck still names it "<source> (branch)", copy_deck
+ *   "<source> (copy)"). The decks SELECT policy returns that column with
+ *   the rest of the row, so every viewer who can already see the deck
+ *   reads the chosen name. Nothing here keeps a second, owner-only copy.
+ * - copied_from_id is not selected. A source id arrives only from
+ *   rpc('copy_source_link'), and only when that function says the source
+ *   is visible. An unavailable source is a boolean with no id.
  * - Deck inserts never send forked_from_id / preferred_branch_id:
  *   enforce_deck_links() rejects preferred_branch_id on API INSERTs, so a
  *   preferred branch is only ever set by a later UPDATE (setPreferredBranch).
@@ -147,6 +150,9 @@ export const toDeck = (r: DeckRow): Deck => ({
   visibility: r.visibility as Visibility,
   allowForks: r.allow_forks,
   forkedFromId: r.forked_from_id,
+  // Never read from the row. getDeck / getCompareData fill this from
+  // copy_source_link() when the source is visible.
+  copiedFromId: null,
   preferredBranchId: r.preferred_branch_id,
   commander: toCommander(r),
   // null (no colors picked) for decks made before 008.
@@ -375,6 +381,53 @@ async function decorate(
   });
 }
 
+type CopyLink = { source_id?: string | null; unavailable?: boolean };
+
+/**
+ * The source of a copy, under copy_source_link() (migration 010). A missing
+ * function or a bad payload is an error: the app must not guess an id.
+ */
+async function copySourceLink(
+  client: Client,
+  deckId: string,
+): Promise<{ sourceId: string | null; unavailable: boolean }> {
+  const { data, error } = await client.rpc("copy_source_link", { target: deckId });
+  if (error) throw new SupabaseDataError("copy_source_link", error.code);
+  const row = (Array.isArray(data) ? data[0] : data) as CopyLink | null | undefined;
+  const sourceId = row && typeof row.source_id === "string" ? row.source_id : null;
+  return { sourceId, unavailable: !sourceId && row?.unavailable === true };
+}
+
+/**
+ * Owner-only rename of a row this request just created. On failure the new
+ * deck is deleted so a rejected name never leaves a deck behind. Visibility,
+ * owner, and the fork/copy links stay whatever the RPC set.
+ */
+async function renameOwnedDeck(
+  client: Client,
+  userId: string,
+  deckId: string,
+  name: string,
+  op: string,
+  failure: string,
+) {
+  const { data: rows, error } = await client
+    .from("decks")
+    .update({ name })
+    .eq("id", deckId)
+    .eq("owner_id", userId)
+    .select("id");
+  if (error || !rows?.length) {
+    await client.from("decks").delete().eq("id", deckId).eq("owner_id", userId);
+    const message = error?.message ?? "";
+    if (error?.code === "23514" && message.includes("decks_name_length")) {
+      throw new DataError(`Deck name must be at most ${LIMITS.deckName} characters`);
+    }
+    if (error) throw new SupabaseDataError(op, error.code);
+    throw new DataError(failure);
+  }
+}
+
 async function fetchDeck(client: Client, deckId: string): Promise<Deck | null> {
   if (!isUuid(deckId)) return null;
   const row = check(
@@ -511,6 +564,23 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const deck = await fetchDeck(client, deckId);
       if (!deck) return null;
       const [decorated] = await decorate(client, [deck], true, true);
+      const link = await copySourceLink(client, deck.id);
+      if (link.sourceId) {
+        const src = await fetchDeck(client, link.sourceId);
+        if (src) {
+          const owners = await loadProfiles(client, [src.ownerId]);
+          decorated.copiedFromId = src.id;
+          decorated.copiedFromDeck = { ...src, owner: owners.get(src.ownerId) };
+          decorated.copySourceUnavailable = false;
+        } else {
+          // The function said the source was visible, then it wasn't. Drop the id.
+          decorated.copiedFromId = null;
+          decorated.copySourceUnavailable = true;
+        }
+      } else if (link.unavailable) {
+        decorated.copiedFromId = null;
+        decorated.copySourceUnavailable = true;
+      }
       return decorated;
     },
 
@@ -520,9 +590,26 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         fetchDeck(client, sourceId),
         fetchDeck(client, branchId),
       ]);
-      if (!source || !branch || branch.forkedFromId !== source.id) return null;
+      if (!source || !branch) return null;
+      const link = await copySourceLink(client, branch.id);
+      const isFork = branch.forkedFromId === source.id;
+      // A copy compares against the deck it was copied from, which is not
+      // its parent. The id comes from copy_source_link(), so a hidden source
+      // never matches.
+      const isCopy = !branch.forkedFromId && link.sourceId === source.id;
+      if (!isFork && !isCopy) return null;
       const [s, b] = await decorate(client, [source, branch], true);
-      return { source: s, branch: b, canSetPreferred: Boolean(viewerId) && source.ownerId === viewerId };
+      if (isCopy) {
+        b.copiedFromId = source.id;
+        b.copiedFromDeck = { ...s, owner: s.owner };
+        b.copySourceUnavailable = false;
+      }
+      return {
+        source: s,
+        branch: b,
+        canSetPreferred: isFork && Boolean(viewerId) && source.ownerId === viewerId,
+        copy: isCopy,
+      };
     },
 
     async getDeckPermissions(viewerId, deckId) {
@@ -662,8 +749,9 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
     async deleteDeck(userId, deckId) {
       if (!isUuid(deckId)) throw new DataError("You cannot delete this deck");
       const client = await getClient();
-      // Cards and comments cascade; forks keep their cards and get
-      // forked_from_id = null (ON DELETE SET NULL), like local mode.
+      // Cards and comments cascade. Forks keep their cards and get
+      // forked_from_id = null; copies get copied_from_id = null
+      // (both ON DELETE SET NULL), like local mode.
       const rows = check(
         "decks delete",
         await client.from("decks").delete().eq("id", deckId).eq("owner_id", userId).select("id"),
@@ -775,23 +863,26 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       if (typeof data !== "string") throw new SupabaseDataError("fork_deck", "bad-result");
       if (forkName === undefined) return data;
 
-      // Owner-only rename of the row just created. Visibility, allow_forks,
-      // owner and forked_from_id stay whatever fork_deck() set (review F4).
-      const { data: rows, error: renameError } = await client
-        .from("decks")
-        .update({ name: forkName })
-        .eq("id", data)
-        .eq("owner_id", _userId)
-        .select("id");
-      if (renameError || !rows?.length) {
-        await client.from("decks").delete().eq("id", data).eq("owner_id", _userId);
-        const message = renameError?.message ?? "";
-        if (renameError?.code === "23514" && message.includes("decks_name_length")) {
-          throw new DataError(`Deck name must be at most ${LIMITS.deckName} characters`);
-        }
-        if (renameError) throw new SupabaseDataError("fork rename", renameError.code);
-        throw new DataError("Fork failed");
+      // Owner-only rename. Visibility, allow_forks, owner and forked_from_id
+      // stay whatever fork_deck() set (review F4). The trigger already
+      // pointed forked_from_id at the root.
+      await renameOwnedDeck(client, _userId, data, forkName, "fork rename", "Fork failed");
+      return data;
+    },
+
+    async copyDeck(_userId, deckId, name) {
+      const denied = "You are not allowed to copy this deck";
+      if (!isUuid(deckId)) throw new DataError(denied);
+      const copyName = name === undefined ? undefined : requireForkName(name);
+      const client = await getClient();
+      const { data, error } = await client.rpc("copy_deck", { source: deckId });
+      if (error) {
+        if (error.code === "42501" || error.code === "P0002") throw new DataError(denied);
+        throw new SupabaseDataError("copy_deck", error.code);
       }
+      if (typeof data !== "string") throw new SupabaseDataError("copy_deck", "bad-result");
+      if (copyName === undefined) return data;
+      await renameOwnedDeck(client, _userId, data, copyName, "copy rename", "Copy failed");
       return data;
     },
 

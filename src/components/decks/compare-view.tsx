@@ -23,11 +23,14 @@ export function CompareView({
   branch,
   isPreferred,
   canSetPreferred,
+  kind = "branch",
 }: {
   source: CompareSide;
   branch: CompareSide;
   isPreferred: boolean;
   canSetPreferred: boolean;
+  /** A copy uses the same layout; the right-hand side is the copy, not a branch. */
+  kind?: "branch" | "copy";
 }) {
   const diffs = compareDeckLists(source.cards, branch.cards);
   const summary = summarizeDiffs(diffs);
@@ -69,7 +72,7 @@ export function CompareView({
         </div>
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-            Branch
+            {kind === "copy" ? "Copy" : "Branch"}
           </p>
           <h2 className="font-display break-words text-xl font-semibold">{branch.name}</h2>
           <p className="mt-1 text-sm font-medium tabular-nums text-muted-foreground capitalize">
@@ -82,7 +85,7 @@ export function CompareView({
               variant="outline"
               render={<Link href={`/decks/${branch.id}`} />}
             >
-              Open branch
+              {kind === "copy" ? "Open copy" : "Open branch"}
             </Button>
             {canSetPreferred && (
               <Button
@@ -214,7 +217,7 @@ export function CompareView({
             <div className="grid grid-cols-[1fr_auto_auto] gap-2 bg-secondary/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <span>Card</span>
               <span>Source</span>
-              <span>Branch</span>
+              <span>{kind === "copy" ? "Copy" : "Branch"}</span>
             </div>
             <ul className="divide-y divide-border/70 bg-background/50">
               {changed.map((diff) => (

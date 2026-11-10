@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DataStore, LocalUser } from "@/lib/data/store";
 import type { CardInput } from "@/lib/data/types";
 import type { DeckCommander } from "@/lib/types";
-import { createMockClient, ok, pgError, type Call } from "./helpers/supabase-mock";
+import { answeringCopyLink, createMockClient, ok, pgError, type Call } from "./helpers/supabase-mock";
 
 // Deck colors in both repositories: cards must fit, narrowing never deletes,
 // and the commander's identity must fit (or sets the colors).
@@ -197,7 +197,7 @@ const cardRow = (card_name: string, color_identity: string[] | null, colors: str
   id: CARD, card_name, colors, color_identity, quantity: 2,
 });
 function supa(respond: (c: Call) => ReturnType<typeof ok> | undefined) {
-  const mock = createMockClient(respond);
+  const mock = createMockClient(answeringCopyLink(respond));
   return { repo: createSupabaseRepository(mock.factory), calls: mock.calls };
 }
 const is = (c: Call, table: string, op: Call["op"]) => c.table === table && c.op === op;

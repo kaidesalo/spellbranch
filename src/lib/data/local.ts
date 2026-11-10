@@ -79,9 +79,22 @@ function decorateDeck(
     deck.preferredBranchId && branches.some((b) => b.id === deck.preferredBranchId)
       ? deck.preferredBranchId
       : null;
+  // A copy's source id is only attached when the viewer can see that deck.
+  // Otherwise the payload says the source is unavailable and drops the id.
+  const rawCopyId = deck.copiedFromId ?? null;
+  const copySource = rawCopyId
+    ? store.decks.find((d) => d.id === rawCopyId)
+    : undefined;
+  const copiedFromDeck =
+    copySource && canViewDeck(store, copySource, viewerId)
+      ? { ...copySource, owner: ownerProfile(store, copySource.ownerId) }
+      : null;
 
   return {
     ...deck,
+    copiedFromId: copiedFromDeck ? rawCopyId : null,
+    copiedFromDeck,
+    copySourceUnavailable: Boolean(rawCopyId) && !copiedFromDeck,
     preferredBranchId,
     // Decks saved before the commander or colors features have no field at all.
     commander: deck.commander ?? null,
@@ -101,6 +114,39 @@ const byUpdatedDesc = (a: Deck, b: Deck) => b.updatedAt.localeCompare(a.updatedA
 /** The deck's colors as stored; null (no colors picked) for older decks. */
 function deckColors(deck: Deck): string[] | null {
   return Array.isArray(deck.colors) ? normalizeDeckColors(deck.colors) : null;
+}
+
+/** F4: a derivative of a public deck is friends-only and forkable; anything else starts private and locked. */
+function derivativeVisibility(source: Deck): { visibility: Deck["visibility"]; allowForks: boolean } {
+  return source.visibility === "public"
+    ? { visibility: "friends", allowForks: true }
+    : { visibility: "private", allowForks: false };
+}
+
+/**
+ * The original deck for a branch. A root (no forkedFromId) is its own root.
+ * A cycle is refused. A missing parent keeps the stored id, matching a
+ * forked_from_id that no longer has a row.
+ */
+function branchRootId(store: DataStore, source: Deck): string {
+  let current = source;
+  const seen = new Set<string>();
+  while (current.forkedFromId) {
+    if (seen.has(current.id)) throw new DataError("You are not allowed to fork this deck");
+    seen.add(current.id);
+    const parent = store.decks.find((d) => d.id === current.forkedFromId);
+    if (!parent) return current.forkedFromId;
+    if (!parent.forkedFromId) return parent.id;
+    current = parent;
+  }
+  return current.id;
+}
+
+function cloneCards(store: DataStore, fromId: string, toId: string, now: string) {
+  for (const card of store.deckCards.filter((c) => c.deckId === fromId)) {
+    const copy: DeckCard = { ...card, id: uuidv4(), deckId: toId, createdAt: now };
+    store.deckCards.push(copy);
+  }
 }
 
 function editableDeck(store: DataStore, deckId: string, userId: string, message: string): Deck {
@@ -167,12 +213,15 @@ export const localRepository: Repository = {
     if (!source || !branch) return null;
     if (!canViewDeck(store, source, viewerId)) return null;
     if (!canViewDeck(store, branch, viewerId)) return null;
-    if (branch.forkedFromId !== source.id) return null;
+    const isFork = branch.forkedFromId === source.id;
+    const isCopy = !branch.forkedFromId && (branch.copiedFromId ?? null) === source.id;
+    if (!isFork && !isCopy) return null;
 
     return {
       source: decorateDeck(store, source, viewerId),
       branch: decorateDeck(store, branch, viewerId),
-      canSetPreferred: canEditDeck(source, viewerId),
+      canSetPreferred: isFork && canEditDeck(source, viewerId),
+      copy: isCopy,
     };
   },
 
@@ -197,6 +246,7 @@ export const localRepository: Repository = {
         ...input,
         colors: input.colors ? normalizeDeckColors(input.colors) : null,
         forkedFromId: null,
+        copiedFromId: null,
         preferredBranchId: null,
         commander: null,
         createdAt: now,
@@ -268,6 +318,8 @@ export const localRepository: Repository = {
         if (d.preferredBranchId === deckId) d.preferredBranchId = null;
         // Keep orphaned forks but clear the source pointer.
         if (d.forkedFromId === deckId) d.forkedFromId = null;
+        // Copies lose the compare link when the source is deleted (SET NULL).
+        if (d.copiedFromId === deckId) d.copiedFromId = null;
       }
     });
   },
@@ -325,19 +377,20 @@ export const localRepository: Repository = {
       const forkName = name === undefined ? `${source.name} (branch)` : requireForkName(name);
       const now = new Date().toISOString();
       const newId = uuidv4();
-      // Same rule as fork_deck() in the database (review F4): a fork of a
-      // public deck is friends-only and forkable; a fork of a friends-only or
-      // private deck starts private and can't be forked further, so a fork
-      // never widens the source's audience.
+      // Same rule as fork_deck() in the database (review F4). The new row
+      // joins the original deck's branch list, not the deck that was clicked
+      // when that deck is itself a branch (010).
+      const { visibility, allowForks } = derivativeVisibility(source);
       store.decks.push({
         id: newId,
         ownerId: userId,
         name: forkName,
         format: source.format,
         notes: source.notes,
-        visibility: source.visibility === "public" ? "friends" : "private",
-        allowForks: source.visibility === "public",
-        forkedFromId: source.id,
+        visibility,
+        allowForks,
+        forkedFromId: branchRootId(store, source),
+        copiedFromId: null,
         preferredBranchId: null,
         // The commander and colors carry over like the cards (fork_deck() too).
         commander: source.commander ? { ...source.commander } : null,
@@ -345,10 +398,40 @@ export const localRepository: Repository = {
         createdAt: now,
         updatedAt: now,
       });
-      for (const card of store.deckCards.filter((c) => c.deckId === source.id)) {
-        const copy: DeckCard = { ...card, id: uuidv4(), deckId: newId, createdAt: now };
-        store.deckCards.push(copy);
+      cloneCards(store, source.id, newId, now);
+      return newId;
+    });
+  },
+
+  async copyDeck(userId, deckId, name) {
+    return updateStore((store) => {
+      const source = store.decks.find((d) => d.id === deckId);
+      if (!source || !canForkDeck(store, source, userId)) {
+        throw new DataError("You are not allowed to copy this deck");
       }
+      const copyName = name === undefined ? `${source.name} (copy)` : requireForkName(name);
+      const now = new Date().toISOString();
+      const newId = uuidv4();
+      // A copy is a new root. It keeps a source pointer for compare and does
+      // not join the source's branch list. Visibility matches fork_deck().
+      const { visibility, allowForks } = derivativeVisibility(source);
+      store.decks.push({
+        id: newId,
+        ownerId: userId,
+        name: copyName,
+        format: source.format,
+        notes: source.notes,
+        visibility,
+        allowForks,
+        forkedFromId: null,
+        copiedFromId: source.id,
+        preferredBranchId: null,
+        commander: source.commander ? { ...source.commander } : null,
+        colors: deckColors(source),
+        createdAt: now,
+        updatedAt: now,
+      });
+      cloneCards(store, source.id, newId, now);
       return newId;
     });
   },

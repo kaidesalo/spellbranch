@@ -8,16 +8,28 @@ import { LIMITS } from "@/lib/data/limits";
  */
 export const BRANCH_NAME_SUFFIX = " (branch)";
 
+/** What copy_deck() and the local adapter append when no name is given. */
+export const COPY_NAME_SUFFIX = " (copy)";
+
 /**
  * "<source> (branch)", shortened from the source name so the result fits
  * decks.name (1–80). fork_deck() itself does not shorten: a source name that
  * already uses the whole limit still fails inside the database function.
  */
 export function defaultBranchName(sourceName: string): string {
-  const full = `${sourceName}${BRANCH_NAME_SUFFIX}`;
+  return nameWithSuffix(sourceName, BRANCH_NAME_SUFFIX);
+}
+
+/** "<source> (copy)", shortened so the result fits decks.name (1–80). */
+export function defaultCopyName(sourceName: string): string {
+  return nameWithSuffix(sourceName, COPY_NAME_SUFFIX);
+}
+
+function nameWithSuffix(sourceName: string, suffix: string): string {
+  const full = `${sourceName}${suffix}`;
   if (full.length <= LIMITS.deckName) return full;
-  const room = Math.max(0, LIMITS.deckName - BRANCH_NAME_SUFFIX.length);
-  return `${sourceName.slice(0, room)}${BRANCH_NAME_SUFFIX}`;
+  const room = Math.max(0, LIMITS.deckName - suffix.length);
+  return `${sourceName.slice(0, room)}${suffix}`;
 }
 
 /** A message safe to show the user, or null when the trimmed name is usable. */

@@ -64,6 +64,9 @@ describe("data layer source rules", () => {
     expect(text.match(/from\("profiles"\)/g)).toHaveLength(1);
     expect(text).toMatch(/from\("public_profiles"\)/);
     expect(text).toMatch(/rpc\("fork_deck"/);
+    expect(text).toMatch(/rpc\("copy_deck"/);
+    expect(text).toMatch(/rpc\("copy_source_link"/);
     expect(text).toMatch(/rpc\("find_profile"/);
+    expect(text).not.toMatch(/copied_from_id/);
   });
 });
