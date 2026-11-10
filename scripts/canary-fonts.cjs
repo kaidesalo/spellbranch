@@ -17,13 +17,9 @@ function face(family, weights) {
 `;
 }
 
-function faces(family, weights) {
-  return weights.map((weight) => face(family, weight)).join("");
-}
-
 module.exports = {
-  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap":
-    faces("Inter", ["400", "500", "600"]),
+  "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap":
+    face("Inter", "100 900"),
   "https://fonts.googleapis.com/css2?family=Cinzel:wght@600&display=swap":
     face("Cinzel", "600"),
   "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap":

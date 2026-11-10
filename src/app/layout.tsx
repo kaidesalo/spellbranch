@@ -5,11 +5,13 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { getSessionUser } from "@/lib/auth/session";
 import "./globals.css";
 
-// UI, card text, and counts. Static cuts for the weights the type table uses.
+// UI, card text, and counts. Inter is a variable font, so 400/500/600 come
+// from font-weight. A weight array makes Google Fonts sometimes answer with
+// extensionless /l/font?kit= URLs, and Next 16.4.2 fails the production build
+// on those (`next/font/google queries have exactly one entry`).
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 // Wordmark and deck titles only. 600 is a real Cinzel cut, not a synthesized bold.
