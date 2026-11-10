@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Import, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
 import { listFriendBranchesOnMyDecks, listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,16 @@ export default async function DecksPage() {
             Your lists, forks, and decks shared with friends.
           </p>
         </div>
-        <Button className="self-start sm:self-auto" render={<Link href="/decks/new" />}>
-          <Plus data-icon="inline-start" />
-          New deck
-        </Button>
+        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+          <Button variant="outline" render={<Link href="/decks/import" />}>
+            <Import data-icon="inline-start" />
+            Import
+          </Button>
+          <Button render={<Link href="/decks/new" />}>
+            <Plus data-icon="inline-start" />
+            New deck
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="mine" className="mt-8 min-w-0">
@@ -44,9 +50,11 @@ export default async function DecksPage() {
           {mine.length === 0 ? (
             <Empty
               title="No decks yet"
-              body="Create a deck to start searching Scryfall and building a list."
+              body="Create a deck, or import a list you already built on Moxfield or Archidekt."
               href="/decks/new"
               cta="Create deck"
+              secondaryHref="/decks/import"
+              secondaryCta="Import a list"
             />
           ) : (
             <Grid decks={mine} />
@@ -137,21 +145,32 @@ function Empty({
   body,
   href,
   cta,
+  secondaryHref,
+  secondaryCta,
 }: {
   title: string;
   body: string;
   href?: string;
   cta?: string;
+  secondaryHref?: string;
+  secondaryCta?: string;
 }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-12 text-center">
       <p className="font-medium">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-      {href && cta && (
-        <Button className="mt-4" render={<Link href={href} />}>
-          {cta}
-        </Button>
-      )}
+      {(href && cta) || (secondaryHref && secondaryCta) ? (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {href && cta && (
+            <Button render={<Link href={href} />}>{cta}</Button>
+          )}
+          {secondaryHref && secondaryCta && (
+            <Button variant="outline" render={<Link href={secondaryHref} />}>
+              {secondaryCta}
+            </Button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

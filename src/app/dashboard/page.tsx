@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GitBranch, Layers3, Plus, Users } from "lucide-react";
+import { GitBranch, Import, Layers3, Plus, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
 import { listFriendBranchesOnMyDecks, listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
 import { getFriendsData } from "@/lib/queries/friends";
@@ -32,10 +32,16 @@ export default async function DashboardPage() {
             Your decks, branches, and friend activity in one place.
           </p>
         </div>
-        <Button className="self-start sm:self-auto" render={<Link href="/decks/new" />}>
-          <Plus data-icon="inline-start" />
-          New deck
-        </Button>
+        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+          <Button variant="outline" render={<Link href="/decks/import" />}>
+            <Import data-icon="inline-start" />
+            Import
+          </Button>
+          <Button render={<Link href="/decks/new" />}>
+            <Plus data-icon="inline-start" />
+            New deck
+          </Button>
+        </div>
       </div>
 
       {usernameNotice && (
@@ -83,11 +89,14 @@ export default async function DashboardPage() {
           <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-12 text-center">
             <p className="font-medium">No decks yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create your first list and start searching Scryfall.
+              Create your first list, or import one from Moxfield or Archidekt.
             </p>
-            <Button className="mt-4" render={<Link href="/decks/new" />}>
-              Create a deck
-            </Button>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <Button render={<Link href="/decks/new" />}>Create a deck</Button>
+              <Button variant="outline" render={<Link href="/decks/import" />}>
+                Import a list
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

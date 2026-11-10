@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GitCompareArrows, Settings2 } from "lucide-react";
+import { ExportDeckButton } from "@/components/decks/export-deck-button";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
@@ -108,6 +109,14 @@ export default async function DeckDetailPage({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+          <ExportDeckButton
+            deckName={deck.name}
+            commanderName={commander?.cardName ?? null}
+            cards={(deck.cards ?? []).map((card) => ({
+              cardName: card.cardName,
+              quantity: card.quantity,
+            }))}
+          />
           {canEdit && (
             <Button
               variant="outline"

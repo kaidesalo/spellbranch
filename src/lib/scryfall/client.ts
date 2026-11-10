@@ -1,3 +1,5 @@
+import { cardLookupKey } from "@/lib/decklist/names";
+
 export interface ScryfallCard {
   id: string;
   name: string;
@@ -223,5 +225,90 @@ export async function getScryfallCard(
       throw new ScryfallLookupError("timeout", "Scryfall card lookup timed out");
     }
     throw new ScryfallLookupError("unavailable", "Scryfall card lookup failed");
+  }
+}
+
+/**
+ * How many names one Scryfall collection request accepts. Above this we
+ * send another request after SCRYFALL_COLLECTION_GAP_MS.
+ */
+export const SCRYFALL_COLLECTION_LIMIT = 75;
+/** One collection body is many cards; still bounded (Cipher-style cap). */
+export const SCRYFALL_COLLECTION_MAX_BYTES = 2_000_000;
+export const SCRYFALL_COLLECTION_TIMEOUT_MS = 8_000;
+/** Scryfall asks for a short pause between requests. */
+export const SCRYFALL_COLLECTION_GAP_MS = 100;
+/**
+ * Backstop so a caller can't turn one action into an unbounded Scryfall
+ * fan-out. Deck import refuses a longer list before it calls this.
+ */
+export const SCRYFALL_NAME_LOOKUP_MAX = 500;
+
+/**
+ * Exact card names, via Scryfall's collection endpoint (batches of 75).
+ * Returns one entry per found card. A name Scryfall doesn't know is simply
+ * absent — callers match on the card name (and double-faced face names).
+ *
+ * Sandbox: only https://api.scryfall.com/cards/collection. Timeout, body
+ * cap, `redirect: "error"` (no hop to another host), `credentials: "omit"`
+ * (no cookies). No other host is contacted. Deck-site URLs are not fetched
+ * here or anywhere else.
+ */
+export async function getScryfallCardsByName(
+  names: readonly string[],
+  opts: { timeoutMs?: number; maxBytes?: number; gapMs?: number } = {},
+): Promise<ScryfallCard[]> {
+  const timeoutMs = opts.timeoutMs ?? SCRYFALL_COLLECTION_TIMEOUT_MS;
+  const maxBytes = opts.maxBytes ?? SCRYFALL_COLLECTION_MAX_BYTES;
+  const gapMs = opts.gapMs ?? SCRYFALL_COLLECTION_GAP_MS;
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (typeof name !== "string") continue;
+    const key = cardLookupKey(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(name.trim());
+  }
+  if (unique.length > SCRYFALL_NAME_LOOKUP_MAX) {
+    throw new ScryfallLookupError("unavailable", "Too many card names");
+  }
+  const found: ScryfallCard[] = [];
+  for (let i = 0; i < unique.length; i += SCRYFALL_COLLECTION_LIMIT) {
+    if (i > 0 && gapMs > 0) await new Promise((resolve) => setTimeout(resolve, gapMs));
+    const chunk = unique.slice(i, i + SCRYFALL_COLLECTION_LIMIT);
+    found.push(...(await fetchCollection(chunk, timeoutMs, maxBytes)));
+  }
+  return found;
+}
+
+async function fetchCollection(
+  names: string[],
+  timeoutMs: number,
+  maxBytes: number,
+): Promise<ScryfallCard[]> {
+  try {
+    const res = await fetch("https://api.scryfall.com/cards/collection", {
+      method: "POST",
+      headers: { ...SCRYFALL_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({ identifiers: names.map((name) => ({ name })) }),
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new ScryfallLookupError("unavailable", `Scryfall collection lookup failed (${res.status})`);
+    }
+    const body = JSON.parse(await readCapped(res, maxBytes)) as { data?: ScryfallCard[] };
+    return Array.isArray(body.data) ? body.data : [];
+  } catch (err) {
+    if (err instanceof ScryfallLookupError) throw err;
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new ScryfallLookupError("timeout", "Scryfall collection lookup timed out");
+    }
+    throw new ScryfallLookupError("unavailable", "Scryfall collection lookup failed");
   }
 }
