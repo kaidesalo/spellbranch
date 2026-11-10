@@ -5,7 +5,7 @@ import { ExportDeckButton } from "@/components/decks/export-deck-button";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
-import { visibilityLabel } from "@/lib/permissions";
+import { ORIGINAL_DECK_FORKS_LOCKED, visibilityLabel } from "@/lib/permissions";
 import { branchSwitcherModel } from "@/lib/branch-switcher";
 import { defaultBranchName, defaultCopyName } from "@/lib/fork-name";
 import { Badge } from "@/components/ui/badge";
@@ -31,10 +31,19 @@ export default async function DeckDetailPage({
   if (!deck) notFound();
 
   const user = await getSessionUser();
-  const [{ canEdit, canFork, canComment }, comments] = await Promise.all([
+  const [{ canEdit, canFork, canCopy, canComment }, comments] = await Promise.all([
     getDeckPermissions(id),
     listComments(id),
   ]);
+  // The branch itself would allow a fork, but the original deck has forks
+  // turned off. The source row is only present when this viewer can see it.
+  const rootForkLocked = Boolean(
+    user &&
+      deck.sourceDeck &&
+      !deck.sourceDeck.allowForks &&
+      deck.sourceDeck.ownerId !== user.id &&
+      (deck.ownerId === user.id || deck.allowForks),
+  );
 
   // Only branches the viewer can see are in deck.branches. If the preferred
   // branch isn't one of them, fall back to the first visible branch (or no
@@ -199,10 +208,13 @@ export default async function DeckDetailPage({
               <span className="hidden sm:inline">Compare branch</span>
             </Button>
           )}
-          {canFork && user && (
+          {canFork && user && !rootForkLocked && (
             <ForkDeckForm deckId={deck.id} defaultName={defaultBranchName(deck.name)} />
           )}
-          {canFork && user && (
+          {rootForkLocked && (
+            <p className="w-full text-sm text-muted-foreground sm:w-auto">{ORIGINAL_DECK_FORKS_LOCKED}</p>
+          )}
+          {canCopy && user && (
             <CopyDeckForm deckId={deck.id} defaultName={defaultCopyName(deck.name)} />
           )}
         </div>

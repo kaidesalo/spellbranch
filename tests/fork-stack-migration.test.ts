@@ -31,6 +31,9 @@ describe("migration 010", () => {
     expect(trigger).toMatch(/src\.owner_id = caller or \(src\.allow_forks and public\.can_view_deck/);
     expect(trigger).toMatch(/new\.forked_from_id := root/);
     expect(trigger).toMatch(/You are not allowed to fork this deck/);
+    expect(trigger).toMatch(/The original deck does not allow forks/);
+    expect(trigger).toMatch(/spellbranch_root_forks_locked/);
+    expect(trigger).not.toMatch(/select \* into/);
     const fork = sliceBetween("function public.fork_deck(source uuid)", "function public.copy_deck");
     expect(fork).toMatch(/security invoker/);
     expect(fork).not.toMatch(/security definer/);
@@ -40,10 +43,13 @@ describe("migration 010", () => {
   });
 
   it("hides copied_from_id from API roles and returns it only when both decks are visible", () => {
-    expect(sql).toMatch(
-      /revoke select \(copied_from_id\) on public\.decks from public, anon, authenticated/,
-    );
-    const link = sliceBetween("function public.copy_source_link(target uuid)", "The column stays writable");
+    expect(sql).toMatch(/revoke select on table public\.decks from public, anon, authenticated/);
+    expect(sql).toMatch(/grant select \(/);
+    const grant = sliceBetween("grant select (", ") on table public.decks to anon, authenticated");
+    expect(grant).not.toMatch(/copied_from_id/);
+    expect(grant).toMatch(/\bid\b/);
+    expect(grant).toMatch(/\bcolors\b/);
+    const link = sliceBetween("function public.copy_source_link(target uuid)", "revoke select on table");
     expect(link).toMatch(/security definer/);
     expect(link).toMatch(/set search_path = ''/);
     expect(link).toMatch(/not public\.can_view_deck\(deck, viewer\)/);
@@ -55,8 +61,11 @@ describe("migration 010", () => {
     expect(sql).toMatch(/grant execute on function public\.copy_deck\(uuid\) to authenticated/);
   });
 
-  it("does not change deck-name length limits", () => {
+  it("does not change the deck-name length constraint, and shortens the copy default", () => {
     expect(sql).not.toMatch(/decks_name_length/);
-    expect(sql).not.toMatch(/char_length\(name\)/);
+    expect(sql).toMatch(/left\(src\.name, 80 - char_length\(' \(copy\)'\)\)/);
+    expect(sql).toMatch(/^begin;/m);
+    expect(sql).toMatch(/^commit;/m);
+    expect(sql).toMatch(/Re-run 010 after any re-run of 002/);
   });
 });

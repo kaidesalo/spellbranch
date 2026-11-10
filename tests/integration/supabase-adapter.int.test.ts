@@ -245,7 +245,9 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
     expect(await dataError(cat().addComment(CAT, priv, "hi"))).toBe("You cannot comment on this deck");
     expect(await cat().getDeck(CAT, priv)).toBeNull();
     expect(await dataError(cat().forkDeck(CAT, priv))).toBe("You are not allowed to fork this deck");
-    expect(await cat().getDeckPermissions(CAT, priv)).toEqual({ canEdit: false, canFork: false, canComment: false });
+    expect(await cat().getDeckPermissions(CAT, priv)).toEqual({
+      canEdit: false, canFork: false, canCopy: false, canComment: false,
+    });
     await ann().deleteDeck(ANN, priv);
   });
 

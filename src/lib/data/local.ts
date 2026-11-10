@@ -21,6 +21,7 @@ import {
 import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, scryfallImageOrNull } from "@/lib/data/validation";
 import {
+  ORIGINAL_DECK_FORKS_LOCKED,
   areFriends,
   canCommentOnDeck,
   canEditDeck,
@@ -28,7 +29,7 @@ import {
   canViewDeck,
 } from "@/lib/permissions";
 import { toPublicProfile } from "@/lib/data/profiles";
-import { requireForkName } from "@/lib/fork-name";
+import { defaultCopyName, requireForkName } from "@/lib/fork-name";
 import type { Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
 
 /**
@@ -142,6 +143,23 @@ function branchRootId(store: DataStore, source: Deck): string {
   return current.id;
 }
 
+/**
+ * A new fork has to be allowed on the original deck, not only on the branch
+ * that was clicked. "hidden" and "locked" are different answers: a root the
+ * caller cannot see gets the same refusal as any other forbidden fork.
+ */
+function rootForkBlock(
+  store: DataStore,
+  source: Deck,
+  userId: string,
+): "ok" | "hidden" | "locked" {
+  const rootId = branchRootId(store, source);
+  const root = store.decks.find((d) => d.id === rootId);
+  if (!root || !canViewDeck(store, root, userId)) return "hidden";
+  if (root.ownerId !== userId && !root.allowForks) return "locked";
+  return "ok";
+}
+
 function cloneCards(store: DataStore, fromId: string, toId: string, now: string) {
   for (const card of store.deckCards.filter((c) => c.deckId === fromId)) {
     const copy: DeckCard = { ...card, id: uuidv4(), deckId: toId, createdAt: now };
@@ -228,10 +246,15 @@ export const localRepository: Repository = {
   async getDeckPermissions(viewerId, deckId) {
     const store = await readStore();
     const deck = store.decks.find((d) => d.id === deckId);
-    if (!deck) return { canEdit: false, canFork: false, canComment: false };
+    if (!deck) return { canEdit: false, canFork: false, canCopy: false, canComment: false };
+    const canCopy = canForkDeck(store, deck, viewerId);
+    const canFork =
+      canCopy &&
+      (!deck.forkedFromId || !viewerId || rootForkBlock(store, deck, viewerId) === "ok");
     return {
       canEdit: canEditDeck(deck, viewerId),
-      canFork: canForkDeck(store, deck, viewerId),
+      canFork,
+      canCopy,
       canComment: canCommentOnDeck(store, deck, viewerId),
     };
   },
@@ -372,6 +395,14 @@ export const localRepository: Repository = {
       if (!source || !canForkDeck(store, source, userId)) {
         throw new DataError("You are not allowed to fork this deck");
       }
+      // The original deck can refuse forks even when this branch still
+      // allows them. Checked before the name so a bad name cannot confirm
+      // that a hidden root exists.
+      if (source.forkedFromId) {
+        const block = rootForkBlock(store, source, userId);
+        if (block === "locked") throw new DataError(ORIGINAL_DECK_FORKS_LOCKED);
+        if (block !== "ok") throw new DataError("You are not allowed to fork this deck");
+      }
       // Checked after the permission test so a bad name can't confirm that a
       // hidden deck exists. Omitted: the same suffix fork_deck() writes.
       const forkName = name === undefined ? `${source.name} (branch)` : requireForkName(name);
@@ -409,7 +440,7 @@ export const localRepository: Repository = {
       if (!source || !canForkDeck(store, source, userId)) {
         throw new DataError("You are not allowed to copy this deck");
       }
-      const copyName = name === undefined ? `${source.name} (copy)` : requireForkName(name);
+      const copyName = name === undefined ? defaultCopyName(source.name) : requireForkName(name);
       const now = new Date().toISOString();
       const newId = uuidv4();
       // A copy is a new root. It keeps a source pointer for compare and does

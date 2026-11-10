@@ -86,7 +86,14 @@ export interface CompareData {
 
 export interface DeckPermissions {
   canEdit: boolean;
+  /**
+   * Fork is allowed: the caller may fork this deck, and, when it is a
+   * branch, they may also fork the original deck (they can see it, and they
+   * own it or it still allows forks).
+   */
   canFork: boolean;
+  /** Copy uses only this deck's own rule (owner, or allow_forks and visible). */
+  canCopy: boolean;
   canComment: boolean;
 }
 
