@@ -39,8 +39,8 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
           <Image
             src="/spellbranch-logo.png"
             alt="Spellbranch"
-            width={1964}
-            height={452}
+            width={1958}
+            height={449}
             priority
             unoptimized
             className="h-8 w-auto max-w-[46vw] sm:h-10 sm:max-w-[220px]"
