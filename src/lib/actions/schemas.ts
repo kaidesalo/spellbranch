@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LIMITS } from "@/lib/data/limits";
 import { colorsFromKey } from "@/lib/deck-colors";
+import { DECKLIST_MAX_CHARS } from "@/lib/decklist/parse";
 import { isUuid } from "@/lib/data/validation";
 import { MAX_CARD_QUANTITY, clampQuantity } from "@/lib/deck-quantity";
 
@@ -54,6 +55,27 @@ export const deckSchema = z.object({
  * card from Scryfall itself (cardFromScryfall), so anything else the client
  * sends (name, text, colors, identity) is ignored.
  */
+/**
+ * A pasted Moxfield / Archidekt list. Colors are not accepted from the
+ * client: import derives them from the Scryfall identities of the cards it
+ * keeps, so a forged color list can't sneak a card in.
+ */
+export const importDeckSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Deck name is required")
+    .max(LIMITS.deckName, `Deck name must be at most ${LIMITS.deckName} characters`),
+  format: z.enum(["commander", "standard", "modern", "pioneer", "legacy", "pauper", "casual"]),
+  visibility: z.enum(["private", "friends", "public"]),
+  allowForks: z.boolean(),
+  list: z
+    .string()
+    .trim()
+    .min(1, "Paste a deck list.")
+    .max(DECKLIST_MAX_CHARS, "That list is too long to import."),
+});
+
 export const addCardSchema = z.object({
   scryfallId: idSchema,
   quantity: z.number().int().min(1).max(99).optional().default(1),

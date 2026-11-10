@@ -168,6 +168,14 @@ describe("policies", () => {
     expect(retryAfterFor("card-lookup")).toBe(600);
   });
 
+  it("limits deck imports per IP and per user", () => {
+    expect(POLICIES["deck-import"]).toEqual([
+      { by: "ip", limit: 20, windowSec: 600 },
+      { by: "user", limit: 10, windowSec: 600 },
+    ]);
+    expect(retryAfterFor("deck-import")).toBe(600);
+  });
+
   it("retry-after is the policy's longest window", () => {
     expect(retryAfterFor("sign-in")).toBe(3600);
     expect(retryAfterFor("confirm")).toBe(300);
