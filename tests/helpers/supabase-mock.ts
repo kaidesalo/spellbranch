@@ -46,7 +46,7 @@ export function answeringCopyLink(respond: Responder): Responder {
   return (call) => {
     const reply = respond(call);
     if (reply) return reply;
-    if (call.fn === "copy_source_link") return ok([]);
+    if (call.fn === "copy_source_link" || call.fn === "copy_links_for_deck") return ok([]);
     return undefined;
   };
 }

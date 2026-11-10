@@ -25,6 +25,7 @@ import { requireForkName } from "@/lib/fork-name";
 import { ORIGINAL_DECK_FORKS_LOCKED } from "@/lib/permissions";
 import type {
   Comment,
+  CopyLink,
   Deck,
   DeckCard,
   DeckCommander,
@@ -382,19 +383,50 @@ async function decorate(
   });
 }
 
-type CopyLink = { source_id?: string | null; unavailable?: boolean };
+type CopySourceRow = { source_id?: string | null; unavailable?: boolean };
 
 /**
  * The source of a copy, under copy_source_link() (migration 010). A missing
  * function or a bad payload is an error: the app must not guess an id.
  */
+type CopyLinkRow = {
+  other_id?: string;
+  other_name?: string;
+  other_owner_id?: string;
+  other_username?: string | null;
+  link_role?: string;
+  other_visible?: boolean;
+};
+
+/** Owner-only copy cross-links. Empty when the caller is not one of the two owners. */
+async function copyLinksForDeck(client: Client, deckId: string): Promise<CopyLink[]> {
+  const { data, error } = await client.rpc("copy_links_for_deck", { target: deckId });
+  if (error) throw new SupabaseDataError("copy_links_for_deck", error.code);
+  const rows = (Array.isArray(data) ? data : data ? [data] : []) as CopyLinkRow[];
+  const links: CopyLink[] = [];
+  for (const row of rows) {
+    if (typeof row.other_id !== "string" || typeof row.other_name !== "string") continue;
+    if (row.link_role !== "copy" && row.link_role !== "original") continue;
+    if (typeof row.other_owner_id !== "string") continue;
+    links.push({
+      id: row.other_id,
+      name: row.other_name,
+      ownerId: row.other_owner_id,
+      username: typeof row.other_username === "string" ? row.other_username : null,
+      role: row.link_role,
+      visible: row.other_visible === true,
+    });
+  }
+  return links;
+}
+
 async function copySourceLink(
   client: Client,
   deckId: string,
 ): Promise<{ sourceId: string | null; unavailable: boolean }> {
   const { data, error } = await client.rpc("copy_source_link", { target: deckId });
   if (error) throw new SupabaseDataError("copy_source_link", error.code);
-  const row = (Array.isArray(data) ? data[0] : data) as CopyLink | null | undefined;
+  const row = (Array.isArray(data) ? data[0] : data) as CopySourceRow | null | undefined;
   const sourceId = row && typeof row.source_id === "string" ? row.source_id : null;
   return { sourceId, unavailable: !sourceId && row?.unavailable === true };
 }
@@ -560,11 +592,15 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       return decks.sort(byUpdatedDesc);
     },
 
-    async getDeck(_viewerId, deckId) {
+    async getDeck(viewerId, deckId) {
       const client = await getClient();
       const deck = await fetchDeck(client, deckId);
       if (!deck) return null;
       const [decorated] = await decorate(client, [deck], true, true);
+      if (viewerId) {
+        const copyLinks = await copyLinksForDeck(client, deck.id);
+        if (copyLinks.length > 0) decorated.copyLinks = copyLinks;
+      }
       const link = await copySourceLink(client, deck.id);
       if (link.sourceId) {
         const src = await fetchDeck(client, link.sourceId);

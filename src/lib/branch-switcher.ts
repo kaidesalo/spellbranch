@@ -9,10 +9,16 @@ export type BranchOption = {
   id: string;
   name: string;
   username: string | null;
-  role: "source" | "branch";
+  role: "source" | "branch" | "copy" | "original";
   preferred: boolean;
   /** Compare this branch to the source. Null for the source row, and for every row when the source is hidden. */
   diffHref: string | null;
+  /**
+   * Deck page for this row. Undefined uses `/decks/${id}`. Null means the
+   * viewer may see the name and handle but not open the deck (its cards
+   * stay hidden).
+   */
+  openHref?: string | null;
 };
 
 export type BranchSwitcherModel = {
@@ -38,6 +44,13 @@ export type BranchSwitcherDeck = {
   sourceDeck?: SourceLike | null;
   branches?: Named[];
   sourceBranches?: Named[];
+  copyLinks?: Array<{
+    id: string;
+    name: string;
+    username: string | null;
+    role: "copy" | "original";
+    visible: boolean;
+  }>;
 };
 
 function compareHref(sourceId: string, branchId: string): string {
@@ -47,7 +60,8 @@ function compareHref(sourceId: string, branchId: string): string {
 export function branchSwitcherModel(deck: BranchSwitcherDeck): BranchSwitcherModel | null {
   const isFork = Boolean(deck.forkedFromId);
   const branches = (isFork ? deck.sourceBranches : deck.branches) ?? [];
-  if (!isFork && branches.length === 0) return null;
+  const copyLinks = deck.copyLinks ?? [];
+  if (!isFork && branches.length === 0 && copyLinks.length === 0) return null;
 
   const source: SourceLike | null = isFork
     ? (deck.sourceDeck ?? null)
@@ -57,7 +71,7 @@ export function branchSwitcherModel(deck: BranchSwitcherDeck): BranchSwitcherMod
         preferredBranchId: deck.preferredBranchId,
         owner: deck.owner,
       };
-  if (isFork && !source && branches.length === 0) return null;
+  if (isFork && !source && branches.length === 0 && copyLinks.length === 0) return null;
 
   const sourceId = source?.id ?? null;
   const visiblePreferred =
@@ -88,6 +102,29 @@ export function branchSwitcherModel(deck: BranchSwitcherDeck): BranchSwitcherMod
       role: "branch",
       preferred: branch.id === visiblePreferred,
       diffHref: sourceId ? compareHref(sourceId, branch.id) : null,
+    });
+  }
+
+  const linked = [...copyLinks].sort(
+    (a, b) =>
+      (a.role === b.role ? 0 : a.role === "original" ? -1 : 1) ||
+      a.name.localeCompare(b.name, "en") ||
+      a.id.localeCompare(b.id),
+  );
+  for (const link of linked) {
+    options.push({
+      id: link.id,
+      name: link.name,
+      username: link.username,
+      role: link.role,
+      preferred: false,
+      // Compare only when the other deck's cards are already visible.
+      diffHref: link.visible
+        ? link.role === "copy"
+          ? compareHref(deck.id, link.id)
+          : compareHref(link.id, deck.id)
+        : null,
+      openHref: link.visible ? `/decks/${link.id}` : null,
     });
   }
 

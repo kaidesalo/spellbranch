@@ -115,4 +115,39 @@ describe("branchSwitcherModel", () => {
     expect(JSON.stringify(model)).not.toContain("source");
     expect(JSON.stringify(model)).not.toContain("compare");
   });
+
+  it("shows a copy on the source owner's branch list and the original on the copier's", () => {
+    const onSource = branchSwitcherModel(deck({
+      branches: [branch],
+      copyLinks: [{
+        id: "copy",
+        name: "Wretched Ranks (copy)",
+        username: "carol_u",
+        role: "copy",
+        visible: false,
+      }],
+    }));
+    expect(onSource?.options.map((o) => [o.id, o.role, o.openHref === undefined ? "default" : o.openHref, o.diffHref])).toEqual([
+      ["source", "source", "default", null],
+      ["fork", "branch", "default", "/decks/source/compare?branch=fork"],
+      ["copy", "copy", null, null],
+    ]);
+
+    const onCopy = branchSwitcherModel(deck({
+      id: "copy",
+      name: "Wretched Ranks (copy)",
+      owner: { username: "carol_u" },
+      copyLinks: [{
+        id: "source",
+        name: "Wretched Ranks",
+        username: "kaide",
+        role: "original",
+        visible: true,
+      }],
+    }));
+    expect(onCopy?.options.map((o) => [o.id, o.role, o.openHref, o.diffHref])).toEqual([
+      ["copy", "source", undefined, null],
+      ["source", "original", "/decks/source", "/decks/source/compare?branch=copy"],
+    ]);
+  });
 });

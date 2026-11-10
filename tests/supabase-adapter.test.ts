@@ -294,6 +294,52 @@ describe("supabase adapter: decks", () => {
     expect(hidden.calls.filter((c) => isTable(c, "decks") && c.single)).toHaveLength(1);
   });
 
+  it("maps owner-only copy links and skips the RPC for a signed-out viewer", async () => {
+    const COPY = "d0000000-0000-4000-8000-000000000009";
+    const linked = repoWith((c) => {
+      if (c.fn === "copy_links_for_deck") {
+        return ok([{
+          other_id: COPY,
+          other_name: "Carol copy",
+          other_owner_id: BOB,
+          other_username: "bob_u",
+          link_role: "copy",
+          other_visible: false,
+          notes: "SECRET",
+        }]);
+      }
+      if (c.fn === "copy_source_link") return ok([]);
+      if (isTable(c, "decks") && c.single) return ok(deckRow());
+      if (isTable(c, "decks")) return ok([]);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([]);
+      return undefined;
+    });
+    const deck = await linked.repo.getDeck(ME, DECK);
+    expect(deck?.copyLinks).toEqual([{
+      id: COPY,
+      name: "Carol copy",
+      ownerId: BOB,
+      username: "bob_u",
+      role: "copy",
+      visible: false,
+    }]);
+    expect(JSON.stringify(deck?.copyLinks)).not.toContain("SECRET");
+
+    const anon = repoWith((c) => {
+      if (c.fn === "copy_links_for_deck") return ok([{ other_id: COPY, other_name: "x", other_owner_id: BOB, link_role: "copy", other_visible: true }]);
+      if (c.fn === "copy_source_link") return ok([]);
+      if (isTable(c, "decks") && c.single) return ok(deckRow({ visibility: "public" }));
+      if (isTable(c, "decks")) return ok([]);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([]);
+      return undefined;
+    });
+    const pub = await anon.repo.getDeck(null, DECK);
+    expect(pub?.copyLinks).toBeUndefined();
+    expect(anon.calls.some((c) => c.fn === "copy_links_for_deck")).toBe(false);
+  });
+
   it("getCompareData allows a copy of the source and still requires a real branch otherwise", async () => {
     const COPY = "d0000000-0000-4000-8000-000000000009";
     const copyRow = deckRow({ id: COPY, owner_id: ME, name: "My copy", forked_from_id: null });

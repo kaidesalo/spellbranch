@@ -30,7 +30,7 @@ import {
 } from "@/lib/permissions";
 import { toPublicProfile } from "@/lib/data/profiles";
 import { defaultCopyName, requireForkName } from "@/lib/fork-name";
-import type { Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
+import type { CopyLink, Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
 
 /**
  * Local JSON store backend (.data/store.json, dev/demo only). The pre-PR-3
@@ -90,6 +90,8 @@ function decorateDeck(
     copySource && canViewDeck(store, copySource, viewerId)
       ? { ...copySource, owner: ownerProfile(store, copySource.ownerId) }
       : null;
+  // Deck page only. List responses stay free of the cross-link.
+  const copyLinks = withSourceBranches ? copyLinksFor(store, deck, viewerId) : undefined;
 
   return {
     ...deck,
@@ -107,6 +109,49 @@ function decorateDeck(
     sourceDeck,
     branches,
     sourceBranches,
+    ...(copyLinks && copyLinks.length > 0 ? { copyLinks } : {}),
+  };
+}
+
+/**
+ * The other side of a copy, for the two owners only. Name and handle, not
+ * cards or notes. `visible` follows normal deck visibility.
+ */
+function copyLinksFor(store: DataStore, deck: Deck, viewerId: string | null): CopyLink[] {
+  if (!viewerId || !canViewDeck(store, deck, viewerId)) return [];
+  const links: CopyLink[] = [];
+  if (deck.copiedFromId) {
+    const source = store.decks.find((d) => d.id === deck.copiedFromId);
+    if (source && (viewerId === deck.ownerId || viewerId === source.ownerId)) {
+      links.push(copyLink(store, source, viewerId, "original"));
+    }
+  }
+  for (const copy of store.decks) {
+    if (copy.copiedFromId !== deck.id) continue;
+    if (viewerId !== deck.ownerId && viewerId !== copy.ownerId) continue;
+    links.push(copyLink(store, copy, viewerId, "copy"));
+  }
+  return links.sort(
+    (a, b) =>
+      (a.role === b.role ? 0 : a.role === "original" ? -1 : 1) ||
+      a.name.localeCompare(b.name, "en") ||
+      a.id.localeCompare(b.id),
+  );
+}
+
+function copyLink(
+  store: DataStore,
+  other: Deck,
+  viewerId: string,
+  role: CopyLink["role"],
+): CopyLink {
+  return {
+    id: other.id,
+    name: other.name,
+    ownerId: other.ownerId,
+    username: ownerProfile(store, other.ownerId)?.username ?? null,
+    role,
+    visible: canViewDeck(store, other, viewerId),
   };
 }
 
