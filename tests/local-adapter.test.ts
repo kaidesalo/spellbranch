@@ -419,6 +419,56 @@ describe("local adapter: fork names", () => {
     await rejectsWith(repo.forkDeck(BOB, secret, "   "), "You are not allowed to fork this deck");
     expect(db.decks).toHaveLength(1);
   });
+
+  it("stores the chosen name on the branch, and every viewer who can see it reads that name", async () => {
+    // The name is decks.name (one column), not a note kept for the forker.
+    // Visibility still decides who may read the row at all.
+    const befriend = async (a: string, b: string) => {
+      await repo.sendFriendRequest(a, b);
+      const f = db.friendships.find((x) => x.requesterId === a && x.addresseeId === b)!;
+      await repo.respondFriendRequest(b, f.id, true);
+    };
+    await befriend(ALICE, BOB);
+    await befriend(BOB, CAROL);
+
+    const source = await repo.createDeck(ALICE, {
+      name: "Live and Burn", format: "modern", notes: "shadow test", visibility: "public", allowForks: true,
+    });
+    const branch = await repo.forkDeck(BOB, source, "  Shadow test  ");
+    expect(db.decks.find((d) => d.id === branch)?.name).toBe("Shadow test");
+
+    const asAliceOnSource = await repo.getDeck(ALICE, source);
+    expect(asAliceOnSource?.branches?.map((b) => [b.id, b.name])).toEqual([[branch, "Shadow test"]]);
+    const asAliceOnBranch = await repo.getDeck(ALICE, branch);
+    expect(asAliceOnBranch?.name).toBe("Shadow test");
+    expect(asAliceOnBranch?.sourceDeck?.name).toBe("Live and Burn");
+    expect((await repo.listFriendBranchesOnMyDecks(ALICE)).map((d) => d.name)).toEqual(["Shadow test"]);
+    expect((await repo.getCompareData(ALICE, source, branch))?.branch.name).toBe("Shadow test");
+
+    // Bob's other friend sees the same stored name. A signed-out viewer does not:
+    // a fork of a public deck is friends-only.
+    const asCarol = await repo.getDeck(CAROL, branch);
+    expect(asCarol?.name).toBe("Shadow test");
+    expect(asCarol?.sourceDeck?.name).toBe("Live and Burn");
+    expect(asCarol?.sourceBranches?.map((b) => b.name)).toEqual(["Shadow test"]);
+    expect(await repo.getDeck(null, branch)).toBeNull();
+
+    // Forking the named branch: "Forked from" is the parent's stored name.
+    // That fork starts private, so only Carol and Bob (source owner, and her friend) see it.
+    const nested = await repo.forkDeck(CAROL, branch, "Carol take");
+    const asBobOnNested = await repo.getDeck(BOB, nested);
+    expect(asBobOnNested?.name).toBe("Carol take");
+    expect(asBobOnNested?.sourceDeck?.name).toBe("Shadow test");
+    expect((await repo.getDeck(BOB, branch))?.branches?.map((b) => b.name)).toEqual(["Carol take"]);
+    expect(await repo.getDeck(ALICE, nested)).toBeNull();
+    expect(JSON.stringify(await repo.getDeck(ALICE, source))).not.toMatch(/Carol take/);
+    expect(await repo.getDeck(null, nested)).toBeNull();
+
+    await repo.updateDeck(BOB, branch, {
+      name: "Shadow test", format: "modern", notes: "", visibility: "public", allowForks: true,
+    });
+    expect((await repo.getDeck(null, branch))?.name).toBe("Shadow test");
+  });
 });
 
 describe("local adapter: fork rules match fork_deck() (review F4)", () => {

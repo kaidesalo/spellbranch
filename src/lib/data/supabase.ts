@@ -49,7 +49,10 @@ import type {
  * - Forks go through rpc('fork_deck'); friend lookup through
  *   rpc('find_profile') (exact username, 0 or 1 rows). A caller-chosen
  *   branch name is a second UPDATE of that new row's name column only
- *   (fork_deck still names it "<source> (branch)").
+ *   (fork_deck still names it "<source> (branch)"). The decks SELECT
+ *   policy returns that column with the rest of the row, so every viewer
+ *   who can already see the branch reads the chosen name. Nothing here
+ *   keeps a second, forker-only copy.
  * - Deck inserts never send forked_from_id / preferred_branch_id:
  *   enforce_deck_links() rejects preferred_branch_id on API INSERTs, so a
  *   preferred branch is only ever set by a later UPDATE (setPreferredBranch).

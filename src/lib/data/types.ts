@@ -140,6 +140,10 @@ export interface Repository {
    * "<source> (branch)" — fork_deck() hardcodes that suffix, and the
    * Supabase adapter applies `name` with a follow-up owner UPDATE of the
    * name column only.
+   *
+   * That name is `decks.name`, the same column the header, the branch menu
+   * and "Forked from" read. It is not stored per viewer. Anyone the deck's
+   * visibility already allows sees it; anyone it doesn't, doesn't.
    */
   forkDeck(userId: string, deckId: string, name?: string): Promise<string>;
   setPreferredBranch(userId: string, sourceId: string, branchId: string | null): Promise<void>;
