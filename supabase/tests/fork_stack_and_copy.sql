@@ -8,14 +8,28 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(22); -- keep in sync with the select ok/is/throws_ok count below
+select plan(31); -- keep in sync with the select ok/is/throws_ok/lives_ok count below
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 
 select ok(
   not has_column_privilege('anon', 'public.decks', 'copied_from_id', 'SELECT')
-  and not has_column_privilege('authenticated', 'public.decks', 'copied_from_id', 'SELECT'),
-  'copied_from_id is not selectable by anon or authenticated');
+  and not has_column_privilege('authenticated', 'public.decks', 'copied_from_id', 'SELECT')
+  and not has_table_privilege('anon', 'public.decks', 'SELECT')
+  and not has_table_privilege('authenticated', 'public.decks', 'SELECT')
+  and has_column_privilege('anon', 'public.decks', 'name', 'SELECT')
+  and has_column_privilege('authenticated', 'public.decks', 'id', 'SELECT'),
+  'table SELECT is revoked; copied_from_id is hidden; other deck columns stay readable');
+select ok(
+  pg_get_functiondef('public.enforce_deck_links()'::regprocedure) ~ 'new.forked_from_id := root'
+  and pg_get_functiondef('public.enforce_deck_links()'::regprocedure) ~ 'spellbranch_root_forks_locked'
+  and pg_get_functiondef('public.enforce_deck_links()'::regprocedure) !~ 'select \* into'
+  and pg_get_triggerdef((
+    select oid from pg_trigger
+    where tgname = 'decks_enforce_links' and not tgisinternal
+      and tgrelid = 'public.decks'::regclass
+  )) ~ 'copied_from_id',
+  'enforce_deck_links is 010 (re-run 010 after re-running 002; the old trigger has no copied_from_id)');
 select ok(
   not has_function_privilege('anon', 'public.copy_deck(uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.copy_deck(uuid)', 'EXECUTE')
@@ -124,7 +138,7 @@ select is(
 select is(
   (select forked_from_id from public.decks where id = (select id from f_cat)),
   'e3100000-0000-4000-8000-000000000010'::uuid,
-  'fork of a fork: Cat''s branch points at the original deck, not at Ben''s');
+  'normal case: a visible root that allows forks accepts a fork of a fork');
 select is(
   (select count(*) from public.decks where forked_from_id = (select id from f_ben)),
   0::bigint,
@@ -169,13 +183,29 @@ set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002",
 select throws_ok(
   $$select copied_from_id from public.decks where id = (select id from f_copy)$$,
   '42501', null,
-  'the source column itself is not readable on a deck the caller owns');
+  'authenticated cannot select copied_from_id, even on their own copy');
+select throws_ok(
+  $$select * from public.decks where id = (select id from f_copy)$$,
+  '42501', null,
+  'authenticated cannot select * on decks (it includes copied_from_id)');
+select lives_ok(
+  $$select id, name from public.decks where id = (select id from f_copy)$$,
+  'authenticated can still read the other columns of their copy');
+select is(
+  (select name from public.decks where id = (select id from f_copy)),
+  'Live (copy)',
+  'a short source name keeps the (copy) suffix');
 
 reset role;
 set local "request.jwt.claims" = '';
-update public.decks set visibility = 'private', allow_forks = false
+update public.decks set visibility = 'private', allow_forks = true
   where id = 'e3100000-0000-4000-8000-000000000010';
 set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000003","role":"authenticated"}';
+select throws_ok(
+  format($$select public.fork_deck(%L)$$, (select id from f_ben)),
+  '42501', null,
+  'forking a branch whose root is private and not visible to the caller fails');
 set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002","role":"authenticated"}';
 select is(
   (select coalesce(source_id::text, 'null') || '/' || unavailable::text
@@ -195,6 +225,11 @@ update public.decks set visibility = 'public', allow_forks = false
 set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000003","role":"authenticated"}';
 select throws_ok(
+  format($$select public.fork_deck(%L)$$, (select id from f_ben)),
+  '42501',
+  'The original deck does not allow forks',
+  'forking a forkable branch whose root has allow_forks = false fails');
+select throws_ok(
   $$select public.copy_deck('e3100000-0000-4000-8000-000000000010')$$,
   '42501', null,
   'copying a visible deck that does not allow forks is refused');
@@ -202,12 +237,32 @@ select throws_ok(
 set local role anon;
 set local "request.jwt.claims" = '{"role":"anon"}';
 select throws_ok(
+  $$select copied_from_id from public.decks$$,
+  '42501', null,
+  'anon cannot select copied_from_id');
+select throws_ok(
+  $$select * from public.decks$$,
+  '42501', null,
+  'anon cannot select * on decks');
+select throws_ok(
   $$select public.copy_deck('e3100000-0000-4000-8000-000000000010')$$,
   '42501', null,
   'anon cannot call copy_deck()');
 
 reset role;
 set local "request.jwt.claims" = '';
+insert into public.decks (id, owner_id, name, format, notes, visibility, allow_forks, colors) values
+ ('e3100000-0000-4000-8000-000000000020','e3000000-0000-4000-8000-000000000001',repeat('n', 80),'modern','','public',true,'{R}');
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002","role":"authenticated"}';
+create temp table f_long on commit drop as select public.copy_deck('e3100000-0000-4000-8000-000000000020') as id;
+grant select on f_long to anon, authenticated, service_role;
+reset role;
+set local "request.jwt.claims" = '';
+select is(
+  (select name from public.decks where id = (select id from f_long)),
+  repeat('n', 73) || ' (copy)',
+  'copy_deck shortens an 80-character source name so the default fits in 80');
 delete from public.decks where id = 'e3100000-0000-4000-8000-000000000010';
 select is(
   (select copied_from_id from public.decks where id = (select id from f_copy)),

@@ -52,6 +52,9 @@ export function canCommentOnDeck(
   return canViewDeck(store, deck, userId);
 }
 
+/** Shown when a branch could be forked, but the original deck has forks turned off. */
+export const ORIGINAL_DECK_FORKS_LOCKED = "The original deck does not allow forks";
+
 export function canForkDeck(
   store: DataStore,
   deck: Deck,

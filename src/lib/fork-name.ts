@@ -20,7 +20,10 @@ export function defaultBranchName(sourceName: string): string {
   return nameWithSuffix(sourceName, BRANCH_NAME_SUFFIX);
 }
 
-/** "<source> (copy)", shortened so the result fits decks.name (1–80). */
+/**
+ * "<source> (copy)", shortened so the result fits decks.name (1–80).
+ * copy_deck() uses the same trim when no name is passed in.
+ */
 export function defaultCopyName(sourceName: string): string {
   return nameWithSuffix(sourceName, COPY_NAME_SUFFIX);
 }

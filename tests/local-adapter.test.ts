@@ -124,8 +124,8 @@ describe("local adapter: decks, cards, forks, compare", () => {
     expect(await repo.getDeck(BOB, id)).toBeNull();
     expect(await repo.getDeck(null, id)).toBeNull();
     await rejectsWith(repo.forkDeck(BOB, id), "You are not allowed to fork this deck");
-    expect(await repo.getDeckPermissions(BOB, id)).toEqual({ canEdit: false, canFork: false, canComment: false });
-    expect(await repo.getDeckPermissions(ALICE, id)).toEqual({ canEdit: true, canFork: true, canComment: true });
+    expect(await repo.getDeckPermissions(BOB, id)).toEqual({ canEdit: false, canFork: false, canCopy: false, canComment: false });
+    expect(await repo.getDeckPermissions(ALICE, id)).toEqual({ canEdit: true, canFork: true, canCopy: true, canComment: true });
     expect(await repo.listDecks(null, "public")).toEqual([]);
   });
 
@@ -770,5 +770,52 @@ describe("local adapter: forks stack on the root, copies stay independent", () =
     expect(db.decks).toHaveLength(1);
     const own = await repo.copyDeck(ALICE, secret);
     expect(db.decks.find((d) => d.id === own)?.name).toBe("Secret (copy)");
+  });
+
+  it("refuses a fork when the original deck has forks turned off, and still allows a copy", async () => {
+    await befriend(ALICE, BOB);
+    await befriend(BOB, CAROL);
+    const root = await repo.createDeck(ALICE, deckInput("Live and Burn"));
+    const branch = await repo.forkDeck(BOB, root, "Bob line");
+    await repo.updateDeck(ALICE, root, {
+      name: "Live and Burn", format: "modern", notes: "", visibility: "public", allowForks: false,
+    });
+
+    await rejectsWith(repo.forkDeck(CAROL, branch, "Nope"), "The original deck does not allow forks");
+    expect(db.decks.find((d) => d.name === "Nope")).toBeUndefined();
+    const perms = await repo.getDeckPermissions(CAROL, branch);
+    expect(perms.canFork).toBe(false);
+    expect(perms.canCopy).toBe(true);
+    const copy = await repo.copyDeck(CAROL, branch, "Carol copy");
+    expect(db.decks.find((d) => d.id === copy)?.forkedFromId).toBeNull();
+    expect(db.decks.find((d) => d.id === copy)?.copiedFromId).toBe(branch);
+
+    // Alice owns the original deck, so she can still fork the branch.
+    const again = await repo.forkDeck(ALICE, branch, "Alice again");
+    expect(db.decks.find((d) => d.id === again)?.forkedFromId).toBe(root);
+  });
+
+  it("refuses a fork when the original deck is private and not visible, without naming that deck", async () => {
+    await befriend(ALICE, BOB);
+    await befriend(BOB, CAROL);
+    const root = await repo.createDeck(ALICE, deckInput("Hidden root"));
+    const branch = await repo.forkDeck(BOB, root, "Bob line");
+    await repo.updateDeck(ALICE, root, {
+      name: "Hidden root", format: "modern", notes: "ROOT-SECRET", visibility: "private", allowForks: true,
+    });
+
+    await rejectsWith(repo.forkDeck(CAROL, branch), "You are not allowed to fork this deck");
+    expect((await repo.getDeckPermissions(CAROL, branch)).canFork).toBe(false);
+    expect((await repo.getDeck(CAROL, branch))?.sourceDeck ?? null).toBeNull();
+  });
+
+  it("shortens an 80-character source name for the copy default", async () => {
+    const root = await repo.createDeck(ALICE, {
+      name: "n".repeat(80), format: "modern", notes: "", visibility: "public", allowForks: true,
+    });
+    const copy = await repo.copyDeck(ALICE, root);
+    const stored = db.decks.find((d) => d.id === copy)!;
+    expect(stored.name).toHaveLength(80);
+    expect(stored.name.endsWith(" (copy)")).toBe(true);
   });
 });

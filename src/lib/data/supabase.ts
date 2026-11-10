@@ -22,6 +22,7 @@ import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, isUuid, scryfallImageOrNull } from "@/lib/data/validation";
 import { LIMITS } from "@/lib/data/limits";
 import { requireForkName } from "@/lib/fork-name";
+import { ORIGINAL_DECK_FORKS_LOCKED } from "@/lib/permissions";
 import type {
   Comment,
   Deck,
@@ -613,12 +614,20 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
     },
 
     async getDeckPermissions(viewerId, deckId) {
-      const none = { canEdit: false, canFork: false, canComment: false };
+      const none = { canEdit: false, canFork: false, canCopy: false, canComment: false };
       const client = await getClient();
       const deck = await fetchDeck(client, deckId); // visible under RLS, or null
       if (!deck || !viewerId) return none;
       const isOwner = deck.ownerId === viewerId;
-      return { canEdit: isOwner, canFork: isOwner || deck.allowForks, canComment: true };
+      // Copy follows this deck only. Fork of a branch also needs the original
+      // deck to be visible and still forkable (or owned by the caller).
+      const canCopy = isOwner || deck.allowForks;
+      let canFork = canCopy;
+      if (canFork && deck.forkedFromId) {
+        const root = await fetchDeck(client, deck.forkedFromId);
+        canFork = Boolean(root) && (root!.ownerId === viewerId || root!.allowForks);
+      }
+      return { canEdit: isOwner, canFork, canCopy, canComment: true };
     },
 
     async createDeck(userId, input) {
@@ -856,6 +865,12 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const { data, error } = await client.rpc("fork_deck", { source: deckId });
       if (error) {
+        // The trigger names this case when the caller can see the original
+        // deck and that deck has forks turned off. A hidden root stays the
+        // generic refusal, so the message does not reveal it.
+        if (error.hint === "spellbranch_root_forks_locked") {
+          throw new DataError(ORIGINAL_DECK_FORKS_LOCKED);
+        }
         // 42501: not allowed (or invisible); P0002: not found. Same message.
         if (error.code === "42501" || error.code === "P0002") throw new DataError(denied);
         throw new SupabaseDataError("fork_deck", error.code);

@@ -1,9 +1,18 @@
 -- Spellbranch 010: stack every fork on the original deck, and add copies.
 --
--- Apply after 001-009. Do not edit those files. 009 may be applied before
--- or after this file: this migration does not replace can_view_deck. If 009
--- is still pending, apply it first so the source-owner visibility rule is in
--- place before new forks are created. This is not a deck-name length change.
+-- Apply after 001-009, in its own transaction (this file is BEGIN/COMMIT).
+-- Do not edit 001-009. 009 may be applied before or after this file: this
+-- migration does not replace can_view_deck. If 009 is still pending, apply
+-- it first (also in one transaction) so the source-owner visibility rule is
+-- in place before new forks are created. This file does not change the
+-- decks.name length constraint.
+--
+-- Re-running 002 after 010 restores 002's enforce_deck_links() and its
+-- trigger (no root flattening, no copy checks, and forked_from_id is not
+-- rewritten to the original deck). Re-run 010 after any re-run of 002.
+-- 006 and 008 likewise replace fork_deck() with a version that reads every
+-- column; re-run 010 after those too, or forks fail once copied_from_id is
+-- hidden from API roles.
 --
 -- Do not apply this file to the hosted project from the app deploy. Run it
 -- in the Supabase SQL editor (or `supabase db push`) before the app that
@@ -29,12 +38,23 @@
 --
 -- Privacy
 -- -------
--- copied_from_id is not selectable by anon or authenticated. Readers learn
--- a source id only from copy_source_link(), and only when they can already
--- view both decks. A hidden or missing source comes back as unavailable
--- with a null id. Copying uses the same permission as forking (owner, or
--- allow_forks and can_view_deck). Visibility of the new row follows the
--- same F4 defaults as fork_deck().
+-- copied_from_id is not selectable by anon or authenticated. Table-level
+-- SELECT on decks is revoked from those roles and re-granted per column,
+-- leaving copied_from_id out: a column-only revoke does not hide a column
+-- while the table grant remains. Readers learn a source id only from
+-- copy_source_link(), and only when they can already view both decks. A
+-- hidden or missing source comes back as unavailable with a null id.
+-- Copying uses the same permission as forking the clicked deck (owner, or
+-- allow_forks and can_view_deck). It does not consult the original deck's
+-- allow_forks. Visibility of the new row follows the same F4 defaults as
+-- fork_deck().
+--
+-- Forking a branch also requires permission on the original deck. If that
+-- deck is visible and has allow_forks = false (and the caller does not own
+-- it), the error says so. If the caller cannot see the original deck, the
+-- refusal is the same generic 42501 as any other forbidden fork.
+
+begin;
 
 -- ---------------------------------------------------------------------------
 -- 1. copied_from_id
@@ -75,6 +95,7 @@ declare
   parent uuid;
   hop integer;
   seen uuid[];
+  root_row public.decks;
 begin
   if new.forked_from_id is not null
      and (tg_op = 'INSERT' or new.forked_from_id is distinct from old.forked_from_id) then
@@ -84,7 +105,18 @@ begin
     end if;
 
     if not trusted then
-      select * into src from public.decks where id = declared;  -- RLS applies
+      -- Every column except copied_from_id. API roles cannot read that one,
+      -- and this function runs as the caller. The null keeps the row type.
+      select
+        d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
+        d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
+        d.commander_scryfall_id, d.commander_name, d.commander_type_line,
+        d.commander_mana_cost, d.commander_image_uri, d.commander_art_uri,
+        d.commander_color_identity, d.colors,
+        null::uuid
+      into src
+      from public.decks d
+      where d.id = declared;  -- RLS applies
       if not (
         found
         and caller is not null
@@ -122,6 +154,38 @@ begin
     if hop >= 32 and not trusted then
       raise exception 'You are not allowed to fork this deck' using errcode = '42501';
     end if;
+
+    -- The new row joins the original deck, so the caller must be allowed to
+    -- fork that deck too: they own it, or it allows forks and they can see
+    -- it. A root they cannot see is refused with the generic error (no hint).
+    if not trusted then
+      select
+        d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
+        d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
+        d.commander_scryfall_id, d.commander_name, d.commander_type_line,
+        d.commander_mana_cost, d.commander_image_uri, d.commander_art_uri,
+        d.commander_color_identity, d.colors,
+        null::uuid
+      into root_row
+      from public.decks d
+      where d.id = root;
+      if not found
+         or caller is null
+         or not (
+           root_row.owner_id = caller
+           or (root_row.allow_forks and public.can_view_deck(root_row, caller))
+         ) then
+        if found
+           and caller is not null
+           and root_row.owner_id is distinct from caller
+           and not root_row.allow_forks
+           and public.can_view_deck(root_row, caller) then
+          raise exception 'The original deck does not allow forks'
+            using errcode = '42501', hint = 'spellbranch_root_forks_locked';
+        end if;
+        raise exception 'You are not allowed to fork this deck' using errcode = '42501';
+      end if;
+    end if;
     new.forked_from_id := root;
   end if;
 
@@ -139,7 +203,16 @@ begin
       raise exception 'A deck cannot be copied from itself' using errcode = '23514';
     end if;
     if not trusted then
-      select * into src from public.decks where id = new.copied_from_id;  -- RLS applies
+      select
+        d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
+        d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
+        d.commander_scryfall_id, d.commander_name, d.commander_type_line,
+        d.commander_mana_cost, d.commander_image_uri, d.commander_art_uri,
+        d.commander_color_identity, d.colors,
+        null::uuid
+      into src
+      from public.decks d
+      where d.id = new.copied_from_id;  -- RLS applies
       if not (
         found
         and caller is not null
@@ -238,9 +311,11 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 4. fork_deck(): 008's body. The trigger attaches the row to the root.
 -- ---------------------------------------------------------------------------
--- forked_from_id is the deck passed in (the one the permission check uses),
--- not the root. Do not "optimize" this insert to the root: that would check
--- permission against the root instead of the deck the caller is forking.
+-- forked_from_id is the deck passed in (the clicked deck). The trigger
+-- checks permission on that deck, rewrites forked_from_id to the root, and
+-- refuses the insert when the caller cannot fork the root (allow_forks is
+-- false, or the root is not visible). Do not point this insert at the root
+-- directly: that would skip the clicked-deck check.
 
 create or replace function public.fork_deck(source uuid)
 returns uuid
@@ -256,7 +331,16 @@ begin
     raise exception 'Not authenticated' using errcode = '42501';
   end if;
 
-  select * into src from public.decks where id = source;
+  select
+    d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
+    d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
+    d.commander_scryfall_id, d.commander_name, d.commander_type_line,
+    d.commander_mana_cost, d.commander_image_uri, d.commander_art_uri,
+    d.commander_color_identity, d.colors,
+    null::uuid
+  into src
+  from public.decks d
+  where d.id = source;
   if not found then
     raise exception 'Deck not found' using errcode = 'P0002';
   end if;
@@ -316,14 +400,32 @@ as $$
 declare
   src public.decks;
   new_id uuid;
+  copy_name text;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated' using errcode = '42501';
   end if;
 
-  select * into src from public.decks where id = source;
+  select
+    d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
+    d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
+    d.commander_scryfall_id, d.commander_name, d.commander_type_line,
+    d.commander_mana_cost, d.commander_image_uri, d.commander_art_uri,
+    d.commander_color_identity, d.colors,
+    null::uuid
+  into src
+  from public.decks d
+  where d.id = source;
   if not found then
     raise exception 'Deck not found' using errcode = 'P0002';
+  end if;
+
+  -- ' (copy)' is 7 characters. decks.name is at most 80 (003). Shorten the
+  -- source name so the default always fits; a caller-supplied name is applied
+  -- by the app afterwards and is checked there.
+  copy_name := src.name || ' (copy)';
+  if char_length(copy_name) > 80 then
+    copy_name := left(src.name, 80 - char_length(' (copy)')) || ' (copy)';
   end if;
 
   insert into public.decks (
@@ -333,7 +435,7 @@ begin
   )
   values (
     auth.uid(),
-    src.name || ' (copy)',
+    copy_name,
     src.format,
     src.notes,
     case when src.visibility = 'public' then 'friends' else 'private' end,
@@ -410,6 +512,67 @@ $$;
 revoke execute on function public.copy_source_link(uuid) from public;
 grant execute on function public.copy_source_link(uuid) to anon, authenticated;
 
--- The column stays writable so ON DELETE SET NULL can clear it. SELECT is
--- revoked so a deck the viewer can read does not include a source they cannot.
-revoke select (copied_from_id) on public.decks from public, anon, authenticated;
+-- Other tables' policies used to call can_view_deck(deck_row). Building that
+-- row in the caller's query needs SELECT on every column, including
+-- copied_from_id. The decks SELECT policy is already can_view_deck, so "a
+-- row of decks is visible" is the same check and only reads granted columns.
+drop policy if exists "View deck cards with deck access" on public.deck_cards;
+create policy "View deck cards with deck access"
+  on public.deck_cards for select
+  using (
+    exists (
+      select 1 from public.decks d
+      where d.id = deck_cards.deck_id
+    )
+  );
+
+drop policy if exists "View comments with deck access" on public.comments;
+create policy "View comments with deck access"
+  on public.comments for select
+  using (
+    exists (
+      select 1 from public.decks d
+      where d.id = comments.deck_id
+    )
+  );
+
+drop policy if exists "Authorized users comment" on public.comments;
+create policy "Authorized users comment"
+  on public.comments for insert
+  to authenticated
+  with check (
+    auth.uid() = author_id
+    and exists (
+      select 1 from public.decks d
+      where d.id = comments.deck_id
+    )
+  );
+
+-- Table-level SELECT would keep copied_from_id readable after a column
+-- revoke. Drop the table grant, then grant every other column. INSERT and
+-- UPDATE stay as they are so copy_deck can write the column and ON DELETE
+-- SET NULL can clear it. service_role is untouched.
+revoke select on table public.decks from public, anon, authenticated;
+grant select (
+  id,
+  owner_id,
+  name,
+  format,
+  notes,
+  visibility,
+  allow_forks,
+  forked_from_id,
+  preferred_branch_id,
+  created_at,
+  updated_at,
+  commander_scryfall_id,
+  commander_name,
+  commander_type_line,
+  commander_mana_cost,
+  commander_image_uri,
+  commander_art_uri,
+  commander_color_identity,
+  colors
+) on table public.decks to anon, authenticated;
+
+commit;

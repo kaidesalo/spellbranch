@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(68);
+select plan(67);
 
 -- Schema --------------------------------------------------------------------
 select has_column('public', 'decks', 'colors', 'decks.colors exists');
@@ -208,21 +208,19 @@ select throws_matching($$insert into public.deck_cards (deck_id, scryfall_id, ca
 select throws_matching($$update public.decks set colors = array['W'] where id = 'c8100000-0000-4000-8000-000000000004'$$,
   'outside the new deck colors', 'the owner still can''t narrow past a card');
 
--- Re-running 006 brings back its fork_deck() (no colors, no card identity).
--- Forks still keep the colors through decks_inherit_fork_colors, forking a
--- deck with cards is refused (loudly) until 008 runs again, the guard above
--- spots it, and 006 leaves 008's CHECKs alone.
+-- Re-running 006 brings back its fork_deck(), which reads every deck column.
+-- After 010 that read is denied (copied_from_id is not selectable by the
+-- caller), so a fork fails until 010 is applied again. 006 still leaves
+-- 008's CHECKs alone.
 reset role;
 \ir ../migrations/006_deck_commander.sql
 set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"c8000000-0000-4000-8000-000000000001","role":"authenticated"}';
 select ok(pg_get_functiondef('public.fork_deck(uuid)'::regprocedure) !~ 'coalesce\(color_identity',
   'after re-running 006, the fork_deck() guard would fail (it spots the old function)');
-select throws_matching($$select public.fork_deck('c8100000-0000-4000-8000-000000000001')$$,
-  'needs a color identity', 'after re-running 006, forking a deck with cards is refused until 008 runs again');
-select public.fork_deck('c8100000-0000-4000-8000-000000000005') as old_fork_id \gset
-select is((select colors from public.decks where id = :'old_fork_id'),
-  array['U','B','R'], 'after re-running 006, a fork still keeps the deck colors');
+select throws_ok($$select public.fork_deck('c8100000-0000-4000-8000-000000000001')$$,
+  '42501', null,
+  'after re-running 006, fork_deck() cannot read decks until 010 is applied again');
 select ok(exists (select 1 from pg_constraint
                   where conrelid = 'public.decks'::regclass and conname = 'decks_commander_fits_colors' and convalidated),
           'after re-running 006, decks_commander_fits_colors is still there');
