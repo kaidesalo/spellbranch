@@ -39,7 +39,7 @@ export function CommentSection({
 
   return (
     <section className="space-y-4">
-      <h2 className="font-heading text-xl font-semibold">Comments</h2>
+      <h2 className="text-xl font-semibold">Comments</h2>
 
       {canComment && (
         <div className="space-y-2">

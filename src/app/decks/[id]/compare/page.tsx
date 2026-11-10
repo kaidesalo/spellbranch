@@ -33,7 +33,7 @@ export default async function ComparePage({
   if (!effectiveBranchId) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6">
-        <h1 className="font-heading text-2xl font-semibold">No branch to compare</h1>
+        <h1 className="text-2xl font-semibold">No branch to compare</h1>
         <p className="mt-2 text-muted-foreground">
           Fork this deck first, then come back to compare versions.
         </p>
@@ -55,7 +55,7 @@ export default async function ComparePage({
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-semibold">Compare</h1>
+          <h1 className="text-3xl font-semibold">Compare</h1>
           <p className="mt-1 text-muted-foreground">
             Side-by-side changes between the source list and a branch.
           </p>

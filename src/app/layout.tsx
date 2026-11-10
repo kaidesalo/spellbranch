@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { Raleway, Knewave, Geist_Mono } from "next/font/google";
+import { Cinzel, Geist_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getSessionUser } from "@/lib/auth/session";
 import "./globals.css";
 
-// Body, nav and labels: light geometric sans (variable font, 100-900).
-const raleway = Raleway({
-  variable: "--font-raleway",
+// UI, card text, and counts. Inter is a variable font, so 400/500/600 come
+// from font-weight. A weight array makes Google Fonts sometimes answer with
+// extensionless /l/font?kit= URLs, and Next 16.4.2 fails the production build
+// on those (`next/font/google queries have exactly one entry`).
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-// Page titles and section headers only (h1/h2, .font-heading): brush display face.
-const knewave = Knewave({
-  variable: "--font-knewave",
-  weight: "400",
+// Wordmark and deck titles only. 600 is a real Cinzel cut, not a synthesized bold.
+const cinzel = Cinzel({
+  variable: "--font-cinzel",
   subsets: ["latin"],
+  weight: "600",
 });
 
 const geistMono = Geist_Mono({
@@ -39,7 +42,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${raleway.variable} ${knewave.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${cinzel.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <SiteHeader user={user} />

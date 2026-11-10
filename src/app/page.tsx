@@ -16,11 +16,11 @@ export default async function HomePage() {
       </div>
 
       <section className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="animate-rise">
-          <p className="font-heading text-6xl text-primary sm:text-7xl md:text-8xl">
+        <div className="min-w-0 animate-rise">
+          <p className="font-display max-w-full text-[clamp(2.25rem,12vw,3.75rem)] font-semibold text-primary sm:text-7xl md:text-8xl">
             Spellbranch
           </p>
-          <h1 className="mt-4 max-w-xl font-sans text-3xl font-light leading-snug tracking-normal text-foreground sm:text-4xl">
+          <h1 className="mt-4 max-w-xl font-sans text-3xl font-normal leading-snug tracking-normal text-foreground sm:text-4xl">
             Build decks with friends. Fork ideas. Compare every change.
           </h1>
           <p className="mt-4 max-w-lg text-lg text-muted-foreground">
@@ -49,22 +49,22 @@ export default async function HomePage() {
               <p className="text-xs uppercase tracking-[0.2em] text-[#F4EBDD]">
                 Branch view
               </p>
-              <p className="mt-2 font-heading text-3xl font-semibold">
+              <p className="mt-2 font-display text-3xl font-semibold">
                 Main ↔ Weekend cuts
               </p>
             </div>
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between border-b border-[#F4EBDD]/15 pb-2">
                 <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#E8B76A]" />+ Nature&apos;s Lore</span>
-                <span>0 → 1</span>
+                <span className="font-medium tabular-nums">0 → 1</span>
               </div>
               <div className="flex items-center justify-between border-b border-[#F4EBDD]/15 pb-2">
                 <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#ABB7C9]" />− Cultivate</span>
-                <span>1 → 0</span>
+                <span className="font-medium tabular-nums">1 → 0</span>
               </div>
               <div className="flex items-center justify-between border-b border-[#F4EBDD]/15 pb-2">
                 <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#F4EBDD]" />Sol Ring qty</span>
-                <span>1 → 2</span>
+                <span className="font-medium tabular-nums">1 → 2</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[#ABB7C9]">Rhystic Study</span>

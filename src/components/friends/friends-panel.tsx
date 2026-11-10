@@ -40,7 +40,7 @@ export function FriendsPanel({
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-border/80 bg-card/70 p-5">
-        <h2 className="font-heading text-lg font-semibold">Find friends</h2>
+        <h2 className="text-lg font-semibold">Find friends</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Search by exact username. Ask your friend for theirs (it&apos;s on their
           profile page).
@@ -98,7 +98,7 @@ export function FriendsPanel({
 
       {incoming.length > 0 && (
         <section>
-          <h2 className="mb-3 font-heading text-lg font-semibold">
+          <h2 className="mb-3 text-lg font-semibold">
             Incoming requests
           </h2>
           <ul className="space-y-2">
@@ -156,7 +156,7 @@ export function FriendsPanel({
 
       {outgoing.length > 0 && (
         <section>
-          <h2 className="mb-3 font-heading text-lg font-semibold">
+          <h2 className="mb-3 text-lg font-semibold">
             Pending sent
           </h2>
           <ul className="space-y-2">
@@ -192,7 +192,7 @@ export function FriendsPanel({
       )}
 
       <section>
-        <h2 className="mb-3 font-heading text-lg font-semibold">Your friends</h2>
+        <h2 className="mb-3 text-lg font-semibold">Your friends</h2>
         {friends.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
             No friends yet. Search above to send your first request.

@@ -7,10 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-raleway);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-knewave);
-  /* Airier body text: Raleway reads best with generous leading. */
+  /* Leading kept from the previous sans so the family swap does not retune layout. */
   --text-xs--line-height: calc(1.1 / 0.75);
   --text-sm--line-height: calc(1.45 / 0.875);
   --text-base--line-height: 1.7;
@@ -114,24 +113,17 @@
   html {
     @apply font-sans;
   }
-  body {
-    /* Raleway defaults to old-style figures; card counts and quantities read
-       better with lining figures. */
-    font-variant-numeric: lining-nums;
-  }
-  /* Brush display face for page titles and section headers only. Knewave has
-     a single weight, so never fake a bold on top of it. h3+ stay in the sans. */
-  h1,
-  h2,
-  .font-heading {
-    font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
-    font-weight: 400;
-    font-synthesis: none;
-    letter-spacing: 0.01em;
-  }
 }
 
-/* Small uppercase sans with wide letter-spacing (nav, buttons, badges, labels). */
+/* Cinzel 600 for the Spellbranch wordmark and deck titles only.
+   Page headings, chrome, card text, and counts stay in Inter. */
+@utility font-display {
+  font-family: var(--font-cinzel), ui-serif, Georgia, serif;
+  font-weight: 600;
+  font-synthesis: none;
+}
+
+/* Small uppercase Inter with wide letter-spacing (nav, buttons, badges, labels). */
 @utility label-caps {
   font-family: var(--font-sans);
   font-size: var(--text-xs);

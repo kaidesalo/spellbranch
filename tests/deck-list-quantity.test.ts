@@ -40,7 +40,8 @@ describe("DeckList quantity", () => {
     expect(input).toContain('inputMode="numeric"');
     expect(input).toContain('type="text"');
     // Same footprint and weight as the number it replaces.
-    expect(input).toMatch(/class="[^"]*\bw-6\b[^"]*\btext-sm\b[^"]*\bfont-semibold\b/);
+    expect(input).toMatch(/class="[^"]*\bw-6\b[^"]*\btext-sm\b[^"]*\bfont-medium\b/);
+    expect(input).toMatch(/class="[^"]*\btabular-nums\b/);
     // -/+ and trash are still there.
     for (const label of ["Decrease Swamp", "Increase Swamp", "Remove Swamp"]) {
       expect(html).toContain(`aria-label="${label}"`);
@@ -55,7 +56,7 @@ describe("DeckList quantity", () => {
     expect(html).not.toContain("<input");
     expect(html).not.toContain("Quantity of Swamp");
     expect(html).not.toContain("Increase Swamp");
-    expect(html).toMatch(/<span class="text-sm font-semibold">7<\/span>/);
+    expect(html).toMatch(/<span class="text-sm font-medium tabular-nums">7<\/span>/);
   });
 
   it("+ is disabled at the max so it can't ask for 100", () => {

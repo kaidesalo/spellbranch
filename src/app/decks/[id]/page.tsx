@@ -60,7 +60,7 @@ export default async function DeckDetailPage({
       <div className="flex flex-col gap-3 border-b border-border/70 pb-4 lg:flex-row lg:items-start lg:justify-between lg:pb-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            <h1 className="font-display break-words text-3xl font-semibold tracking-tight">
               {deck.name}
             </h1>
             {deck.forkedFromId && <Badge variant="secondary">Branch</Badge>}
@@ -72,7 +72,7 @@ export default async function DeckDetailPage({
             </Badge>
             {deck.colors && <DeckColorsBadge colors={deck.colors} />}
             <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>
-            <span>
+            <span className="font-medium tabular-nums">
               {deckCountLabel(deck.cardCount ?? 0, Boolean(commander))}
               {deck.owner ? ` · @${deck.owner.username}` : ""}
               {deck.allowForks ? " · forks allowed" : " · forks locked"}
@@ -179,7 +179,7 @@ export default async function DeckDetailPage({
 
       <div className="mt-4 grid gap-4 lg:mt-6 lg:grid-cols-[340px_1fr] lg:gap-6 xl:grid-cols-[380px_1fr]">
         <aside className="rounded-2xl border border-border/80 bg-card/70 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
-          <h2 className="mb-3 font-heading text-xl">
+          <h2 className="mb-3 text-xl font-semibold">
             Card search
           </h2>
           <CardSearch deckId={deck.id} canEdit={canEdit} deckColors={deck.colors} />
@@ -195,7 +195,7 @@ export default async function DeckDetailPage({
             />
           )}
           <section className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5">
-            <h2 className="mb-4 font-heading text-xl">
+            <h2 className="mb-4 text-xl font-semibold">
               Deck list
             </h2>
             <DeckList

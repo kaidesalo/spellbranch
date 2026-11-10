@@ -27,7 +27,7 @@ export default async function EditDeckPage({
           ← Back to deck
         </Button>
       </div>
-      <h1 className="font-heading text-3xl font-semibold">Deck settings</h1>
+      <h1 className="text-3xl font-semibold">Deck settings</h1>
       <p className="mt-1 text-muted-foreground">
         Update name, format, visibility, and fork permissions.
       </p>
@@ -40,7 +40,7 @@ export default async function EditDeckPage({
       </div>
 
       <div className="mt-8 rounded-2xl border border-destructive/30 bg-card/70 p-6">
-        <h2 className="font-heading text-lg font-semibold text-destructive">
+        <h2 className="text-lg font-semibold text-destructive">
           Delete deck
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">

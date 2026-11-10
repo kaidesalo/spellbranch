@@ -12,7 +12,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
-      <h1 className="font-heading text-3xl font-semibold">Profile</h1>
+      <h1 className="text-3xl font-semibold">Profile</h1>
       <p className="mt-1 text-muted-foreground">
         How friends see you across Spellbranch. Friends find you by your exact
         username.

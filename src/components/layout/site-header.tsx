@@ -89,7 +89,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
               </SheetTrigger>
               <SheetContent side="right" className="w-[280px]">
                 <SheetHeader>
-                  <SheetTitle className="font-heading">Spellbranch</SheetTitle>
+                  <SheetTitle className="font-display font-semibold">Spellbranch</SheetTitle>
                 </SheetHeader>
                 <div className="mt-6 flex flex-col gap-2 px-2">
                   {links.map((link) => (
@@ -117,11 +117,17 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
             </Sheet>
           </>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" render={<Link href="/login" />}>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              className="max-sm:px-2! max-sm:tracking-normal!"
+              render={<Link href="/login" />}
+            >
               Sign in
             </Button>
-            <Button render={<Link href="/signup" />}>Join free</Button>
+            <Button className="max-sm:px-2! max-sm:tracking-normal!" render={<Link href="/signup" />}>
+              Join free
+            </Button>
           </div>
         )}
       </div>
