@@ -25,7 +25,7 @@ export function DeckColorsBadge({ colors }: { colors: readonly string[] }) {
   const combo = comboFor(colors);
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border-2 border-[#4b3d44] bg-[#d2c9a5] px-2.5 py-0.5 text-xs font-semibold text-[#4b3d44]"
+      className="inline-flex items-center gap-1.5 rounded-full border-2 border-border bg-card px-2.5 py-0.5 text-xs font-semibold text-foreground"
       data-testid="deck-colors"
     >
       <ColorPips colors={combo.colors} className="text-sm" />
@@ -55,13 +55,13 @@ export function ColorPicker({
   const defaultKey = defaultColors ? comboFor(defaultColors).key : undefined;
   return (
     <fieldset className="space-y-3" aria-describedby={describedBy}>
-      <legend id="colors-legend" className="label-caps mb-1 text-sm text-[#4b3d44]">
+      <legend id="colors-legend" className="label-caps mb-1 text-sm text-foreground">
         Deck colors{required && <span aria-hidden> *</span>}
       </legend>
       <div role="radiogroup" aria-labelledby="colors-legend" aria-required={required} className="space-y-3">
         {GROUPS.map((group) => (
           <div key={group} className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4b3d44]/70" aria-hidden>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground" aria-hidden>
               {group}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -95,10 +95,10 @@ function ColorChip({
     <label
       htmlFor={id}
       className={cn(
-        "relative inline-flex cursor-pointer select-none items-center gap-1.5 rounded-full border-2 border-[#4b3d44] bg-[#d2c9a5] px-3 py-1 text-sm font-semibold text-[#4b3d44] transition",
-        "hover:-translate-y-px hover:shadow-[2px_2px_0_0_#4b3d44]",
-        "has-[:checked]:bg-[#4b3d44] has-[:checked]:text-[#d2c9a5] has-[:checked]:shadow-[3px_3px_0_0_#4b726e]",
-        "has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#4b726e] has-[:focus-visible]:ring-offset-2",
+        "relative inline-flex cursor-pointer select-none items-center gap-1.5 rounded-full border-2 border-border bg-card px-3 py-1 text-sm font-semibold text-foreground transition",
+        "hover:-translate-y-px hover:shadow-[2px_2px_0_0_#344158]",
+        "has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:checked]:shadow-[3px_3px_0_0_#E8B76A]",
+        "has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
       )}
       title={combo.colors.length > 1 ? colorList(combo) : undefined}
     >

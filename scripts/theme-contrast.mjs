@@ -1,4 +1,4 @@
-// WCAG 2.x contrast check for the Lost Century theme (src/app/globals.css).
+// WCAG 2.x contrast check for the Spellbranch theme (src/app/globals.css).
 //
 //   node scripts/theme-contrast.mjs        prints a Markdown table, exits 1 on a failure
 //
@@ -12,10 +12,13 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** Lost Century by SurrealEmber, https://lospec.com/palette-list/lost-century */
-export const LOST_CENTURY = [
-  "#d1b187", "#c77b58", "#ae5d40", "#79444a", "#4b3d44", "#ba9158", "#927441", "#4d4539",
-  "#77743b", "#b3a555", "#d2c9a5", "#8caba1", "#4b726e", "#574852", "#847875", "#ab9b8e",
+/**
+ * Spellbranch brand colors, plus the one error red.
+ * Midnight navy, slate navy, blue-gray, warm parchment, mist gray, muted gold.
+ * #f07167 is only for error text and destructive buttons.
+ */
+export const SPELLBRANCH = [
+  "#10141f", "#1a2232", "#344158", "#f4ebdd", "#abb7c9", "#e8b76a", "#f07167",
 ];
 
 /** Custom properties of the first `:root { ... }` block in globals.css. */
@@ -70,53 +73,65 @@ const LARGE = 3; // large text (>= 24px, or >= 18.66px bold) and UI component bo
 /** [label, foreground, surface, minimum ratio] */
 export const PAIRS = [
   ["foreground / background", "foreground", "background", AA],
-  ["foreground / background + teal glow (top left)", "foreground", ["background", { color: "#4b726e", alpha: 0.12 }], AA],
-  ["foreground / background + terracotta glow (top right)", "foreground", ["background", { color: "#c77b58", alpha: 0.14 }], AA],
+  ["foreground / background + gold glow", "foreground", ["background", { color: "#e8b76a", alpha: 0.14 }], AA],
+  ["foreground / background + blue-gray glow", "foreground", ["background", { color: "#344158", alpha: 0.55 }], AA],
   ["foreground / header (background/90)", "foreground", ["background", { color: "background", alpha: 0.9 }], AA],
   ["card-foreground / card", "card-foreground", "card", AA],
   ["card-foreground / card/70 over background", "card-foreground", ["background", { color: "card", alpha: 0.7 }], AA],
   ["popover-foreground / popover", "popover-foreground", "popover", AA],
-  ["primary-foreground / primary", "primary-foreground", "primary", AA],
-  ["primary-foreground/80 / primary (selected search result detail)", { color: "primary-foreground", alpha: 0.8 }, "primary", AA],
-  ["primary (text, links) / background", "primary", "background", AA],
-  ["primary (text) / card", "primary", "card", AA],
+  ["primary-foreground / primary (gold button, active tab)", "primary-foreground", "primary", AA],
+  ["primary-foreground/80 / primary (selected search detail)", { color: "primary-foreground", alpha: 0.8 }, "primary", AA],
+  ["primary (gold text, links) / background", "primary", "background", AA],
+  ["primary (gold text) / card", "primary", "card", AA],
+  ["primary (gold text) / secondary", "primary", "secondary", AA],
+  ["primary (active nav) / primary over background", "primary-foreground", ["background", { color: "primary", alpha: 1 }], AA],
   ["secondary-foreground / secondary", "secondary-foreground", "secondary", AA],
-  ["muted-foreground / muted", "muted-foreground", "muted", AA],
+  ["muted-foreground / muted (inactive tab)", "muted-foreground", "muted", AA],
   ["muted-foreground / background", "muted-foreground", "background", AA],
   ["muted-foreground / card", "muted-foreground", "card", AA],
   ["muted-foreground / secondary", "muted-foreground", "secondary", AA],
   ["accent-foreground / accent", "accent-foreground", "accent", AA],
-  ["foreground / muted (outline button hover)", "foreground", "muted", AA],
-  ["primary (active nav link) / primary/10 over background", "primary", ["background", { color: "primary", alpha: 0.1 }], AA],
+  ["foreground / muted (outline hover on page)", "foreground", "muted", AA],
   ["foreground (nav hover) / secondary", "foreground", "secondary", AA],
-  ["muted-foreground (inactive tab) / muted (tab list)", "muted-foreground", "muted", AA],
-  ["foreground (active tab) / background", "foreground", "background", AA],
+  ["foreground (active tab label sits on primary)", "primary-foreground", "primary", AA],
   ["destructive (text) / background", "destructive", "background", AA],
   ["destructive (text) / card", "destructive", "card", AA],
-  ["destructive-foreground / destructive (destructive button, badge)", "destructive-foreground", "destructive", AA],
+  ["destructive-foreground / destructive (button, badge)", "destructive-foreground", "destructive", AA],
   ["destructive-foreground / primary (destructive button hover)", "destructive-foreground", "primary", AA],
-  ["destructive (alert text) / card", "destructive", "card", AA],
   ["sidebar-foreground / sidebar", "sidebar-foreground", "sidebar", AA],
   ["sidebar-primary-foreground / sidebar-primary", "sidebar-primary-foreground", "sidebar-primary", AA],
   ["sidebar-accent-foreground / sidebar-accent", "sidebar-accent-foreground", "sidebar-accent", AA],
-  ["input border / background (UI)", "input", "background", LARGE],
-  ["input border / card (UI)", "input", "card", LARGE],
-  ["ring / background (UI, focus)", "ring", "background", LARGE],
-  ["ring / card (UI, focus)", "ring", "card", LARGE],
-  ["sidebar-ring / sidebar (UI, focus)", "sidebar-ring", "sidebar", LARGE],
-  // Hardcoded chrome outside the tokens.
-  ["home hero text #d2c9a5 / #4b3d44", "#d2c9a5", "#4b3d44", AA],
-  ["home hero text #d2c9a5 / #4d4539", "#d2c9a5", "#4d4539", AA],
-  ["home hero label #d2c9a5 / #574852 + rust glow", "#d2c9a5", ["#574852", { color: "#ae5d40", alpha: 0.2 }], AA],
-  ["home hero text #d2c9a5 / #4b3d44 + teal glow", "#d2c9a5", ["#4b3d44", { color: "#4b726e", alpha: 0.25 }], AA],
-  ["home hero text #d2c9a5 / #574852 + teal glow", "#d2c9a5", ["#574852", { color: "#4b726e", alpha: 0.25 }], AA],
-  ["home hero muted #d1b187 / #4d4539", "#d1b187", "#4d4539", AA],
-  ["home hero dots #8caba1 / #4b3d44 (UI)", "#8caba1", "#4b3d44", LARGE],
-  ["home hero dots #c77b58 / #4b3d44 (UI)", "#c77b58", "#4b3d44", LARGE],
-  ["home hero dots #b3a555 / #4b3d44 (UI)", "#b3a555", "#4b3d44", LARGE],
-  ["/auth/confirm text #d2c9a5 / #4b3d44", "#d2c9a5", "#4b3d44", AA],
-  ["/auth/confirm paragraph #d1b187 / #4b3d44", "#d1b187", "#4b3d44", AA],
-  ["/auth/confirm button #4b3d44 / #d2c9a5", "#4b3d44", "#d2c9a5", AA],
+  // Brand blue-gray borders are the specified hex and sit close to the navies.
+  // Focus rings are gold at 50% opacity and have to clear the 3:1 UI minimum.
+  ["ring at 50% / background (focus)", { color: "ring", alpha: 0.5 }, "background", LARGE],
+  ["ring at 50% / card (focus)", { color: "ring", alpha: 0.5 }, "card", LARGE],
+  ["sidebar-ring at 50% / sidebar (focus)", { color: "sidebar-ring", alpha: 0.5 }, "sidebar", LARGE],
+  // Home hero illustration, painted with the same six colors.
+  ["home hero text #f4ebdd / #10141f", "#f4ebdd", "#10141f", AA],
+  ["home hero text #f4ebdd / #1a2232", "#f4ebdd", "#1a2232", AA],
+  ["home hero text #f4ebdd / #1a2232 + gold glow", "#f4ebdd", ["#1a2232", { color: "#e8b76a", alpha: 0.22 }], AA],
+  ["home hero muted #abb7c9 / #10141f", "#abb7c9", "#10141f", AA],
+  ["home hero muted #abb7c9 / #1a2232", "#abb7c9", "#1a2232", AA],
+  ["home hero dot gold / #10141f (UI)", "#e8b76a", "#10141f", LARGE],
+  ["home hero dot parchment / #10141f (UI)", "#f4ebdd", "#10141f", LARGE],
+  ["home hero dot mist / #10141f (UI)", "#abb7c9", "#10141f", LARGE],
+  ["/auth/confirm text #f4ebdd / #10141f", "#f4ebdd", "#10141f", AA],
+  ["/auth/confirm paragraph #abb7c9 / #10141f", "#abb7c9", "#10141f", AA],
+  ["/auth/confirm button #10141f / #e8b76a", "#10141f", "#e8b76a", AA],
+  // Compare-view semantics. Greens, roses, and ambers already marked adds,
+  // removes, and quantity changes; the shades are the ones that stay readable
+  // on the navy surfaces. Row washes stay translucent so parchment still passes.
+  ["compare added #6ee7b7 / background", "#6ee7b7", "background", AA],
+  ["compare added #6ee7b7 / card", "#6ee7b7", "card", AA],
+  ["compare removed #fda4af / background", "#fda4af", "background", AA],
+  ["compare removed #fda4af / card", "#fda4af", "card", AA],
+  ["compare quantity #fcd34d / background", "#fcd34d", "background", AA],
+  ["compare added text / emerald wash on background", "#6ee7b7", ["background", { color: "#34d399", alpha: 0.15 }], AA],
+  ["compare removed text / rose wash on background", "#fda4af", ["background", { color: "#fb7185", alpha: 0.15 }], AA],
+  ["compare parchment / amber wash on background", "foreground", ["background", { color: "#fcd34d", alpha: 0.15 }], AA],
+  ["compare added badge #ffffff / #047857", "#ffffff", "#047857", AA],
+  ["compare removed badge #ffffff / #be123c", "#ffffff", "#be123c", AA],
+  ["compare quantity badge #10141f / #d97706", "#10141f", "#d97706", AA],
 ];
 
 /**

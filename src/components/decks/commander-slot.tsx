@@ -31,13 +31,14 @@ import { ManaCost, ManaText } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved, zoomCardFromScryfall } from "@/lib/card-zoom";
 import { offColorReason } from "@/lib/deck-colors";
 
-// Lost Century palette swatches for the color identity pips.
+// Magic color-identity pips. Fills stay distinct WUBRG hues; the letter and
+// ring colors are from the brand palette so they stay readable on navy.
 const PIP: Record<string, { label: string; className: string }> = {
-  W: { label: "White", className: "bg-[#d2c9a5] text-[#4b3d44] ring-[#4b3d44]/40" },
-  U: { label: "Blue", className: "bg-[#4b726e] text-[#f3ecd3] ring-[#4b3d44]/40" },
-  B: { label: "Black", className: "bg-[#4b3d44] text-[#f3ecd3] ring-[#4b3d44]/40" },
-  R: { label: "Red", className: "bg-[#ae5d40] text-[#f3ecd3] ring-[#4b3d44]/40" },
-  G: { label: "Green", className: "bg-[#5d5b2e] text-[#f3ecd3] ring-[#4b3d44]/40" },
+  W: { label: "White", className: "bg-[#F4EBDD] text-[#10141F] ring-[#344158]" },
+  U: { label: "Blue", className: "bg-[#4b726e] text-white ring-[#344158]" },
+  B: { label: "Black", className: "bg-[#10141F] text-[#F4EBDD] ring-[#ABB7C9]" },
+  R: { label: "Red", className: "bg-[#ae5d40] text-white ring-[#344158]" },
+  G: { label: "Green", className: "bg-[#5d5b2e] text-[#F4EBDD] ring-[#344158]" },
 };
 
 function ColorIdentity({ colors }: { colors: string[] }) {
@@ -91,12 +92,12 @@ export function CommanderSlot({
   return (
     <section
       aria-labelledby="commander-heading"
-      className="overflow-hidden rounded-2xl border-2 border-primary/70 bg-card shadow-[4px_4px_0_0_#4b3d44]"
+      className="overflow-hidden rounded-2xl border-2 border-primary/70 bg-card shadow-[4px_4px_0_0_#344158]"
     >
       {commander ? (
         <div className="grid sm:grid-cols-[minmax(0,1fr)_170px]">
           <div className="min-w-0">
-            <div className="relative aspect-[626/300] max-h-56 w-full overflow-hidden bg-primary sm:max-h-none">
+            <div className="relative aspect-[626/300] max-h-56 w-full overflow-hidden bg-background sm:max-h-none">
               {commander.artUri ? (
                 <Image
                   src={commander.artUri}
@@ -107,15 +108,15 @@ export function CommanderSlot({
                   unoptimized
                 />
               ) : null}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#4b3d44] via-[#4b3d44]/35 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-4 text-[#f3ecd3]">
-                <p id="commander-heading" className="label-caps flex items-center gap-1.5 text-[#e8d9a8]">
+              <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-4 text-foreground">
+                <p id="commander-heading" className="label-caps flex items-center gap-1.5 text-primary">
                   <Crown className="h-3.5 w-3.5" aria-hidden /> Commander
                 </p>
                 <p className="mt-1 text-2xl font-bold leading-tight sm:text-3xl">
                   <CardZoom
                     card={zoomCardFromSaved(commander.cardName, commander.imageUri)}
-                    className="hover:underline focus-visible:ring-[#e8d9a8]/70"
+                    className="hover:underline focus-visible:ring-ring/70"
                   >
                     {commander.cardName}
                   </CardZoom>
@@ -345,7 +346,7 @@ function CommanderPicker({
                   Set as commander
                 </Button>
                 {selectedOffColor && (
-                  <p id="set-off-color" className="text-xs font-semibold text-[#4b3d44]">
+                  <p id="set-off-color" className="text-xs font-semibold text-destructive">
                     Can&apos;t set: {selectedOffColor}
                   </p>
                 )}
