@@ -16,8 +16,8 @@ export default async function HomePage() {
       </div>
 
       <section className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="min-w-0 animate-rise">
-          <p className="font-display max-w-full text-[clamp(2.25rem,12vw,3.75rem)] font-semibold text-primary sm:text-7xl md:text-8xl">
+        <div className="@container min-w-0 animate-rise">
+          <p className="hero-wordmark font-display max-w-full font-semibold text-primary">
             Spellbranch
           </p>
           <h1 className="mt-4 max-w-xl font-sans text-3xl font-normal leading-snug tracking-normal text-foreground sm:text-4xl">

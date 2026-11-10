@@ -123,6 +123,26 @@
   font-synthesis: none;
 }
 
+/* Home hero wordmark. Cinzel "Spellbranch" is 6.876em wide and has no
+   break, so a fixed 6rem (text-8xl) is ~660px. That fits the full-width
+   column below lg. From lg the preview takes the other column and this
+   one tops out near 626px inside max-w-7xl, so the same 6rem runs under
+   the panel. 13.5cqw is ~93% of the column: the line stays inside it
+   from the lg breakpoint up, and the phone sizes are unchanged. */
+@utility hero-wordmark {
+  font-size: clamp(2.25rem, 12vw, 3.75rem);
+  line-height: 1;
+  @media (min-width: 40rem) {
+    font-size: 4.5rem;
+  }
+  @media (min-width: 48rem) {
+    font-size: 6rem;
+  }
+  @media (min-width: 64rem) {
+    font-size: clamp(2.5rem, 13.5cqw, 5.75rem);
+  }
+}
+
 /* Small uppercase Inter with wide letter-spacing (nav, buttons, badges, labels). */
 @utility label-caps {
   font-family: var(--font-sans);
