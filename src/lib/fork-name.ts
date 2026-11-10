@@ -20,12 +20,19 @@ export function defaultBranchName(sourceName: string): string {
   return `${sourceName.slice(0, room)}${BRANCH_NAME_SUFFIX}`;
 }
 
+/** A message safe to show the user, or null when the trimmed name is usable. */
+export function forkNameError(name: string): string | null {
+  const trimmed = name.trim();
+  if (trimmed.length < 1) return "Deck name is required";
+  if (trimmed.length > LIMITS.deckName) {
+    return `Deck name must be at most ${LIMITS.deckName} characters`;
+  }
+  return null;
+}
+
 /** Trimmed deck name, or a DataError safe to show the user. */
 export function requireForkName(name: string): string {
-  const trimmed = name.trim();
-  if (trimmed.length < 1) throw new DataError("Deck name is required");
-  if (trimmed.length > LIMITS.deckName) {
-    throw new DataError(`Deck name must be at most ${LIMITS.deckName} characters`);
-  }
-  return trimmed;
+  const error = forkNameError(name);
+  if (error) throw new DataError(error);
+  return name.trim();
 }

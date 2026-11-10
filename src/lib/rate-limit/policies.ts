@@ -53,6 +53,12 @@ export const POLICIES = {
   ],
   // Public card search proxy (Cipher PR #9 L2); the picker debounces to 300 ms.
   "scryfall-search": [{ by: "ip", limit: 60, windowSec: MINUTE }],
+  // One deck import looks up every pasted name on Scryfall (batched).
+  // The cap is on imports, not on cards, so a 100-card list is one attempt.
+  "deck-import": [
+    { by: "ip", limit: 20, windowSec: 10 * MINUTE },
+    { by: "user", limit: 10, windowSec: 10 * MINUTE },
+  ],
 } as const satisfies Record<string, readonly Bucket[]>;
 
 export type PolicyName = keyof typeof POLICIES;

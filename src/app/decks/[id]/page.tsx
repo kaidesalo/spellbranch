@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GitCompareArrows, Settings2 } from "lucide-react";
+import { ExportDeckButton } from "@/components/decks/export-deck-button";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
@@ -89,7 +90,7 @@ export default async function DeckDetailPage({
             </p>
           )}
           {canEdit && deck.colors === null && (
-            <p className="mt-3 max-w-2xl rounded-lg border-2 border-dashed border-[#4b3d44]/60 bg-[#d2c9a5]/40 px-3 py-2 text-sm">
+            <p className="mt-3 max-w-2xl rounded-lg border-2 border-dashed border-border bg-card/40 px-3 py-2 text-sm">
               This deck has no colors yet, so any card can be added.{" "}
               <Link
                 href={`/decks/${deck.id}/edit`}
@@ -108,6 +109,14 @@ export default async function DeckDetailPage({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+          <ExportDeckButton
+            deckName={deck.name}
+            commanderName={commander?.cardName ?? null}
+            cards={(deck.cards ?? []).map((card) => ({
+              cardName: card.cardName,
+              quantity: card.quantity,
+            }))}
+          />
           {canEdit && (
             <Button
               variant="outline"

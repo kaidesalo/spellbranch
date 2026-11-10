@@ -66,11 +66,11 @@ export function renderConfirmPage(input: {
 <meta name="robots" content="noindex">
 <title>Confirm your email · Spellbranch</title>
 <style>
-body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#4b3d44;color:#d2c9a5}
-main{max-width:24rem;padding:2rem;border:1px solid #847875;border-radius:.75rem;text-align:center}
+body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#10141F;color:#F4EBDD}
+main{max-width:24rem;padding:2rem;border:1px solid #344158;border-radius:.75rem;text-align:center}
 h1{font-size:1.25rem;margin:0 0 .5rem}
-p{color:#d1b187;margin:0 0 1.5rem}
-button{font:inherit;padding:.6rem 1.25rem;border:0;border-radius:.5rem;background:#d2c9a5;color:#4b3d44;cursor:pointer}
+p{color:#ABB7C9;margin:0 0 1.5rem}
+button{font:inherit;padding:.6rem 1.25rem;border:0;border-radius:.5rem;background:#E8B76A;color:#10141F;cursor:pointer}
 </style>
 </head>
 <body>

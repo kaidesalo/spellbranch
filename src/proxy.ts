@@ -24,6 +24,6 @@ export const config = {
     // rule, so an HTML 404 like /nope.png or /x.js still gets the CSP.
     // Adding a file to public/? List it here (tests/proxy-matcher.test.ts checks).
     // public/mana holds the mana symbol icons, named like W.svg, 2W.svg, WUP.svg.
-    "/((?!_next/static/|_next/image$|(?:favicon\\.ico|file\\.svg|globe\\.svg|next\\.svg|vercel\\.svg|window\\.svg|mana/[A-Z0-9]+\\.svg)$).*)",
+    "/((?!_next/static/|_next/image$|(?:favicon\\.ico|file\\.svg|globe\\.svg|next\\.svg|vercel\\.svg|window\\.svg|spellbranch-logo\\.png|mana/[A-Z0-9]+\\.svg)$).*)",
   ],
 };

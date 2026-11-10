@@ -51,11 +51,11 @@ export function CardZoom({
         {children}
       </DialogTrigger>
       <DialogPortal>
-        <DialogOverlay className="bg-[#4b3d44]/70" />
+        <DialogOverlay className="bg-black/75" />
         <DialogPrimitive.Popup
           data-slot="card-zoom"
           aria-modal="true"
-          className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-2xl border-2 border-primary bg-card p-3 text-card-foreground shadow-[6px_6px_0_0_#4b3d44] outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+          className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-2xl border-2 border-primary bg-card p-3 text-card-foreground shadow-[6px_6px_0_0_#344158] outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
         >
           <CardZoomBody card={card} />
         </DialogPrimitive.Popup>

@@ -56,42 +56,46 @@
 }
 
 :root {
-  /* Lost Century by SurrealEmber (https://lospec.com/palette-list/lost-century).
-     Every color below is one of the palette's 16. Contrast of each text/surface
-     pair: node scripts/theme-contrast.mjs (checked by tests/theme-contrast.test.ts). */
-  --background: #d2c9a5;
-  --foreground: #4b3d44;
-  --card: #d2c9a5;
-  --card-foreground: #4b3d44;
-  --popover: #d2c9a5;
-  --popover-foreground: #4b3d44;
-  --primary: #4b3d44;
-  --primary-foreground: #d2c9a5;
-  --secondary: #d1b187;
-  --secondary-foreground: #4b3d44;
-  --muted: #d1b187;
-  --muted-foreground: #4d4539;
-  --accent: #d1b187;
-  --accent-foreground: #4b3d44;
-  --destructive: #79444a;
-  --destructive-foreground: #d2c9a5;
-  --border: #8caba1;
-  --input: #4b726e;
-  --ring: #4b726e;
-  --chart-1: #4b726e;
-  --chart-2: #c77b58;
-  --chart-3: #77743b;
-  --chart-4: #ae5d40;
-  --chart-5: #79444a;
+  /* Spellbranch brand palette.
+     Page #10141F, panels #1A2232, borders #344158, text #F4EBDD,
+     secondary text #ABB7C9, primary buttons and active tabs #E8B76A.
+     Gold controls use midnight navy labels: parchment on gold is below 4.5:1.
+     #F07167 is the only color outside the six, for error text and destructive
+     buttons (navy label). Hover, focus, and disabled states are mixes or
+     opacity of these. Contrast: node scripts/theme-contrast.mjs. */
+  --background: #10141F;
+  --foreground: #F4EBDD;
+  --card: #1A2232;
+  --card-foreground: #F4EBDD;
+  --popover: #1A2232;
+  --popover-foreground: #F4EBDD;
+  --primary: #E8B76A;
+  --primary-foreground: #10141F;
+  --secondary: #344158;
+  --secondary-foreground: #F4EBDD;
+  --muted: #344158;
+  --muted-foreground: #ABB7C9;
+  --accent: #344158;
+  --accent-foreground: #F4EBDD;
+  --destructive: #F07167;
+  --destructive-foreground: #10141F;
+  --border: #344158;
+  --input: #344158;
+  --ring: #E8B76A;
+  --chart-1: #E8B76A;
+  --chart-2: #ABB7C9;
+  --chart-3: #344158;
+  --chart-4: #F4EBDD;
+  --chart-5: #1A2232;
   --radius: 0.75rem;
-  --sidebar: #d2c9a5;
-  --sidebar-foreground: #4b3d44;
-  --sidebar-primary: #4b3d44;
-  --sidebar-primary-foreground: #d2c9a5;
-  --sidebar-accent: #d1b187;
-  --sidebar-accent-foreground: #4b3d44;
-  --sidebar-border: #8caba1;
-  --sidebar-ring: #4b726e;
+  --sidebar: #1A2232;
+  --sidebar-foreground: #F4EBDD;
+  --sidebar-primary: #E8B76A;
+  --sidebar-primary-foreground: #10141F;
+  --sidebar-accent: #344158;
+  --sidebar-accent-foreground: #F4EBDD;
+  --sidebar-border: #344158;
+  --sidebar-ring: #E8B76A;
 }
 
 @layer base {
@@ -100,9 +104,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    color-scheme: dark;
     background-image:
-      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(75, 114, 110, 0.12), transparent),
-      radial-gradient(ellipse 60% 40% at 90% 0%, rgba(199, 123, 88, 0.14), transparent);
+      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(232, 183, 106, 0.14), transparent),
+      radial-gradient(ellipse 60% 40% at 90% 0%, rgba(52, 65, 88, 0.55), transparent);
     background-attachment: fixed;
   }
   html {
