@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { branchSwitcherModel, type BranchSwitcherDeck } from "@/lib/branch-switcher";
-import { defaultBranchName } from "@/lib/fork-name";
+import { defaultBranchName, forkNameError } from "@/lib/fork-name";
 import { LIMITS } from "@/lib/data/limits";
 
 const deck = (over: Partial<BranchSwitcherDeck>): BranchSwitcherDeck => ({
@@ -21,6 +21,19 @@ describe("defaultBranchName", () => {
     expect(defaultBranchName("n".repeat(LIMITS.deckName))).toHaveLength(LIMITS.deckName);
     expect(defaultBranchName("n".repeat(LIMITS.deckName)).endsWith(" (branch)")).toBe(true);
     expect(defaultBranchName("n".repeat(71))).toBe(`${"n".repeat(71)} (branch)`);
+  });
+});
+
+describe("forkNameError", () => {
+  it("trims, rejects an empty name, and keeps the deck-name limit", () => {
+    expect(forkNameError("  Shadow test  ")).toBeNull();
+    expect(forkNameError("   ")).toBe("Deck name is required");
+    expect(forkNameError("")).toBe("Deck name is required");
+    expect(forkNameError("n".repeat(LIMITS.deckName))).toBeNull();
+    expect(forkNameError(`  ${"n".repeat(LIMITS.deckName)}  `)).toBeNull();
+    expect(forkNameError("n".repeat(LIMITS.deckName + 1))).toBe(
+      `Deck name must be at most ${LIMITS.deckName} characters`,
+    );
   });
 });
 

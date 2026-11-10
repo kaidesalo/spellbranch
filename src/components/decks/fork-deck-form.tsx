@@ -1,72 +1,158 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import type { FormEvent } from "react";
 import { GitBranch } from "lucide-react";
 import { forkDeckAction } from "@/lib/actions/decks";
+import { LIMITS } from "@/lib/data/limits";
+import { forkNameError } from "@/lib/fork-name";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * Name field plus Fork. The default matches the old automatic
- * "<source> (branch)" name; the person forking can edit it first.
+ * Fork opens a dialog for the new branch's name. Nothing is created until
+ * Fork is confirmed. The default matches "<source> (branch)". The confirmed
+ * name is saved as the new deck's name, which is what other viewers see.
  */
 export function ForkDeckForm({
   deckId,
   defaultName,
+  defaultOpen = false,
 }: {
   deckId: string;
   defaultName: string;
+  /** Opens the naming dialog on first render. The deck page leaves this unset. */
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [name, setName] = useState(defaultName);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Blocks a second confirm, and dismiss, until the action returns an error.
+  // A redirect leaves the page, so the lock does not need to clear.
+  const lock = useRef(false);
   const fieldId = `fork-name-${deckId}`;
+  const errorId = `${fieldId}-error`;
+
+  function onOpenChange(next: boolean) {
+    if (lock.current) return;
+    setOpen(next);
+    if (next) {
+      setName(defaultName);
+      setError(null);
+    }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (lock.current) return;
+    const problem = forkNameError(name);
+    if (problem) {
+      setError(problem);
+      inputRef.current?.focus();
+      return;
+    }
+    const formData = new FormData();
+    formData.set("name", name.trim());
+    setError(null);
+    lock.current = true;
+    startTransition(async () => {
+      const result = await forkDeckAction(deckId, formData);
+      if (result?.error) {
+        lock.current = false;
+        setError(result.error);
+        inputRef.current?.focus();
+      }
+    });
+  }
 
   return (
-    <form
-      className="grid w-full min-w-0 basis-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1 sm:w-80 sm:basis-auto"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        setError(null);
-        startTransition(async () => {
-          const result = await forkDeckAction(deckId, formData);
-          if (result?.error) setError(result.error);
-        });
-      }}
-    >
-      <Label htmlFor={fieldId} className="col-span-2">
-        Branch name
-      </Label>
-      <Input
-        id={fieldId}
-        name="name"
-        required
-        maxLength={80}
-        defaultValue={defaultName}
-        autoComplete="off"
-        disabled={pending}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${fieldId}-error` : undefined}
-        className="min-w-0"
-      />
-      <Button
-        type="submit"
-        size="sm"
-        variant="outline"
-        disabled={pending}
-        aria-label="Fork deck"
-        className="h-8 max-sm:px-2 max-sm:tracking-normal!"
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label="Fork deck"
+            className="h-8 max-sm:px-2 max-sm:tracking-normal!"
+          />
+        }
       >
         <GitBranch data-icon="inline-start" />
-        <span className="sm:hidden">{pending ? "…" : "Fork"}</span>
-        <span className="hidden sm:inline">{pending ? "Forking…" : "Fork deck"}</span>
-      </Button>
-      {error ? (
-        <p id={`${fieldId}-error`} className="col-span-2 text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </form>
+        <span className="sm:hidden">Fork</span>
+        <span className="hidden sm:inline">Fork deck</span>
+      </DialogTrigger>
+      <DialogContent
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md"
+        aria-modal="true"
+        initialFocus={() => inputRef.current}
+      >
+        <DialogHeader className="pr-8">
+          <DialogTitle>Fork this deck</DialogTitle>
+          <DialogDescription>
+            Name the new branch. Anyone who can see the branch will see this name.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="grid gap-3" onSubmit={onSubmit}>
+          <div className="grid gap-2">
+            <Label htmlFor={fieldId}>Branch name</Label>
+            <Input
+              ref={inputRef}
+              id={fieldId}
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              required
+              maxLength={LIMITS.deckName}
+              autoComplete="off"
+              disabled={pending}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+              className="h-11 text-base"
+            />
+            {error ? (
+              <p id={errorId} role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter className="mt-1">
+            <DialogClose
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 w-full sm:min-h-8 sm:w-auto"
+                  disabled={pending}
+                />
+              }
+            >
+              Cancel
+            </DialogClose>
+            <Button
+              type="submit"
+              className="min-h-11 w-full sm:min-h-8 sm:w-auto"
+              disabled={pending}
+            >
+              {pending ? "Forking…" : "Fork"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
