@@ -47,9 +47,10 @@ export default async function ComparePage({
   const data = await getCompareData(sourceId, effectiveBranchId);
   if (!data) notFound();
 
-  const selectable =
-    data.source.branches ??
-    [];
+  const branchChoices = data.source.branches ?? [];
+  const selectable = data.copy && !branchChoices.some((b) => b.id === data.branch.id)
+    ? [data.branch, ...branchChoices]
+    : branchChoices;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -57,7 +58,9 @@ export default async function ComparePage({
         <div>
           <h1 className="text-3xl font-semibold">Compare</h1>
           <p className="mt-1 text-muted-foreground">
-            Side-by-side changes between the source list and a branch.
+            {data.copy
+              ? "Side-by-side changes between the source list and this copy."
+              : "Side-by-side changes between the source list and a branch."}
           </p>
         </div>
         <Button variant="outline" render={<Link href={`/decks/${sourceId}`} />}>
@@ -87,8 +90,9 @@ export default async function ComparePage({
       <CompareView
         source={toCompareSide(data.source)}
         branch={toCompareSide(data.branch)}
-        isPreferred={data.source.preferredBranchId === data.branch.id}
+        isPreferred={!data.copy && data.source.preferredBranchId === data.branch.id}
         canSetPreferred={data.canSetPreferred}
+        kind={data.copy ? "copy" : "branch"}
       />
     </div>
   );

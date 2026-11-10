@@ -7,7 +7,7 @@ import { getDeckById, getDeckPermissions } from "@/lib/queries/decks";
 import { listComments } from "@/lib/queries/comments";
 import { visibilityLabel } from "@/lib/permissions";
 import { branchSwitcherModel } from "@/lib/branch-switcher";
-import { defaultBranchName } from "@/lib/fork-name";
+import { defaultBranchName, defaultCopyName } from "@/lib/fork-name";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardSearch } from "@/components/cards/card-search";
@@ -19,6 +19,7 @@ import { BranchSwitcher } from "@/components/decks/branch-switcher";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
 import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 import { ForkDeckForm } from "@/components/decks/fork-deck-form";
+import { CopyDeckForm } from "@/components/decks/copy-deck-form";
 
 export default async function DeckDetailPage({
   params,
@@ -64,6 +65,9 @@ export default async function DeckDetailPage({
               {deck.name}
             </h1>
             {deck.forkedFromId && <Badge variant="secondary">Branch</Badge>}
+            {(deck.copiedFromDeck || deck.copySourceUnavailable) && (
+              <Badge variant="secondary">Copy</Badge>
+            )}
             {preferred && <Badge>Preferred: {preferred.name}</Badge>}
           </div>
           <p className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
@@ -87,6 +91,22 @@ export default async function DeckDetailPage({
               >
                 {deck.sourceDeck.name}
               </Link>
+            </p>
+          )}
+          {deck.copiedFromDeck && (
+            <p className="mt-2 text-sm">
+              Copied from{" "}
+              <Link
+                href={`/decks/${deck.copiedFromDeck.id}`}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {deck.copiedFromDeck.name}
+              </Link>
+            </p>
+          )}
+          {deck.copySourceUnavailable && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              The deck this was copied from isn&apos;t available.
             </p>
           )}
           {canEdit && deck.colors === null && (
@@ -146,6 +166,22 @@ export default async function DeckDetailPage({
               Compare
             </Button>
           )}
+          {deck.copiedFromDeck && (
+            <Button
+              size="sm"
+              className="max-sm:px-2 max-sm:tracking-normal!"
+              aria-label="Compare to source"
+              render={
+                <Link
+                  href={`/decks/${deck.copiedFromDeck.id}/compare?branch=${deck.id}`}
+                />
+              }
+            >
+              <GitCompareArrows data-icon="inline-start" />
+              <span className="sm:hidden">Compare</span>
+              <span className="hidden sm:inline">Compare source</span>
+            </Button>
+          )}
           {!deck.forkedFromId && defaultCompareId && (
             <Button
               size="sm"
@@ -165,6 +201,9 @@ export default async function DeckDetailPage({
           )}
           {canFork && user && (
             <ForkDeckForm deckId={deck.id} defaultName={defaultBranchName(deck.name)} />
+          )}
+          {canFork && user && (
+            <CopyDeckForm deckId={deck.id} defaultName={defaultCopyName(deck.name)} />
           )}
         </div>
       </div>

@@ -3,7 +3,7 @@ import { DataError } from "@/lib/data/errors";
 import { FRIEND_MESSAGES } from "@/lib/data/friend-rules";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import { createSupabaseRepository } from "@/lib/data/supabase";
-import { createMockClient, eqValue, ok, pgError, type Call } from "./helpers/supabase-mock";
+import { answeringCopyLink, createMockClient, eqValue, ok, pgError, type Call } from "./helpers/supabase-mock";
 
 // Supabase adapter with the client mocked: what it asks PostgREST for, and
 // how it maps results and errors. RLS itself is covered by the pgTAP suites.
@@ -44,7 +44,7 @@ const isTable = (c: Call, table: string, op: Call["op"] = "select") =>
   c.table === table && c.op === op;
 
 function repoWith(respond: (c: Call) => ReturnType<typeof ok> | undefined) {
-  const mock = createMockClient(respond);
+  const mock = createMockClient(answeringCopyLink(respond));
   return { repo: createSupabaseRepository(mock.factory), calls: mock.calls };
 }
 
@@ -232,6 +232,106 @@ describe("supabase adapter: decks", () => {
     const notOwner = repoWith((c) => (isTable(c, "decks") ? ok(deckRow()) : undefined));
     expect(await dataError(notOwner.repo.setPreferredBranch(ME, DECK, FORK))).toMatch(/source deck owner/);
     expect(notOwner.calls.some((c) => c.op === "update")).toBe(false);
+  });
+
+  it("copyDeck goes through rpc('copy_deck'), renames, and maps 42501/P0002", async () => {
+    const COPY = "d0000000-0000-4000-8000-000000000009";
+    const named = repoWith((c) => {
+      if (c.fn === "copy_deck") return ok(COPY);
+      if (isTable(c, "decks", "update")) return ok([{ id: COPY }]);
+      return undefined;
+    });
+    expect(await named.repo.copyDeck(ME, DECK, "  My copy  ")).toBe(COPY);
+    expect(named.calls[0]).toEqual({ fn: "copy_deck", op: "rpc", args: { source: DECK }, filters: [] });
+    expect(named.calls[1]).toMatchObject({ op: "update", payload: { name: "My copy" } });
+
+    const plain = repoWith((c) => (c.fn === "copy_deck" ? ok(COPY) : undefined));
+    expect(await plain.repo.copyDeck(ME, DECK)).toBe(COPY);
+    expect(plain.calls).toEqual([{ fn: "copy_deck", op: "rpc", args: { source: DECK }, filters: [] }]);
+
+    for (const code of ["42501", "P0002"]) {
+      const bad = repoWith(() => pgError(code));
+      expect(await dataError(bad.repo.copyDeck(ME, DECK))).toBe("You are not allowed to copy this deck");
+    }
+  });
+
+  it("getDeck uses copy_source_link and never selects copied_from_id", async () => {
+    const COPY = "d0000000-0000-4000-8000-000000000009";
+    const visible = repoWith((c) => {
+      if (c.fn === "copy_source_link") return ok([{ source_id: DECK, unavailable: false }]);
+      if (isTable(c, "decks") && c.single && eqValue(c, "id") === COPY) {
+        return ok(deckRow({ id: COPY, owner_id: ME, name: "My copy", forked_from_id: null }));
+      }
+      if (isTable(c, "decks") && c.single) return ok(deckRow({ name: "Secret Source" }));
+      if (isTable(c, "decks")) return ok([]);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([bobProfile]);
+      return undefined;
+    });
+    const deck = await visible.repo.getDeck(ME, COPY);
+    expect(deck?.copiedFromId).toBe(DECK);
+    expect(deck?.copiedFromDeck).toMatchObject({ id: DECK, name: "Secret Source" });
+    expect(deck?.copySourceUnavailable).toBe(false);
+    expect(visible.calls.some((c) => c.columns?.includes("copied_from_id"))).toBe(false);
+    expect(visible.calls.some((c) => c.fn === "copy_source_link" && c.args && (c.args as { target: string }).target === COPY)).toBe(true);
+
+    const hidden = repoWith((c) => {
+      if (c.fn === "copy_source_link") return ok([{ source_id: null, unavailable: true }]);
+      if (isTable(c, "decks") && c.single) {
+        return ok(deckRow({ id: COPY, owner_id: ME, name: "My copy", forked_from_id: null }));
+      }
+      if (isTable(c, "decks")) return ok([]);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([]);
+      return undefined;
+    });
+    const missing = await hidden.repo.getDeck(ME, COPY);
+    expect(missing?.copiedFromId).toBeNull();
+    expect(missing?.copiedFromDeck ?? null).toBeNull();
+    expect(missing?.copySourceUnavailable).toBe(true);
+    expect(JSON.stringify(missing)).not.toContain(DECK);
+    expect(hidden.calls.filter((c) => c.fn === "copy_source_link")).toHaveLength(1);
+    expect(hidden.calls.filter((c) => isTable(c, "decks") && c.single)).toHaveLength(1);
+  });
+
+  it("getCompareData allows a copy of the source and still requires a real branch otherwise", async () => {
+    const COPY = "d0000000-0000-4000-8000-000000000009";
+    const copyRow = deckRow({ id: COPY, owner_id: ME, name: "My copy", forked_from_id: null });
+    const sourceRow = deckRow({ owner_id: BOB, name: "Secret Source" });
+    const linked = repoWith((c) => {
+      if (c.fn === "copy_source_link") return ok([{ source_id: DECK, unavailable: false }]);
+      if (isTable(c, "decks") && c.single && eqValue(c, "id") === COPY) return ok(copyRow);
+      if (isTable(c, "decks") && c.single) return ok(sourceRow);
+      if (isTable(c, "decks")) return ok([]);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([bobProfile]);
+      return undefined;
+    });
+    const data = await linked.repo.getCompareData(ME, DECK, COPY);
+    expect(data?.copy).toBe(true);
+    expect(data?.canSetPreferred).toBe(false);
+    expect(data?.source.name).toBe("Secret Source");
+    expect(data?.branch.copiedFromId).toBe(DECK);
+
+    const forkRow = deckRow({ id: FORK, forked_from_id: DECK, owner_id: ME, name: "Branch" });
+    const forked = repoWith((c) => {
+      if (c.fn === "copy_source_link") return ok([]);
+      if (isTable(c, "decks") && c.single && eqValue(c, "id") === FORK) return ok(forkRow);
+      if (isTable(c, "decks") && c.single) return ok(sourceRow);
+      if (isTable(c, "decks")) return ok([]);
+      if (isTable(c, "deck_cards")) return ok([]);
+      if (isTable(c, "public_profiles")) return ok([]);
+      return undefined;
+    });
+    expect((await forked.repo.getCompareData(ME, DECK, FORK))?.copy).toBe(false);
+
+    const unrelated = repoWith((c) => {
+      if (c.fn === "copy_source_link") return ok([{ source_id: null, unavailable: true }]);
+      if (isTable(c, "decks") && c.single && eqValue(c, "id") === COPY) return ok(copyRow);
+      if (isTable(c, "decks") && c.single) return ok(sourceRow);
+      return undefined;
+    });
+    expect(await unrelated.repo.getCompareData(ME, DECK, COPY)).toBeNull();
   });
 });
 

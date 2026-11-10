@@ -99,6 +99,12 @@ export interface Deck {
   visibility: Visibility;
   allowForks: boolean;
   forkedFromId: string | null;
+  /**
+   * Set on an independent copy: the deck it was copied from. Null on
+   * originals and branches. Omitted on decks saved before copies existed.
+   * Readers must not show this id unless the source deck is visible.
+   */
+  copiedFromId?: string | null;
   preferredBranchId: string | null;
   /** Only ever set when format is "commander" (DB CHECK decks_commander_format). */
   commander: DeckCommander | null;
@@ -133,6 +139,16 @@ export interface DeckWithMeta extends Deck {
   cardCount?: number;
   forkCount?: number;
   sourceDeck?: (Deck & { owner?: PublicProfile }) | null;
+  /**
+   * The deck this copy was made from, when the viewer can see it. Undefined
+   * or null hides the source: its id is not copied onto `copiedFromId`.
+   */
+  copiedFromDeck?: (Deck & { owner?: PublicProfile }) | null;
+  /**
+   * True when this deck is a copy and the source is missing or invisible.
+   * No source id is included in that case.
+   */
+  copySourceUnavailable?: boolean;
   /** Visible forks of this deck. `owner` is set when the branch author's profile loaded. */
   branches?: Array<Deck & { owner?: PublicProfile }>;
   /**

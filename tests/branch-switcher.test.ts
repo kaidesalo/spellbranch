@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { branchSwitcherModel, type BranchSwitcherDeck } from "@/lib/branch-switcher";
-import { defaultBranchName, forkNameError } from "@/lib/fork-name";
+import { defaultBranchName, defaultCopyName, forkNameError } from "@/lib/fork-name";
 import { LIMITS } from "@/lib/data/limits";
 
 const deck = (over: Partial<BranchSwitcherDeck>): BranchSwitcherDeck => ({
@@ -21,6 +21,17 @@ describe("defaultBranchName", () => {
     expect(defaultBranchName("n".repeat(LIMITS.deckName))).toHaveLength(LIMITS.deckName);
     expect(defaultBranchName("n".repeat(LIMITS.deckName)).endsWith(" (branch)")).toBe(true);
     expect(defaultBranchName("n".repeat(71))).toBe(`${"n".repeat(71)} (branch)`);
+  });
+});
+
+describe("defaultCopyName", () => {
+  it("matches the automatic (copy) suffix when it fits", () => {
+    expect(defaultCopyName("Wretched Ranks")).toBe("Wretched Ranks (copy)");
+  });
+
+  it("shortens the source name so the default still fits the deck-name limit", () => {
+    expect(defaultCopyName("n".repeat(LIMITS.deckName))).toHaveLength(LIMITS.deckName);
+    expect(defaultCopyName("n".repeat(LIMITS.deckName)).endsWith(" (copy)")).toBe(true);
   });
 });
 

@@ -453,14 +453,23 @@ describe("local adapter: fork names", () => {
     expect(asCarol?.sourceBranches?.map((b) => b.name)).toEqual(["Shadow test"]);
     expect(await repo.getDeck(null, branch)).toBeNull();
 
-    // Forking the named branch: "Forked from" is the parent's stored name.
-    // That fork starts private, so only Carol and Bob (source owner, and her friend) see it.
+    // Forking the named branch stacks on the original deck, not on the branch.
+    // The new row starts private (the branch is friends-only). Carol can see
+    // it. Bob is not the root owner, so the source-owner exception does not
+    // show him Carol's private fork. Alice is not Carol's friend, so the
+    // root's branch list stays Bob's branch only.
     const nested = await repo.forkDeck(CAROL, branch, "Carol take");
-    const asBobOnNested = await repo.getDeck(BOB, nested);
-    expect(asBobOnNested?.name).toBe("Carol take");
-    expect(asBobOnNested?.sourceDeck?.name).toBe("Shadow test");
-    expect((await repo.getDeck(BOB, branch))?.branches?.map((b) => b.name)).toEqual(["Carol take"]);
+    expect(db.decks.find((d) => d.id === nested)?.forkedFromId).toBe(source);
+    const asCarolOnNested = await repo.getDeck(CAROL, nested);
+    expect(asCarolOnNested?.name).toBe("Carol take");
+    expect(asCarolOnNested?.sourceDeck?.name).toBe("Live and Burn");
+    expect(asCarolOnNested?.sourceBranches?.map((b) => b.name).sort()).toEqual(
+      ["Carol take", "Shadow test"].sort(),
+    );
+    expect((await repo.getDeck(BOB, branch))?.branches ?? []).toEqual([]);
+    expect(await repo.getDeck(BOB, nested)).toBeNull();
     expect(await repo.getDeck(ALICE, nested)).toBeNull();
+    expect((await repo.getDeck(ALICE, source))?.branches?.map((b) => b.name)).toEqual(["Shadow test"]);
     expect(JSON.stringify(await repo.getDeck(ALICE, source))).not.toMatch(/Carol take/);
     expect(await repo.getDeck(null, nested)).toBeNull();
 
@@ -601,5 +610,165 @@ describe("local adapter: source owner sees friend forks (009)", () => {
     expect((await repo.getDeck(ann, pub))?.branches ?? []).toEqual([]);
     expect(await repo.getDeck(cat, benFork)).toBeNull();
     expect((await repo.listFriendBranchesOnMyDecks(ann)).map((d) => d.id)).toEqual([benFork]);
+  });
+});
+
+describe("local adapter: forks stack on the root, copies stay independent", () => {
+  async function befriend(a: string, b: string) {
+    await repo.sendFriendRequest(a, b);
+    const f = db.friendships.find((x) => x.requesterId === a && x.addresseeId === b)!;
+    await repo.respondFriendRequest(b, f.id, true);
+  }
+
+  const deckInput = (name: string, visibility: "public" | "friends" | "private" = "public") => ({
+    name, format: "modern" as const, notes: `${name} notes`, visibility, allowForks: true,
+  });
+
+  it("a cross-user fork and a fork of that fork both belong to the original deck", async () => {
+    await befriend(ALICE, BOB);
+    await befriend(ALICE, CAROL);
+    await befriend(BOB, CAROL);
+    const root = await repo.createDeck(ALICE, deckInput("Live and Burn"));
+    await repo.addCard(ALICE, root, card);
+
+    const bobBranch = await repo.forkDeck(BOB, root, "Bob line");
+    expect(db.decks.find((d) => d.id === bobBranch)).toMatchObject({
+      forkedFromId: root,
+      copiedFromId: null,
+      ownerId: BOB,
+      visibility: "friends",
+    });
+
+    const carolBranch = await repo.forkDeck(CAROL, bobBranch, "Carol take");
+    expect(db.decks.find((d) => d.id === carolBranch)).toMatchObject({
+      forkedFromId: root,
+      copiedFromId: null,
+      ownerId: CAROL,
+      visibility: "private",
+    });
+    // Not a child of Bob's branch, and not a new tree.
+    expect(db.decks.find((d) => d.id === bobBranch)?.forkedFromId).toBe(root);
+    expect((await repo.getDeck(BOB, bobBranch))?.branches ?? []).toEqual([]);
+
+    const asAlice = await repo.getDeck(ALICE, root);
+    expect(asAlice?.branches?.map((b) => [b.name, b.owner?.username]).sort()).toEqual([
+      ["Bob line", "bob_u"],
+      ["Carol take", "carol_u"],
+    ].sort());
+
+    // Viewers who can see both branches get the same full list on the root
+    // and on every branch. Bob cannot see Carol's private fork (he is not
+    // the root owner), so his menu is only the branch he can see.
+    const full = [bobBranch, carolBranch].sort();
+    for (const viewer of [ALICE, CAROL]) {
+      expect((await repo.getDeck(viewer, root))?.branches?.map((b) => b.id).sort()).toEqual(full);
+      for (const id of [bobBranch, carolBranch]) {
+        const page = await repo.getDeck(viewer, id);
+        expect(page?.sourceDeck?.id).toBe(root);
+        expect(page?.sourceBranches?.map((b) => b.id).sort()).toEqual(full);
+      }
+    }
+    expect((await repo.getDeck(BOB, bobBranch))?.sourceBranches?.map((b) => b.id)).toEqual([bobBranch]);
+    expect(await repo.getDeck(BOB, carolBranch)).toBeNull();
+
+    const later = await repo.forkDeck(ALICE, bobBranch, "Alice again");
+    expect(db.decks.find((d) => d.id === later)?.forkedFromId).toBe(root);
+    expect((await repo.getDeck(ALICE, root))?.branches?.map((b) => b.id).sort()).toEqual(
+      [bobBranch, carolBranch, later].sort(),
+    );
+  });
+
+  it("a copy is a new deck and later forks of either side stay apart", async () => {
+    await befriend(ALICE, BOB);
+    const root = await repo.createDeck(ALICE, deckInput("Live and Burn"));
+    await repo.addCard(ALICE, root, card);
+    const branch = await repo.forkDeck(BOB, root, "Bob line");
+
+    const copy = await repo.copyDeck(BOB, branch, "  Burn copy  ");
+    const stored = db.decks.find((d) => d.id === copy)!;
+    expect(stored).toMatchObject({
+      name: "Burn copy",
+      ownerId: BOB,
+      forkedFromId: null,
+      copiedFromId: branch,
+      visibility: "private",
+      allowForks: false,
+    });
+    expect(stored.id).not.toBe(branch);
+    expect((await repo.getDeck(ALICE, root))?.branches?.map((b) => b.id)).toEqual([branch]);
+    expect(JSON.stringify(await repo.getDeck(ALICE, root))).not.toMatch(/Burn copy/);
+
+    const asBob = await repo.getDeck(BOB, copy);
+    expect(asBob?.branches ?? []).toEqual([]);
+    expect(asBob?.sourceBranches).toBeUndefined();
+    expect(asBob?.copiedFromDeck?.id).toBe(branch);
+    expect(asBob?.copiedFromId).toBe(branch);
+    expect(asBob?.cardCount).toBe(1);
+
+    const copyFork = await repo.forkDeck(BOB, copy, "Copy branch");
+    expect(db.decks.find((d) => d.id === copyFork)?.forkedFromId).toBe(copy);
+    expect((await repo.getDeck(BOB, copy))?.branches?.map((b) => b.id)).toEqual([copyFork]);
+    expect((await repo.getDeck(ALICE, root))?.branches?.map((b) => b.id)).toEqual([branch]);
+    expect((await repo.getDeck(BOB, copy))?.branches?.map((b) => b.id)).not.toContain(branch);
+
+    const rootFork = await repo.forkDeck(ALICE, root, "Alice line");
+    expect((await repo.getDeck(BOB, copy))?.branches?.map((b) => b.id)).toEqual([copyFork]);
+    expect(JSON.stringify(await repo.getDeck(BOB, copy))).not.toMatch(/Alice line/);
+    expect((await repo.getDeck(ALICE, root))?.branches?.map((b) => b.id).sort()).toEqual(
+      [branch, rootFork].sort(),
+    );
+  });
+
+  it("compares a copy to its source, and drops the link when the source is hidden or deleted", async () => {
+    await befriend(ALICE, BOB);
+    const root = await repo.createDeck(ALICE, deckInput("Source Secret"));
+    await repo.addCard(ALICE, root, card);
+    const copy = await repo.copyDeck(BOB, root, "My copy");
+
+    const compared = await repo.getCompareData(BOB, root, copy);
+    expect(compared?.copy).toBe(true);
+    expect(compared?.canSetPreferred).toBe(false);
+    expect(compared?.source.name).toBe("Source Secret");
+    expect(compared?.branch.name).toBe("My copy");
+    expect(compared?.branch.cardCount).toBe(1);
+    await rejectsWith(
+      repo.setPreferredBranch(ALICE, root, copy),
+      "Branch does not belong to this deck",
+    );
+    // A copy is not a branch, and a branch is not a copy of some other deck.
+    expect(await repo.getCompareData(BOB, copy, root)).toBeNull();
+    const branch = await repo.forkDeck(BOB, root, "Bob line");
+    expect((await repo.getCompareData(ALICE, root, branch))?.copy).toBe(false);
+    expect(await repo.getCompareData(BOB, root, branch)).not.toBeNull();
+
+    await repo.updateDeck(ALICE, root, {
+      name: "Hidden Title", format: "modern", notes: "SOURCE-ONLY-NOTE", visibility: "private", allowForks: true,
+    });
+    const hidden = await repo.getDeck(BOB, copy);
+    expect(hidden?.copySourceUnavailable).toBe(true);
+    expect(hidden?.copiedFromDeck ?? null).toBeNull();
+    expect(hidden?.copiedFromId).toBeNull();
+    const dumped = JSON.stringify(hidden);
+    expect(dumped).not.toContain(root);
+    expect(dumped).not.toContain("SOURCE-ONLY-NOTE");
+    expect(dumped).not.toContain("Hidden Title");
+    expect(await repo.getCompareData(BOB, root, copy)).toBeNull();
+
+    await repo.deleteDeck(ALICE, root);
+    expect(db.decks.find((d) => d.id === copy)?.copiedFromId ?? null).toBeNull();
+    const gone = await repo.getDeck(BOB, copy);
+    expect(gone?.copySourceUnavailable).toBe(false);
+    expect(gone?.copiedFromId).toBeNull();
+    expect(gone?.name).toBe("My copy");
+  });
+
+  it("refuses a copy of a deck the caller cannot view, before checking the name", async () => {
+    const secret = await repo.createDeck(ALICE, {
+      name: "Secret", format: "modern", notes: "", visibility: "private", allowForks: false,
+    });
+    await rejectsWith(repo.copyDeck(BOB, secret, "   "), "You are not allowed to copy this deck");
+    expect(db.decks).toHaveLength(1);
+    const own = await repo.copyDeck(ALICE, secret);
+    expect(db.decks.find((d) => d.id === own)?.name).toBe("Secret (copy)");
   });
 });
