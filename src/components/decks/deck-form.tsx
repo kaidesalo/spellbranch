@@ -98,7 +98,7 @@ export function DeckForm({
         </div>
       </div>
 
-      <div className="rounded-xl border-2 border-[#4b3d44] bg-[#d2c9a5]/40 p-4">
+      <div className="rounded-xl border-2 border-border bg-card/40 p-4">
         <ColorPicker
           defaultColors={deck?.colors ?? null}
           required={colorsRequired}

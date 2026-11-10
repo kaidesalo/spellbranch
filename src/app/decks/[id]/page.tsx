@@ -90,7 +90,7 @@ export default async function DeckDetailPage({
             </p>
           )}
           {canEdit && deck.colors === null && (
-            <p className="mt-3 max-w-2xl rounded-lg border-2 border-dashed border-[#4b3d44]/60 bg-[#d2c9a5]/40 px-3 py-2 text-sm">
+            <p className="mt-3 max-w-2xl rounded-lg border-2 border-dashed border-border bg-card/40 px-3 py-2 text-sm">
               This deck has no colors yet, so any card can be added.{" "}
               <Link
                 href={`/decks/${deck.id}/edit`}

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Menu } from "lucide-react";
 import { signOutAction } from "@/lib/actions/auth";
 import type { SessionUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -34,13 +35,16 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <Sparkles className="h-4 w-4" aria-hidden />
-          </span>
-          <span className="font-heading text-2xl text-foreground">
-            Spellbranch
-          </span>
+        <Link href={user ? "/dashboard" : "/"} className="flex min-w-0 items-center">
+          <Image
+            src="/spellbranch-logo.png"
+            alt="Spellbranch"
+            width={1964}
+            height={452}
+            priority
+            unoptimized
+            className="h-8 w-auto max-w-[46vw] sm:h-10 sm:max-w-[220px]"
+          />
         </Link>
 
         {user ? (
@@ -53,7 +57,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                   className={cn(
                     "rounded-lg px-3 py-2 label-caps transition-colors",
                     pathname.startsWith(link.href)
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
                 >
@@ -96,7 +100,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                       className={cn(
                         "rounded-lg px-3 py-3 text-sm font-medium",
                         pathname.startsWith(link.href)
-                          ? "bg-primary/10 text-primary"
+                          ? "bg-primary text-primary-foreground"
                           : "text-foreground",
                       )}
                     >

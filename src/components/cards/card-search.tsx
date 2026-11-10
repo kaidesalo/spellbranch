@@ -124,7 +124,7 @@ export function CardSearch({
                     <div
                       id={`off-color-${card.id}`}
                       className={`mt-0.5 text-xs font-semibold ${
-                        active ? "text-primary-foreground/90" : "text-[#4b3d44]"
+                        active ? "text-primary-foreground/90" : "text-destructive"
                       }`}
                     >
                       Off-color: {reason}
@@ -193,7 +193,7 @@ export function CardSearch({
                     </Button>
                   )}
                   {canEdit && selectedOffColor && (
-                    <p id="add-off-color" className="text-xs font-semibold text-[#4b3d44]">
+                    <p id="add-off-color" className="text-xs font-semibold text-destructive">
                       Can&apos;t add: {selectedOffColor}
                     </p>
                   )}

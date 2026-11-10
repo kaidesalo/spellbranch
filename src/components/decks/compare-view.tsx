@@ -105,7 +105,7 @@ export function CompareView({
         <Badge className="bg-rose-700 text-white hover:bg-rose-700">
           −{summary.removed} removed
         </Badge>
-        <Badge className="bg-amber-600 text-white hover:bg-amber-600">
+        <Badge className="bg-amber-600 text-[#10141F] hover:bg-amber-600">
           {summary.quantity} quantity
         </Badge>
         <Badge variant="secondary">{replacements.length} replaced</Badge>
@@ -113,7 +113,7 @@ export function CompareView({
         {(commanderChange === "added" ||
           commanderChange === "removed" ||
           commanderChange === "changed") && (
-          <Badge className="bg-[#4b726e] text-white hover:bg-[#4b726e]">
+          <Badge>
             commander {commanderChange}
           </Badge>
         )}
@@ -136,7 +136,7 @@ export function CompareView({
               </p>
             ) : (
               <p>
-                <span className={source.commander ? "text-rose-700 line-through" : "text-muted-foreground"}>
+                <span className={source.commander ? "text-rose-300 line-through" : "text-muted-foreground"}>
                   {source.commander ? (
                     <CardZoom
                       card={zoomCardFromSaved(source.commander.cardName, source.commander.imageUri)}
@@ -149,7 +149,7 @@ export function CompareView({
                   )}
                 </span>
                 <span className="mx-2 text-muted-foreground">→</span>
-                <span className={branch.commander ? "font-medium text-emerald-800" : "text-muted-foreground"}>
+                <span className={branch.commander ? "font-medium text-emerald-300" : "text-muted-foreground"}>
                   {branch.commander ? (
                     <CardZoom
                       card={zoomCardFromSaved(branch.commander.cardName, branch.commander.imageUri)}
@@ -176,7 +176,7 @@ export function CompareView({
                 key={`${pair.removed.scryfallId}-${pair.added.scryfallId}`}
                 className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm"
               >
-                <span className="text-rose-700 line-through">
+                <span className="text-rose-300 line-through">
                   <CardZoom
                     card={zoomCardFromSaved(pair.removed.cardName, pair.removed.imageUri)}
                     className="hover:decoration-2"
@@ -185,7 +185,7 @@ export function CompareView({
                   </CardZoom>
                 </span>
                 <span className="mx-2 text-muted-foreground">→</span>
-                <span className="font-medium text-emerald-800">
+                <span className="font-medium text-emerald-300">
                   <CardZoom
                     card={zoomCardFromSaved(pair.added.cardName, pair.added.imageUri)}
                     className="hover:underline"
@@ -218,9 +218,9 @@ export function CompareView({
                   key={diff.scryfallId}
                   className={cn(
                     "grid grid-cols-[1fr_auto_auto] items-center gap-2 px-4 py-2 text-sm",
-                    diff.kind === "added" && "bg-emerald-50/80",
-                    diff.kind === "removed" && "bg-rose-50/80",
-                    diff.kind === "quantity" && "bg-amber-50/80",
+                    diff.kind === "added" && "bg-emerald-400/15",
+                    diff.kind === "removed" && "bg-rose-400/15",
+                    diff.kind === "quantity" && "bg-amber-300/15",
                   )}
                 >
                   <div>
