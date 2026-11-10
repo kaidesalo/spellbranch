@@ -17,11 +17,15 @@ function face(family, weights) {
 `;
 }
 
+function faces(family, weights) {
+  return weights.map((weight) => face(family, weight)).join("");
+}
+
 module.exports = {
-  "https://fonts.googleapis.com/css2?family=Raleway:wght@100..900&display=swap":
-    face("Raleway", "100 900"),
-  "https://fonts.googleapis.com/css2?family=Knewave:wght@400&display=swap":
-    face("Knewave", "400"),
+  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap":
+    faces("Inter", ["400", "500", "600"]),
+  "https://fonts.googleapis.com/css2?family=Cinzel:wght@600&display=swap":
+    face("Cinzel", "600"),
   "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap":
     face("Geist Mono", "100 900"),
 };

@@ -50,7 +50,7 @@ function ColorIdentity({ colors }: { colors: string[] }) {
         <span
           key={c}
           aria-hidden
-          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ring-1 ${PIP[c]?.className ?? ""}`}
+          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ring-1 ${PIP[c]?.className ?? ""}`}
         >
           {c}
         </span>
@@ -112,7 +112,7 @@ export function CommanderSlot({
                 <p id="commander-heading" className="label-caps flex items-center gap-1.5 text-[#e8d9a8]">
                   <Crown className="h-3.5 w-3.5" aria-hidden /> Commander
                 </p>
-                <p className="mt-1 text-2xl font-bold leading-tight sm:text-3xl">
+                <p className="mt-1 text-2xl font-medium leading-tight sm:text-3xl">
                   <CardZoom
                     card={zoomCardFromSaved(commander.cardName, commander.imageUri)}
                     className="hover:underline focus-visible:ring-[#e8d9a8]/70"

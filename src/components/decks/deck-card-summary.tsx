@@ -21,7 +21,7 @@ export function DeckCardSummary({
       className="group block rounded-2xl border border-border/80 bg-card/70 p-5 transition hover:border-primary/40 hover:bg-card"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-lg font-semibold group-hover:text-primary">
+        <h3 className="font-display break-words text-lg font-semibold group-hover:text-primary">
           {deck.name}
         </h3>
         {badge}
@@ -32,7 +32,7 @@ export function DeckCardSummary({
         </Badge>
         <Badge variant="secondary">{visibilityLabel(deck.visibility)}</Badge>
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">
+      <p className="mt-3 text-sm font-medium tabular-nums text-muted-foreground">
         {deckCountLabel(
           deck.cardCount ?? 0,
           deck.format === "commander" && Boolean(deck.commander),

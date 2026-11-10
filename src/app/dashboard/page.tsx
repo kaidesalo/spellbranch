@@ -25,7 +25,7 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+          <h1 className="text-3xl font-semibold tracking-tight">
             Hey, {user.displayName}
           </h1>
           <p className="mt-1 text-muted-foreground">
@@ -54,19 +54,19 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Layers3 className="h-4 w-4" /> Decks
           </div>
-          <p className="mt-2 font-heading text-3xl font-semibold">{decks.length}</p>
+          <p className="mt-2 text-3xl font-medium tabular-nums">{decks.length}</p>
         </div>
         <div className="rounded-2xl border border-border/80 bg-card/70 p-5">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <GitBranch className="h-4 w-4" /> Branches
           </div>
-          <p className="mt-2 font-heading text-3xl font-semibold">{branches.length}</p>
+          <p className="mt-2 text-3xl font-medium tabular-nums">{branches.length}</p>
         </div>
         <div className="rounded-2xl border border-border/80 bg-card/70 p-5">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="h-4 w-4" /> Friends
           </div>
-          <p className="mt-2 font-heading text-3xl font-semibold">
+          <p className="mt-2 text-3xl font-medium tabular-nums">
             {friendsData.friends.length}
           </p>
         </div>
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
 
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-heading text-xl font-semibold">Your decks</h2>
+          <h2 className="text-xl font-semibold">Your decks</h2>
           <Button variant="ghost" size="sm" render={<Link href="/decks" />}>
             View all
           </Button>
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
 
       {branches.length > 0 && (
         <section className="mt-10">
-          <h2 className="mb-4 font-heading text-xl font-semibold">Your branches</h2>
+          <h2 className="mb-4 text-xl font-semibold">Your branches</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {branches.slice(0, 3).map((deck) => (
               <DeckCardSummary
@@ -115,7 +115,7 @@ export default async function DashboardPage() {
 
       {friendBranches.length > 0 && (
         <section className="mt-10">
-          <h2 className="mb-1 font-heading text-xl font-semibold">
+          <h2 className="mb-1 text-xl font-semibold">
             Friend branches on your decks
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">

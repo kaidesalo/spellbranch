@@ -54,8 +54,8 @@ export function CompareView({
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Source
           </p>
-          <h2 className="font-heading text-xl font-semibold">{source.name}</h2>
-          <p className="mt-1 text-sm text-muted-foreground capitalize">
+          <h2 className="font-display break-words text-xl font-semibold">{source.name}</h2>
+          <p className="mt-1 text-sm font-medium tabular-nums text-muted-foreground capitalize">
             {source.format} · {deckCountLabel(source.cardCount, Boolean(source.commander))}
           </p>
           <Button
@@ -71,8 +71,8 @@ export function CompareView({
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             Branch
           </p>
-          <h2 className="font-heading text-xl font-semibold">{branch.name}</h2>
-          <p className="mt-1 text-sm text-muted-foreground capitalize">
+          <h2 className="font-display break-words text-xl font-semibold">{branch.name}</h2>
+          <p className="mt-1 text-sm font-medium tabular-nums text-muted-foreground capitalize">
             {branch.format} · {deckCountLabel(branch.cardCount, Boolean(branch.commander))}
             {branch.ownerUsername ? ` · @${branch.ownerUsername}` : ""}
           </p>
@@ -99,17 +99,21 @@ export function CompareView({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">
+        <Badge className="bg-emerald-700 font-medium! tabular-nums text-white hover:bg-emerald-700">
           +{summary.added} added
         </Badge>
-        <Badge className="bg-rose-700 text-white hover:bg-rose-700">
+        <Badge className="bg-rose-700 font-medium! tabular-nums text-white hover:bg-rose-700">
           −{summary.removed} removed
         </Badge>
-        <Badge className="bg-amber-600 text-white hover:bg-amber-600">
+        <Badge className="bg-amber-600 font-medium! tabular-nums text-white hover:bg-amber-600">
           {summary.quantity} quantity
         </Badge>
-        <Badge variant="secondary">{replacements.length} replaced</Badge>
-        <Badge variant="outline">{summary.unchanged} unchanged</Badge>
+        <Badge variant="secondary" className="font-medium! tabular-nums">
+          {replacements.length} replaced
+        </Badge>
+        <Badge variant="outline" className="font-medium! tabular-nums">
+          {summary.unchanged} unchanged
+        </Badge>
         {(commanderChange === "added" ||
           commanderChange === "removed" ||
           commanderChange === "changed") && (
@@ -121,7 +125,7 @@ export function CompareView({
 
       {commanderChange !== "none" && (
         <section>
-          <h3 className="mb-2 font-heading text-lg font-semibold">Commander</h3>
+          <h3 className="mb-2 text-lg font-semibold">Commander</h3>
           <div className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm">
             {commanderChange === "same" ? (
               <p>
@@ -169,7 +173,7 @@ export function CompareView({
 
       {replacements.length > 0 && (
         <section>
-          <h3 className="mb-2 font-heading text-lg font-semibold">Replacements</h3>
+          <h3 className="mb-2 text-lg font-semibold">Replacements</h3>
           <ul className="space-y-2">
             {replacements.map((pair) => (
               <li
@@ -200,7 +204,7 @@ export function CompareView({
       )}
 
       <section>
-        <h3 className="mb-2 font-heading text-lg font-semibold">Card changes</h3>
+        <h3 className="mb-2 text-lg font-semibold">Card changes</h3>
         {changed.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
             These lists are identical.
@@ -236,10 +240,10 @@ export function CompareView({
                       <ManaCost cost={diff.manaCost} fallback="—" /> · {diff.typeLine}
                     </p>
                   </div>
-                  <span className="w-12 text-center tabular-nums">
+                  <span className="w-12 text-center font-medium tabular-nums">
                     {diff.sourceQty}
                   </span>
-                  <span className="w-12 text-center tabular-nums font-semibold">
+                  <span className="w-12 text-center font-medium tabular-nums">
                     {diff.branchQty}
                   </span>
                 </li>

@@ -34,11 +34,11 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+        <Link href={user ? "/dashboard" : "/"} className="flex min-w-0 items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
             <Sparkles className="h-4 w-4" aria-hidden />
           </span>
-          <span className="font-heading text-2xl text-foreground">
+          <span className="truncate font-display text-xl font-semibold text-foreground sm:text-2xl">
             Spellbranch
           </span>
         </Link>
@@ -85,7 +85,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
               </SheetTrigger>
               <SheetContent side="right" className="w-[280px]">
                 <SheetHeader>
-                  <SheetTitle className="font-heading">Spellbranch</SheetTitle>
+                  <SheetTitle className="font-display font-semibold">Spellbranch</SheetTitle>
                 </SheetHeader>
                 <div className="mt-6 flex flex-col gap-2 px-2">
                   {links.map((link) => (
@@ -113,11 +113,17 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
             </Sheet>
           </>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" render={<Link href="/login" />}>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              className="max-sm:px-2! max-sm:tracking-normal!"
+              render={<Link href="/login" />}
+            >
               Sign in
             </Button>
-            <Button render={<Link href="/signup" />}>Join free</Button>
+            <Button className="max-sm:px-2! max-sm:tracking-normal!" render={<Link href="/signup" />}>
+              Join free
+            </Button>
           </div>
         )}
       </div>

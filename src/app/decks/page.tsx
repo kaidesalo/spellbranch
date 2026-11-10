@@ -21,7 +21,7 @@ export default async function DecksPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-semibold">Decks</h1>
+          <h1 className="text-3xl font-semibold">Decks</h1>
           <p className="mt-1 text-muted-foreground">
             Your lists, forks, and decks shared with friends.
           </p>
@@ -62,7 +62,7 @@ export default async function DecksPage() {
             <>
               {branches.length > 0 && (
                 <section>
-                  <h2 className="mb-4 font-heading text-xl font-semibold">Your branches</h2>
+                  <h2 className="mb-4 text-xl font-semibold">Your branches</h2>
                   <Grid
                     decks={branches}
                     badge={<Badge variant="secondary">Branch</Badge>}
@@ -71,7 +71,7 @@ export default async function DecksPage() {
               )}
               {friendBranches.length > 0 && (
                 <section>
-                  <h2 className="mb-1 font-heading text-xl font-semibold">
+                  <h2 className="mb-1 text-xl font-semibold">
                     Friend branches on your decks
                   </h2>
                   <p className="mb-4 text-sm text-muted-foreground">

@@ -83,7 +83,7 @@ function CardZoomBody({ card }: { card: ZoomCard }) {
           <p className="label-caps text-muted-foreground">
             {hasBack ? `Face ${faceIndex + 1} of ${card.faces.length}` : "Card"}
           </p>
-          <DialogTitle className="mt-1 font-sans text-lg leading-tight font-bold">
+          <DialogTitle className="mt-1 text-lg leading-tight font-medium">
             {card.name}
           </DialogTitle>
         </div>

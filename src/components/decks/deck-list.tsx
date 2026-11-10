@@ -73,14 +73,16 @@ export function DeckList({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm font-medium tabular-nums text-muted-foreground">
         {deckCountLabel(totalCards(shownCards), hasCommander)} · {shownCards.length} unique
       </p>
       {groups.map((group) => (
         <section key={group.type}>
           <h3 className="mb-2 flex items-center justify-between label-caps text-primary">
             <span>{group.type}</span>
-            <span className="text-muted-foreground">{group.count}</span>
+            <span className="font-medium tabular-nums tracking-normal text-muted-foreground">
+              {group.count}
+            </span>
           </h3>
           <ul className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/50">
             {group.cards.map((card) => (
@@ -154,7 +156,7 @@ export function DeckList({
                     </Button>
                   </div>
                 ) : (
-                  <span className="text-sm font-semibold">{card.quantity}</span>
+                  <span className="text-sm font-medium tabular-nums">{card.quantity}</span>
                 )}
               </li>
             ))}
