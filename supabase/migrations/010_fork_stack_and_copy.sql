@@ -44,6 +44,14 @@
 -- while the table grant remains. Readers learn a source id only from
 -- copy_source_link(), and only when they can already view both decks. A
 -- hidden or missing source comes back as unavailable with a null id.
+-- copy_links_for_deck() is the branch-menu exception. It returns the other
+-- deck's id, name, owner id, and username to the two owners of that copy
+-- (the owner of the exact deck that was copied, and the owner of the copy),
+-- even when the other deck is private. It returns no card text. other_visible
+-- is false when normal visibility hides the other deck. Everyone else,
+-- including friends and the root owner of a stack the source sits in, gets
+-- no row. Anon cannot execute it. A deleted source clears copied_from_id
+-- (ON DELETE SET NULL) and the link disappears.
 -- Copying uses the same permission as forking the clicked deck (owner, or
 -- allow_forks and can_view_deck). It does not consult the original deck's
 -- allow_forks. Visibility of the new row follows the same F4 defaults as
@@ -511,6 +519,74 @@ $$;
 
 revoke execute on function public.copy_source_link(uuid) from public;
 grant execute on function public.copy_source_link(uuid) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 6b. copy_links_for_deck(): the owner-only cross-link in the branch list
+-- ---------------------------------------------------------------------------
+-- A copy is still its own root. This does not put it in forked_from_id.
+-- The two parties to that one copy (owner of the exact deck that was copied,
+-- and owner of the copy) each see the other deck's id, name, and username.
+-- They see it even when the other deck is private. other_visible is false
+-- in that case so the app can skip compare and card links. Nobody else,
+-- including a friend or the root owner of a stack the source sits in, gets
+-- a row. A deck the caller cannot view returns nothing, so the function
+-- does not reveal that a hidden deck has copies. Notes and cards are not
+-- returned. A deleted source has copied_from_id null, so that side is gone.
+
+create or replace function public.copy_links_for_deck(target uuid)
+returns table (
+  other_id uuid,
+  other_name text,
+  other_owner_id uuid,
+  other_username text,
+  link_role text,
+  other_visible boolean
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  viewer uuid := auth.uid();
+  deck public.decks;
+  other public.decks;
+  uname text;
+begin
+  if viewer is null then
+    return;
+  end if;
+
+  select * into deck from public.decks where id = target;
+  if not found or not public.can_view_deck(deck, viewer) then
+    return;
+  end if;
+
+  if deck.copied_from_id is not null then
+    select * into other from public.decks where id = deck.copied_from_id;
+    if found and (viewer = deck.owner_id or viewer = other.owner_id) then
+      select p.username into uname from public.profiles p where p.id = other.owner_id;
+      return query
+        select other.id, other.name, other.owner_id, uname, 'original'::text,
+               public.can_view_deck(other, viewer);
+    end if;
+  end if;
+
+  for other in
+    select c.* from public.decks c where c.copied_from_id = deck.id
+  loop
+    if viewer = deck.owner_id or viewer = other.owner_id then
+      select p.username into uname from public.profiles p where p.id = other.owner_id;
+      return query
+        select other.id, other.name, other.owner_id, uname, 'copy'::text,
+               public.can_view_deck(other, viewer);
+    end if;
+  end loop;
+end;
+$$;
+
+revoke execute on function public.copy_links_for_deck(uuid) from public, anon;
+grant execute on function public.copy_links_for_deck(uuid) to authenticated;
 
 -- Other tables' policies used to call can_view_deck(deck_row). Building that
 -- row in the caller's query needs SELECT on every column, including

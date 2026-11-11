@@ -57,6 +57,9 @@ describe("migration 010", () => {
     expect(link).toMatch(/return query select null::uuid, false/);
     expect(link).toMatch(/return query select null::uuid, true/);
     expect(sql).toMatch(/grant execute on function public\.copy_source_link\(uuid\) to anon, authenticated/);
+    expect(sql).toMatch(/function public\.copy_links_for_deck\(target uuid\)/);
+    expect(sql).toMatch(/revoke execute on function public\.copy_links_for_deck\(uuid\) from public, anon/);
+    expect(sql).toMatch(/viewer = deck\.owner_id or viewer = other\.owner_id/);
     expect(sql).toMatch(/revoke execute on function public\.copy_deck\(uuid\) from public, anon/);
     expect(sql).toMatch(/grant execute on function public\.copy_deck\(uuid\) to authenticated/);
   });

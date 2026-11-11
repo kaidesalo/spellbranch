@@ -56,7 +56,9 @@ export function BranchSwitcher({
               <div key={option.id} className="flex items-stretch gap-0.5">
                 <DropdownMenuItem
                   className="min-h-11 min-w-0 flex-1 py-2"
-                  render={<Link href={`/decks/${option.id}`} />}
+                  {...(option.openHref === null
+                    ? {}
+                    : { render: <Link href={option.openHref ?? `/decks/${option.id}`} /> })}
                 >
                   {option.id === currentId ? (
                     <Check className="text-primary" aria-hidden />
@@ -66,11 +68,17 @@ export function BranchSwitcher({
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                     <span className="w-full truncate">{option.name}</span>
                     <span className="flex max-w-full flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                      {option.username ? (
+                      {option.role === "copy" && option.username ? (
+                        <span className="truncate">Copy by @{option.username}</span>
+                      ) : option.username ? (
                         <span className="truncate">@{option.username}</span>
                       ) : null}
                       {option.role === "source" ? (
                         <Badge variant="outline">Main</Badge>
+                      ) : null}
+                      {option.role === "copy" ? <Badge variant="outline">Copy</Badge> : null}
+                      {option.role === "original" ? (
+                        <Badge variant="outline">Original</Badge>
                       ) : null}
                       {option.preferred ? <Badge>Preferred</Badge> : null}
                     </span>

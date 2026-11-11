@@ -157,6 +157,22 @@ export interface DeckWithMeta extends Deck {
    * cut as `branches`. Undefined on decks that are not forks.
    */
   sourceBranches?: Array<Deck & { owner?: PublicProfile }>;
+  /**
+   * Owner-only copy cross-links for the branch menu. Set on the deck page
+   * for the source owner and the copy owner only. Name and handle, not cards.
+   * `visible` is false when the other deck's normal visibility hides its cards.
+   */
+  copyLinks?: CopyLink[];
+}
+
+/** The other side of one copy, shown only to the two owners of that copy. */
+export interface CopyLink {
+  id: string;
+  name: string;
+  ownerId: string;
+  username: string | null;
+  role: "copy" | "original";
+  visible: boolean;
 }
 
 export type DiffKind = "added" | "removed" | "quantity" | "unchanged";

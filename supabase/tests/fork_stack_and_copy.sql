@@ -3,12 +3,14 @@
 -- Self-contained; rolled back. Ann owns the original deck. Ben and Cat are
 -- her friends, and friends with each other. A branch of a branch is stored
 -- on Ann's deck. A copy is not. copy_source_link() is the only way an API
--- role learns a source id, and only when that source is visible.
+-- role learns a source id for compare, and only when that source is visible.
+-- copy_links_for_deck() is separate: only the two owners of a copy see the
+-- cross-link, and it carries name and handle, not card text.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(31); -- keep in sync with the select ok/is/throws_ok/lives_ok count below
+select plan(51); -- keep in sync with the select ok/is/throws_ok/lives_ok count below
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 
@@ -263,11 +265,143 @@ select is(
   (select name from public.decks where id = (select id from f_long)),
   repeat('n', 73) || ' (copy)',
   'copy_deck shortens an 80-character source name so the default fits in 80');
+
+-- Copy cross-link: only the owner of the exact deck that was copied and the
+-- owner of the copy. Ann owns the root. Ben owns the branch. Cat and Dan copy it.
+insert into auth.users (id, aud, role, email, raw_user_meta_data) values
+ ('e3000000-0000-4000-8000-000000000004','authenticated','authenticated','dan@example.test','{"username":"dan"}'),
+ ('e3000000-0000-4000-8000-000000000005','authenticated','authenticated','eve@example.test','{"username":"eve"}'),
+ ('e3000000-0000-4000-8000-000000000006','authenticated','authenticated','stranger@example.test','{"username":"stranger"}');
+insert into public.friendships (id, requester_id, addressee_id, status) values
+ ('e3010000-0000-4000-8000-000000000005','e3000000-0000-4000-8000-000000000002','e3000000-0000-4000-8000-000000000005','accepted'),
+ ('e3010000-0000-4000-8000-000000000006','e3000000-0000-4000-8000-000000000004','e3000000-0000-4000-8000-000000000005','accepted');
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002","role":"authenticated"}';
+update public.decks set visibility = 'public', allow_forks = true where id = (select id from f_ben);
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000003","role":"authenticated"}';
+create temp table c_copy on commit drop as select public.copy_deck((select id from f_ben)) as id;
+grant select on c_copy to anon, authenticated, service_role;
+update public.decks set name = 'Carol copy', notes = 'COPY-SECRET', visibility = 'private', allow_forks = false
+  where id = (select id from c_copy);
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000004","role":"authenticated"}';
+create temp table d_copy on commit drop as select public.copy_deck((select id from f_ben)) as id;
+grant select on d_copy to anon, authenticated, service_role;
+update public.decks set name = 'Dan copy' where id = (select id from d_copy);
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002","role":"authenticated"}';
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from f_ben))),
+  2::bigint,
+  'source owner sees every copy of that exact deck');
+select is(
+  (select count(*) from public.decks where id = (select id from c_copy)),
+  0::bigint,
+  'source owner still cannot read the private copy row');
+select is(
+  (select link_role || '/' || other_name || '/' || other_username || '/' || other_visible::text
+     from public.copy_links_for_deck((select id from f_ben))
+    where other_id = (select id from c_copy)),
+  'copy/Carol copy/cat/false',
+  'source owner sees a private copy''s name and handle, not that it is openable');
+select ok(
+  (select to_jsonb(t) from public.copy_links_for_deck((select id from f_ben)) t
+    where other_id = (select id from c_copy)) ? 'other_name'
+  and not ((select to_jsonb(t) from public.copy_links_for_deck((select id from f_ben)) t
+    where other_id = (select id from c_copy))::text like '%COPY-SECRET%'),
+  'the cross-link does not carry the other deck''s notes');
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000003","role":"authenticated"}';
+select is(
+  (select link_role || '/' || other_id::text || '/' || other_username || '/' || other_visible::text
+     from public.copy_links_for_deck((select id from c_copy))),
+  'original/' || (select id::text from f_ben) || '/ben/true',
+  'copier sees the source as the original on the copy');
+select is(
+  (select other_id::text from public.copy_links_for_deck((select id from f_ben))),
+  (select id::text from c_copy),
+  'copier sees only their own copy on the source, not someone else''s');
+select is(
+  (select coalesce(source_id::text, 'null') || '/' || unavailable::text
+     from public.copy_source_link((select id from c_copy))),
+  (select id::text from f_ben) || '/false',
+  'compare-to-source still works for the copier when the source is visible');
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000001","role":"authenticated"}';
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from f_ben))),
+  0::bigint,
+  'root owner of the stack, who does not own the copied deck, sees no copy link');
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from c_copy))),
+  0::bigint,
+  'root owner cannot see the private copy, so the function returns nothing');
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000005","role":"authenticated"}';
+select is(
+  (select count(*) from public.decks where id = (select id from f_ben)),
+  1::bigint,
+  'a friend of the source owner can see the public source');
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from f_ben))),
+  0::bigint,
+  'a friend of the source owner sees no copy link');
+select is(
+  (select count(*) from public.decks where id = (select id from d_copy)),
+  1::bigint,
+  'a friend of the copier can see the friends-only copy');
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from d_copy))),
+  0::bigint,
+  'a friend of the copier sees no link back to the source');
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000004","role":"authenticated"}';
+select is(
+  (select other_id::text from public.copy_links_for_deck((select id from f_ben))),
+  (select id::text from d_copy),
+  'the second copier sees only their own copy on the source');
+select is(
+  (select link_role || '/' || other_username
+     from public.copy_links_for_deck((select id from d_copy))),
+  'original/ben',
+  'the second copier sees the source as the original');
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000006","role":"authenticated"}';
+select is(
+  (select count(*) from public.decks where id = (select id from f_ben)),
+  1::bigint,
+  'a stranger can see the public source');
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from f_ben))),
+  0::bigint,
+  'a stranger who can see the public source sees no copy link');
+
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002","role":"authenticated"}';
+select is(
+  (select coalesce(source_id::text, 'null') || '/' || unavailable::text
+     from public.copy_source_link((select id from c_copy))),
+  'null/false',
+  'source owner does not get card-level compare access to a private copy');
+
+set local role anon;
+set local "request.jwt.claims" = '{"role":"anon"}';
+select throws_ok(
+  format($$select * from public.copy_links_for_deck(%L)$$, (select id from f_ben)),
+  '42501', null,
+  'anon cannot call copy_links_for_deck()');
+
+reset role;
+set local "request.jwt.claims" = '';
 delete from public.decks where id = 'e3100000-0000-4000-8000-000000000010';
 select is(
   (select copied_from_id from public.decks where id = (select id from f_copy)),
   null::uuid,
   'deleting the source clears the copy link and keeps the copy');
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000001","role":"authenticated"}';
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from f_copy))),
+  0::bigint,
+  'a deleted source leaves no cross-link for the copier');
 
 select * from finish();
 rollback;
