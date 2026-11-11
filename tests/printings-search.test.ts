@@ -46,12 +46,42 @@ describe("listCardPrintings", () => {
     vi.stubGlobal("fetch", fetch);
     const first = await listCardPrintings(ORACLE);
     expect(first.map((card) => card.setCode)).toEqual(["LEA"]);
-    expect(first[0]).toMatchObject({ collectorNumber: "161", finishes: ["nonfoil"] });
+    expect(first[0]).toMatchObject({
+      collectorNumber: "161",
+      finishes: ["nonfoil"],
+      imageUri: "https://cards.scryfall.io/small/front/x/y/card.jpg",
+    });
     expect(fetch).toHaveBeenCalledTimes(2);
     const second = fetch.mock.calls[1]![0];
     expect(second.origin).toBe("https://api.scryfall.com");
     expect(second.searchParams.get("page")).toBe("2");
     expect(String(second)).not.toContain("evil.example");
+  });
+
+  it("uses the normal image when Scryfall provides one", async () => {
+    vi.stubGlobal("fetch", async () =>
+      Response.json({
+        has_more: false,
+        data: [
+          {
+            id: ID,
+            oracle_id: ORACLE,
+            name: "Lightning Bolt",
+            set: "clu",
+            set_name: "Ravnica Clue Edition",
+            collector_number: "270",
+            released_at: "2024-02-23",
+            finishes: ["nonfoil", "foil"],
+            image_uris: {
+              small: "https://cards.scryfall.io/small/front/x/y/card.jpg",
+              normal: "https://cards.scryfall.io/normal/front/x/y/card.jpg",
+            },
+          },
+        ],
+      }),
+    );
+    const [card] = await listCardPrintings(ORACLE);
+    expect(card?.imageUri).toBe("https://cards.scryfall.io/normal/front/x/y/card.jpg");
   });
 
   it("refuses an oracle id that is not a uuid without calling Scryfall", async () => {

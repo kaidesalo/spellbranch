@@ -9,6 +9,21 @@ export function sameCardOracle(
   return Boolean(current && target && current === target);
 }
 
+/** Current printing first. The rest keep the order they were given. */
+export function printingsWithCurrentFirst<T extends { id: string }>(
+  printings: readonly T[],
+  currentId: string | null | undefined,
+): T[] {
+  if (!currentId) return [...printings];
+  const current: T[] = [];
+  const rest: T[] = [];
+  for (const printing of printings) {
+    if (printing.id === currentId) current.push(printing);
+    else rest.push(printing);
+  }
+  return [...current, ...rest];
+}
+
 /** Finishes we can store, in the order Scryfall listed them, dropping anything else. */
 export function offeredFinishes(finishes: readonly string[] | undefined): CollectionFinish[] {
   const out: CollectionFinish[] = [];
