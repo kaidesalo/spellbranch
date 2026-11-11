@@ -591,6 +591,45 @@ export const localRepository: Repository = {
     });
   },
 
+  async changeDeckPrinting(userId, deckId, cardId, printing) {
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
+      const card = store.deckCards.find((row) => row.id === cardId && row.deckId === deckId);
+      if (!card) throw new DataError("Card not found in deck");
+      const board = normalizeBoard(card.board);
+      const other = store.deckCards.find(
+        (row) =>
+          row.deckId === deckId &&
+          row.id !== card.id &&
+          row.scryfallId === printing.scryfallId &&
+          normalizeBoard(row.board) === board,
+      );
+      if (other) {
+        const nextQty = Math.min(99, other.quantity + card.quantity);
+        if (board === "main" && nextQty > other.quantity) {
+          assertQuantityRaiseFits(other, deckColors(deck));
+        }
+        other.quantity = nextQty;
+        store.deckCards = store.deckCards.filter((row) => row.id !== card.id);
+      } else if (card.scryfallId !== printing.scryfallId) {
+        const nextIdentity = normalizeDeckColors(printing.colorIdentity);
+        const prev = storedCardIdentity(card).join(",");
+        if (board === "main" && nextIdentity.join(",") !== prev) {
+          assertCardFits(printing.cardName, nextIdentity, deckColors(deck));
+        }
+        card.scryfallId = printing.scryfallId;
+        card.cardName = printing.cardName;
+        card.imageUri = scryfallImageOrNull(printing.imageUri);
+        card.manaCost = printing.manaCost;
+        card.typeLine = printing.typeLine;
+        card.colors = printing.colors;
+        card.colorIdentity = nextIdentity;
+        card.oracleText = printing.oracleText;
+      }
+      deck.updatedAt = new Date().toISOString();
+    });
+  },
+
   async moveCardToCategory(userId, deckId, cardId, categoryId) {
     await updateStore((store) => {
       const deck = editableDeck(store, deckId, userId, CATEGORY_MESSAGES.denied);
@@ -978,6 +1017,37 @@ export const localRepository: Repository = {
       card.condition = input.condition;
       card.forTrade = input.forTrade;
       card.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async changeCollectionPrinting(userId, cardId, printing, finish) {
+    const now = new Date().toISOString();
+    await updateStore((store) => {
+      const cards = store.collectionCards ?? [];
+      const card = cards.find((row) => row.id === cardId && row.userId === userId);
+      if (!card) throw new DataError("Card not found in your collection");
+      const other = cards.find(
+        (row) =>
+          row.userId === userId &&
+          row.id !== card.id &&
+          row.scryfallId === printing.scryfallId &&
+          row.finish === finish,
+      );
+      if (other) {
+        other.quantity = Math.min(COLLECTION_MAX_QUANTITY, other.quantity + card.quantity);
+        other.forTrade = other.forTrade || card.forTrade;
+        if (!other.condition) other.condition = card.condition;
+        other.updatedAt = now;
+        store.collectionCards = cards.filter((row) => row.id !== card.id);
+        return;
+      }
+      card.scryfallId = printing.scryfallId;
+      card.cardName = printing.cardName;
+      card.imageUri = scryfallImageOrNull(printing.imageUri);
+      card.manaCost = printing.manaCost;
+      card.typeLine = printing.typeLine;
+      card.finish = finish;
+      card.updatedAt = now;
     });
   },
 

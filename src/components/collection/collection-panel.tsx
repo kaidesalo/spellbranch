@@ -25,6 +25,7 @@ import {
 } from "@/lib/collection";
 import type { CollectionCard, Visibility } from "@/lib/types";
 import { pickVisibleSelection, useScryfallSearch } from "@/components/cards/use-scryfall-search";
+import { ChangePrintingSheet } from "@/components/cards/change-printing-sheet";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 
 export function CollectionPanel({
@@ -295,6 +296,7 @@ function CollectionRow({ card }: { card: CollectionCard }) {
         <Button size="sm" variant="outline" disabled={pending} onClick={() => save()}>
           Save
         </Button>
+        <ChangePrintingSheet cardName={card.cardName} cardId={card.id} pending={pending} chooseFinish />
         <Button
           size="icon"
           variant="ghost"
