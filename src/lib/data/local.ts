@@ -11,6 +11,7 @@ import {
 } from "@/lib/data/deck-color-rules";
 import { normalizeDeckColors, storedCardIdentity } from "@/lib/deck-colors";
 import { isMainBoard, mainboardQuantity, normalizeBoard } from "@/lib/deck-boards";
+import { COLLECTION_MAX_QUANTITY, normalizeCollectionVisibility } from "@/lib/collection";
 import { commanderProblem, normalizeCommander } from "@/lib/commander";
 import {
   FRIEND_MESSAGES,
@@ -27,6 +28,7 @@ import {
   canCommentOnDeck,
   canEditDeck,
   canForkDeck,
+  canSeeCollectionCard,
   canViewDeck,
   canViewProfile,
 } from "@/lib/permissions";
@@ -897,5 +899,109 @@ export const localRepository: Repository = {
       },
       decks,
     };
+  },
+
+  async listMyCollection(userId) {
+    const store = await readStore();
+    return (store.collectionCards ?? [])
+      .filter((card) => card.userId === userId)
+      .sort((a, b) => a.cardName.localeCompare(b.cardName, "en") || a.finish.localeCompare(b.finish));
+  },
+
+  async getCollectionVisibility(userId) {
+    const store = await readStore();
+    return normalizeCollectionVisibility(store.users.find((user) => user.id === userId)?.collectionVisibility);
+  },
+
+  async setCollectionVisibility(userId, visibility) {
+    await updateStore((store) => {
+      const user = store.users.find((row) => row.id === userId);
+      if (!user) throw new DataError("You cannot edit this collection");
+      user.collectionVisibility = normalizeCollectionVisibility(visibility);
+    });
+  },
+
+  async addCollectionCard(userId, input) {
+    const now = new Date().toISOString();
+    await updateStore((store) => {
+      store.collectionCards ??= [];
+      const finish = input.finish;
+      const existing = store.collectionCards.find(
+        (card) => card.userId === userId && card.scryfallId === input.scryfallId && card.finish === finish,
+      );
+      if (existing) {
+        existing.quantity = Math.min(COLLECTION_MAX_QUANTITY, existing.quantity + input.quantity);
+        existing.cardName = input.cardName;
+        existing.imageUri = scryfallImageOrNull(input.imageUri);
+        existing.manaCost = input.manaCost;
+        existing.typeLine = input.typeLine;
+        existing.condition = input.condition;
+        existing.forTrade = input.forTrade;
+        existing.updatedAt = now;
+        return;
+      }
+      store.collectionCards.push({
+        id: uuidv4(),
+        userId,
+        scryfallId: input.scryfallId,
+        cardName: input.cardName,
+        imageUri: scryfallImageOrNull(input.imageUri),
+        manaCost: input.manaCost,
+        typeLine: input.typeLine,
+        quantity: Math.min(COLLECTION_MAX_QUANTITY, input.quantity),
+        finish,
+        condition: input.condition,
+        forTrade: input.forTrade,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+  },
+
+  async updateCollectionCard(userId, cardId, input) {
+    await updateStore((store) => {
+      const cards = store.collectionCards ?? [];
+      const card = cards.find((row) => row.id === cardId && row.userId === userId);
+      if (!card) throw new DataError("Card not found in your collection");
+      const clash = cards.find(
+        (row) =>
+          row.userId === userId &&
+          row.id !== card.id &&
+          row.scryfallId === card.scryfallId &&
+          row.finish === input.finish,
+      );
+      if (clash) {
+        throw new DataError("You already track that finish of this card.");
+      }
+      card.quantity = input.quantity;
+      card.finish = input.finish;
+      card.condition = input.condition;
+      card.forTrade = input.forTrade;
+      card.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async removeCollectionCard(userId, cardId) {
+    await updateStore((store) => {
+      const before = store.collectionCards?.length ?? 0;
+      store.collectionCards = (store.collectionCards ?? []).filter(
+        (card) => !(card.id === cardId && card.userId === userId),
+      );
+      if ((store.collectionCards?.length ?? 0) === before) {
+        throw new DataError("Card not found in your collection");
+      }
+    });
+  },
+
+  async listTradeCollection(viewerId, ownerId) {
+    const store = await readStore();
+    return (store.collectionCards ?? [])
+      .filter(
+        (card) =>
+          card.userId === ownerId &&
+          card.forTrade &&
+          canSeeCollectionCard(store, ownerId, true, viewerId),
+      )
+      .sort((a, b) => a.cardName.localeCompare(b.cardName, "en"));
   },
 };

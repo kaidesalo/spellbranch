@@ -49,6 +49,23 @@ export interface Friendship {
   createdAt: string;
 }
 
+export interface CollectionCard {
+  id: string;
+  userId: string;
+  scryfallId: string;
+  cardName: string;
+  imageUri: string | null;
+  manaCost: string | null;
+  typeLine: string | null;
+  quantity: number;
+  /** nonfoil, foil, or etched. One row per printing and finish. */
+  finish: "nonfoil" | "foil" | "etched";
+  condition: "NM" | "LP" | "MP" | "HP" | "DMG" | null;
+  forTrade: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FavoriteCard {
   id: string;
   userId: string;

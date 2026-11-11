@@ -6,6 +6,8 @@ const baseURL = `http://127.0.0.1:${PORT}`;
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: false,
+  // The phone tests share one local JSON store. One worker keeps them from overwriting it.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
   timeout: 60_000,

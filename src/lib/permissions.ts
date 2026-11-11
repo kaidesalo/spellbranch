@@ -1,4 +1,5 @@
 import type { DataStore } from "@/lib/data/store";
+import { normalizeCollectionVisibility } from "@/lib/collection";
 import type { Deck, Friendship, Visibility } from "@/lib/types";
 
 export function areFriends(
@@ -11,6 +12,25 @@ export function areFriends(
       f.status === "accepted" &&
       ((f.requesterId === userA && f.addresseeId === userB) ||
         (f.requesterId === userB && f.addresseeId === userA)),
+  );
+}
+
+/** Owner sees every pile. Everyone else sees for-trade piles only, and only when visibility allows. */
+export function canSeeCollectionCard(
+  store: DataStore,
+  ownerId: string,
+  forTrade: boolean,
+  viewerId: string | null,
+): boolean {
+  if (viewerId && viewerId === ownerId) return true;
+  if (!forTrade) return false;
+  const owner = store.users.find((user) => user.id === ownerId);
+  const visibility = normalizeCollectionVisibility(owner?.collectionVisibility);
+  if (visibility === "public") return true;
+  return (
+    visibility === "friends" &&
+    viewerId !== null &&
+    areFriends(store.friendships, ownerId, viewerId)
   );
 }
 

@@ -81,7 +81,7 @@ export default async function DashboardPage() {
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold">Your decks</h2>
-          <Button variant="ghost" size="sm" render={<Link href="/decks" />}>
+          <Button variant="ghost" size="sm" render={<Link href="/my-cards" />}>
             View all
           </Button>
         </div>

@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { isProductionRuntime } from "@/lib/supabase/config";
 import type {
+  CollectionCard,
   Comment,
   Deck,
   DeckCard,
@@ -11,6 +12,7 @@ import type {
   FavoriteCard,
   Friendship,
   PublicProfile,
+  Visibility,
 } from "@/lib/types";
 
 /**
@@ -33,6 +35,8 @@ export interface LocalUser extends PublicProfile {
   createdAt: string;
   email: string;
   passwordHash: string;
+  /** Who else may see cards marked for trade. Missing means private. */
+  collectionVisibility?: Visibility;
 }
 
 export interface DataStore {
@@ -49,6 +53,8 @@ export interface DataStore {
   /** Saved type-group positions. Omitted until the owner reorders. */
   deckTypeOrders?: DeckTypeOrder[];
   comments: Comment[];
+  /** Physical collection. Omitted on stores saved before collections existed. */
+  collectionCards?: CollectionCard[];
   sessions: Record<string, string>;
   /**
    * Local-mode fork/copy rate limit (migration 010). One timestamp per
