@@ -60,8 +60,11 @@ describe("data layer source rules", () => {
   it("the Supabase adapter never selects an email column and reads other users via public_profiles", () => {
     const text = files.find(([n]) => n === "supabase.ts")![1];
     expect(text).not.toMatch(/email/i);
-    // The only `profiles` read is the caller's own row (getOwnProfile).
+    // getOwnProfile reads the caller's row without bio. Bio comes only from
+    // profile_bio() (012). No other profiles reads.
     expect(text.match(/from\("profiles"\)/g)).toHaveLength(1);
+    expect(text).not.toMatch(/select\([^)]*\bbio\b/);
+    expect(text).toMatch(/rpc\("profile_bio"/);
     expect(text).toMatch(/from\("public_profiles"\)/);
     expect(text).toMatch(/rpc\("fork_deck"/);
     expect(text).toMatch(/rpc\("copy_deck"/);

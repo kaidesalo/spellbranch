@@ -86,6 +86,7 @@ export function createMockClient(respond: Responder) {
         return builder;
       },
       eq: (...a: unknown[]) => (call.filters.push(["eq", ...a]), builder),
+      filter: (...a: unknown[]) => (call.filters.push(["filter", ...a]), builder),
       neq: (...a: unknown[]) => (call.filters.push(["neq", ...a]), builder),
       in: (...a: unknown[]) => (call.filters.push(["in", ...a]), builder),
       is: (...a: unknown[]) => (call.filters.push(["is", ...a]), builder),

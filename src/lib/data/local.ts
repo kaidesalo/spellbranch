@@ -27,6 +27,7 @@ import {
   canEditDeck,
   canForkDeck,
   canViewDeck,
+  canViewProfile,
 } from "@/lib/permissions";
 import { toPublicProfile } from "@/lib/data/profiles";
 import { defaultBranchName, defaultCopyName, requireForkName } from "@/lib/fork-name";
@@ -695,5 +696,29 @@ export const localRepository: Repository = {
     const store = await readStore();
     const u = store.users.find((x) => x.id === userId);
     return u ? { id: u.id, username: u.username, displayName: u.displayName, bio: u.bio } : null;
+  },
+
+  async getUserProfile(viewerId, username) {
+    const q = username.trim();
+    if (!USERNAME_RE.test(q)) return null;
+    const store = await readStore();
+    const user = store.users.find((u) => u.username.toLowerCase() === q.toLowerCase());
+    if (!user || !canViewProfile(store, user.id, viewerId)) return null;
+    const decks = store.decks
+      .filter((d) => d.ownerId === user.id && canViewDeck(store, d, viewerId))
+      .map((d) => decorateDeck(store, d, viewerId))
+      .sort(byUpdatedDesc);
+    return {
+      profile: {
+        ...toPublicProfile(user),
+        // Owner and accepted friends only (012 / profile_bio). Pending,
+        // declined, public-deck viewers, and logged-out visitors get null.
+        bio:
+          viewerId && (viewerId === user.id || areFriends(store.friendships, viewerId, user.id))
+            ? (user.bio ?? "")
+            : null,
+      },
+      decks,
+    };
   },
 };

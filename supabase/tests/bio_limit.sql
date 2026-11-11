@@ -1,5 +1,6 @@
 -- Spellbranch: profiles.bio length limit (migration 003, review N1).
--- Run with `supabase test db` (or psql on a db with 001-003 applied).
+-- Run with `supabase test db` (migrations through 012 applied).
+-- The saved value is read with profile_bio(): 012 revokes SELECT on the column.
 -- Self-contained; everything is rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -21,8 +22,10 @@ set local "request.jwt.claims" = '{"sub":"b1000000-0000-4000-8000-000000000001",
 select lives_ok(
   $$update public.profiles set bio = repeat('a', 280) where id = 'b1000000-0000-4000-8000-000000000001'$$,
   'a 280-character bio is accepted');
-select is((select char_length(bio) from public.profiles where id = 'b1000000-0000-4000-8000-000000000001'),
-  280, 'the 280-character bio was saved');
+select is(
+  char_length(public.profile_bio('b1000000-0000-4000-8000-000000000001')),
+  280,
+  'the 280-character bio was saved');
 select throws_ok(
   $$update public.profiles set bio = repeat('a', 281) where id = 'b1000000-0000-4000-8000-000000000001'$$,
   '23514', null,

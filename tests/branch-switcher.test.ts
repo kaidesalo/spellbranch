@@ -22,6 +22,14 @@ describe("defaultBranchName", () => {
     expect(defaultBranchName("n".repeat(LIMITS.deckName)).endsWith(" (branch)")).toBe(true);
     expect(defaultBranchName("n".repeat(71))).toBe(`${"n".repeat(71)} (branch)`);
   });
+
+  it("counts an emoji as one character and does not split it", () => {
+    expect(defaultBranchName("🐉 Ranks")).toBe("🐉 Ranks (branch)");
+    const name = defaultBranchName("🐉".repeat(LIMITS.deckName));
+    expect(Array.from(name)).toHaveLength(LIMITS.deckName);
+    expect(name.endsWith(" (branch)")).toBe(true);
+    expect(name).not.toMatch(/\uD83D(?!\uDC09)/);
+  });
 });
 
 describe("defaultCopyName", () => {

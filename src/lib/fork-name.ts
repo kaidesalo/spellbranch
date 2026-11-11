@@ -28,10 +28,12 @@ export function defaultCopyName(sourceName: string): string {
 }
 
 function nameWithSuffix(sourceName: string, suffix: string): string {
+  // Code points, not UTF-16 units, so an emoji is one character and is not
+  // sliced in half. char_length() in Postgres counts the same way.
   const full = `${sourceName}${suffix}`;
-  if (full.length <= LIMITS.deckName) return full;
-  const room = Math.max(0, LIMITS.deckName - suffix.length);
-  return `${sourceName.slice(0, room)}${suffix}`;
+  if (Array.from(full).length <= LIMITS.deckName) return full;
+  const room = Math.max(0, LIMITS.deckName - Array.from(suffix).length);
+  return `${Array.from(sourceName).slice(0, room).join("")}${suffix}`;
 }
 
 /** A message safe to show the user, or null when the trimmed name is usable. */

@@ -40,6 +40,38 @@ export function canViewDeck(
   );
 }
 
+/**
+ * Who may open /u/[username]. Mirrors the profiles SELECT policies in
+ * migration 002: your own row, any friendship row (pending, accepted, or
+ * declined), or a deck or comment this viewer can already see. Logged-out
+ * viewers only match the last case, and only for public decks.
+ */
+export function canViewProfile(
+  store: DataStore,
+  profileId: string,
+  viewerId: string | null,
+): boolean {
+  if (viewerId && viewerId === profileId) return true;
+  if (
+    viewerId &&
+    store.friendships.some(
+      (f) =>
+        (f.requesterId === profileId && f.addresseeId === viewerId) ||
+        (f.addresseeId === profileId && f.requesterId === viewerId),
+    )
+  ) {
+    return true;
+  }
+  if (store.decks.some((d) => d.ownerId === profileId && canViewDeck(store, d, viewerId))) {
+    return true;
+  }
+  return store.comments.some((c) => {
+    if (c.authorId !== profileId) return false;
+    const deck = store.decks.find((d) => d.id === c.deckId);
+    return Boolean(deck && canViewDeck(store, deck, viewerId));
+  });
+}
+
 export function canEditDeck(deck: Deck, userId: string | null): boolean {
   return Boolean(userId && deck.ownerId === userId);
 }

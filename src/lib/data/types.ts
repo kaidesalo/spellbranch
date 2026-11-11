@@ -8,6 +8,7 @@ import type {
   OwnProfile,
   PublicProfile,
   Visibility,
+  VisibleProfile,
 } from "@/lib/types";
 
 /**
@@ -68,6 +69,12 @@ export interface CommentWithAuthor extends Comment {
 export interface FriendRow {
   friendship: Friendship;
   profile: PublicProfile;
+}
+
+/** Profile page: the visible profile plus the decks this viewer may see. */
+export interface UserProfileView {
+  profile: VisibleProfile;
+  decks: DeckWithMeta[];
 }
 
 export interface FriendsData {
@@ -186,4 +193,15 @@ export interface Repository {
 
   // Profile
   getOwnProfile(userId: string): Promise<OwnProfile | null>;
+  /**
+   * Profile page for an exact, case-insensitive username. Anything that is
+   * not a username is null. Null when this viewer cannot see that profile
+   * (canViewProfile / public_profiles RLS). This is not find_profile(): that
+   * RPC is security definer and would reveal profiles RLS hides.
+   *
+   * `profile.bio` is null for a logged-out viewer. `decks` is every deck this
+   * owner has that this viewer may see (can_view_deck / RLS), including the
+   * source-owner fork case. No extra visibility filter in the app.
+   */
+  getUserProfile(viewerId: string | null, username: string): Promise<UserProfileView | null>;
 }

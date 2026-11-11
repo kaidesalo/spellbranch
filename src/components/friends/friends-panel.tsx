@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,18 +203,25 @@ export function FriendsPanel({
             {friends.map(({ friendship, profile }) => (
               <li
                 key={friendship.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3"
+                className="flex items-stretch justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3"
               >
-                <div>
+                {/* Name and handle are the profile link. Remove stays a sibling so the two tap targets do not overlap. */}
+                <Link
+                  href={`/u/${encodeURIComponent(profile.username)}`}
+                  className="flex min-w-0 flex-1 flex-col justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <p className="font-medium">{profile.displayName}</p>
                   <p className="text-sm text-muted-foreground">
                     @{profile.username}
                   </p>
-                </div>
+                </Link>
                 <Button
+                  type="button"
                   size="sm"
                   variant="outline"
+                  className="self-center"
                   disabled={pending}
+                  aria-label={`Remove ${profile.displayName}`}
                   onClick={() =>
                     startTransition(async () => {
                       const result = await removeFriendAction(friendship.id);

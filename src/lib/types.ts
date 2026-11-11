@@ -24,6 +24,15 @@ export interface PublicProfile {
   avatarUrl: string | null;
 }
 
+/**
+ * A profile page (`/u/[username]`). `bio` is null unless this viewer is the
+ * owner or an accepted friend (profile_bio). A string, possibly empty, when
+ * they are. Still no email.
+ */
+export interface VisibleProfile extends PublicProfile {
+  bio: string | null;
+}
+
 /** The signed-in user's own editable profile (profile page). */
 export interface OwnProfile {
   id: string;
