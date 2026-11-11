@@ -13,6 +13,7 @@ import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
 import { QuantityInput } from "@/components/decks/quantity-input";
 import { MoveCardSheet } from "@/components/decks/move-card-sheet";
 import { MoveBoardSheet } from "@/components/decks/move-board-sheet";
+import { ChangePrintingSheet } from "@/components/cards/change-printing-sheet";
 import { CardZoom } from "@/components/cards/card-zoom";
 import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
@@ -245,6 +246,12 @@ export function DeckList({
                         card={card}
                         pending={pending}
                         onMove={(next) => moveBoard(card, next)}
+                      />
+                      <ChangePrintingSheet
+                        cardName={card.cardName}
+                        cardId={card.id}
+                        deckId={deckId}
+                        pending={pending}
                       />
                     </div>
                   </div>

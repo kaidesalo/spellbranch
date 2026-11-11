@@ -1182,6 +1182,89 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       await touchDeck(client, deckId);
     },
 
+    async changeDeckPrinting(userId, deckId, cardId, printing) {
+      if (!isUuid(cardId) || !isUuid(printing.scryfallId)) throw new DataError("Card not found in deck");
+      const client = await getClient();
+      const deck = await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
+      const current = check(
+        "deck_cards find",
+        await client
+          .from("deck_cards")
+          .select("id, scryfall_id, quantity, colors, color_identity, board, category_id")
+          .eq("id", cardId)
+          .eq("deck_id", deckId)
+          .maybeSingle(),
+      ) as {
+        id: string;
+        scryfall_id: string;
+        quantity: number;
+        colors: string[] | null;
+        color_identity: string[] | null;
+        board: string | null;
+        category_id: string | null;
+      } | null;
+      if (!current) throw new DataError("Card not found in deck");
+      const board = normalizeBoard(current.board);
+      const other = check(
+        "deck_cards find printing",
+        await client
+          .from("deck_cards")
+          .select("id, quantity, colors, color_identity")
+          .eq("deck_id", deckId)
+          .eq("scryfall_id", printing.scryfallId)
+          .eq("board", board)
+          .maybeSingle(),
+      ) as { id: string; quantity: number; colors: string[] | null; color_identity: string[] | null } | null;
+
+      if (other && other.id !== current.id) {
+        const nextQty = Math.min(99, other.quantity + current.quantity);
+        if (board === "main" && nextQty > other.quantity) {
+          assertQuantityRaiseFits(
+            { cardName: printing.cardName, colors: other.colors ?? [], colorIdentity: other.color_identity },
+            deck.colors,
+          );
+        }
+        cardColorWrite(
+          "deck_cards merge printing",
+          await client.from("deck_cards").update({ quantity: nextQty }).eq("id", other.id).eq("deck_id", deckId),
+        );
+        check(
+          "deck_cards printing delete",
+          await client.from("deck_cards").delete().eq("id", current.id).eq("deck_id", deckId),
+        );
+      } else if (current.scryfall_id !== printing.scryfallId) {
+        const nextIdentity = normalizeDeckColors(printing.colorIdentity);
+        const prev = storedCardIdentity({
+          colors: current.colors,
+          colorIdentity: current.color_identity,
+        }).join(",");
+        if (board === "main" && nextIdentity.join(",") !== prev) {
+          assertCardFits(printing.cardName, nextIdentity, deck.colors);
+        }
+        const res = await client
+          .from("deck_cards")
+          .update({
+            scryfall_id: printing.scryfallId,
+            card_name: printing.cardName,
+            image_uri: scryfallImageOrNull(printing.imageUri),
+            mana_cost: printing.manaCost,
+            type_line: printing.typeLine,
+            colors: printing.colors,
+            color_identity: nextIdentity,
+            oracle_text: printing.oracleText,
+          })
+          .eq("id", current.id)
+          .eq("deck_id", deckId)
+          .select("id");
+        if (res.error?.code === "23505") {
+          throw new DataError("That printing is already in this deck. Reload and try again.");
+        }
+        const rows = cardColorWrite("deck_cards printing", res) as { id: string }[] | null;
+        if (!rows?.length) throw new DataError("Card not found in deck");
+      }
+      await touchDeck(client, deckId);
+    },
+
     async moveCardToCategory(userId, deckId, cardId, categoryId) {
       if (!isUuid(cardId)) throw new DataError(CATEGORY_MESSAGES.cardMissing);
       if (categoryId !== null && !isUuid(categoryId)) throw new DataError(CATEGORY_MESSAGES.notFound);
@@ -1676,6 +1759,78 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         throw new DataError("You already track that finish of this card.");
       }
       const rows = check("collection_cards update", res) as { id: string }[] | null;
+      if (!rows?.length) throw new DataError("Card not found in your collection");
+    },
+
+    async changeCollectionPrinting(userId, cardId, printing, finish) {
+      if (!isUuid(cardId) || !isUuid(printing.scryfallId)) {
+        throw new DataError("Card not found in your collection");
+      }
+      const client = await getClient();
+      const current = check(
+        "collection_cards find",
+        await client
+          .from("collection_cards")
+          .select("id, quantity, for_trade, condition, scryfall_id, finish")
+          .eq("id", cardId)
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ) as {
+        id: string;
+        quantity: number;
+        for_trade: boolean;
+        condition: string | null;
+        scryfall_id: string;
+        finish: string;
+      } | null;
+      if (!current) throw new DataError("Card not found in your collection");
+      const other = check(
+        "collection_cards find printing",
+        await client
+          .from("collection_cards")
+          .select("id, quantity, for_trade, condition")
+          .eq("user_id", userId)
+          .eq("scryfall_id", printing.scryfallId)
+          .eq("finish", finish)
+          .maybeSingle(),
+      ) as { id: string; quantity: number; for_trade: boolean; condition: string | null } | null;
+      if (other && other.id !== current.id) {
+        check(
+          "collection_cards merge printing",
+          await client
+            .from("collection_cards")
+            .update({
+              quantity: Math.min(COLLECTION_MAX_QUANTITY, other.quantity + current.quantity),
+              for_trade: other.for_trade || current.for_trade,
+              condition: other.condition ?? current.condition,
+            })
+            .eq("id", other.id)
+            .eq("user_id", userId),
+        );
+        check(
+          "collection_cards printing delete",
+          await client.from("collection_cards").delete().eq("id", current.id).eq("user_id", userId),
+        );
+        return;
+      }
+      if (current.scryfall_id === printing.scryfallId && current.finish === finish) return;
+      const res = await client
+        .from("collection_cards")
+        .update({
+          scryfall_id: printing.scryfallId,
+          card_name: printing.cardName,
+          image_uri: scryfallImageOrNull(printing.imageUri),
+          mana_cost: printing.manaCost,
+          type_line: printing.typeLine,
+          finish,
+        })
+        .eq("id", current.id)
+        .eq("user_id", userId)
+        .select("id");
+      if (res.error?.code === "23505") {
+        throw new DataError("You already track that finish of this card. Reload and try again.");
+      }
+      const rows = check("collection_cards printing", res) as { id: string }[] | null;
       if (!rows?.length) throw new DataError("Card not found in your collection");
     },
 

@@ -58,6 +58,8 @@ describe("getScryfallCard", () => {
     const [url, init] = fetch.mock.calls[0]!;
     expect(url).toBe(`https://api.scryfall.com/cards/${ID}`);
     expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.redirect).toBe("error");
+    expect(init.credentials).toBe("omit");
   });
 
   it("returns null on 404 and throws 'unavailable' on other errors", async () => {

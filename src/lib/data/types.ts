@@ -82,6 +82,18 @@ export interface CollectionUpdate {
   forTrade: boolean;
 }
 
+/** Display fields taken from a Scryfall printing. Quantity and pile flags stay on the row. */
+export interface StoredPrinting {
+  scryfallId: string;
+  cardName: string;
+  imageUri: string | null;
+  manaCost: string | null;
+  typeLine: string;
+  colors: string[];
+  colorIdentity: string[];
+  oracleText: string | null;
+}
+
 export interface FavoriteInput {
   scryfallId: string;
   cardName: string;
@@ -175,6 +187,18 @@ export interface Repository {
    */
   moveCardToBoard(userId: string, deckId: string, cardId: string, board: DeckBoard): Promise<void>;
   /**
+   * Swaps one deck row onto another printing of the same card. Quantity,
+   * board, and category stay. If that printing is already on the same board,
+   * quantities merge into that row (its category is kept) and this row is
+   * removed. A mainboard quantity raise still has to fit the deck colors.
+   */
+  changeDeckPrinting(
+    userId: string,
+    deckId: string,
+    cardId: string,
+    printing: StoredPrinting,
+  ): Promise<void>;
+  /**
    * Owner only. `name` is already trimmed and within the category limits.
    * The new category is empty and sorts after the type groups until the
    * owner reorders. New cards are not assigned to it.
@@ -263,6 +287,18 @@ export interface Repository {
   addCollectionCard(userId: string, input: CollectionInput): Promise<void>;
   updateCollectionCard(userId: string, cardId: string, input: CollectionUpdate): Promise<void>;
   removeCollectionCard(userId: string, cardId: string): Promise<void>;
+  /**
+   * Swaps a collection pile onto another printing. Quantity, condition, and
+   * for-trade stay with the row. If that printing and finish already exist,
+   * quantities merge into that row (for-trade stays on if either pile was)
+   * and this row is removed.
+   */
+  changeCollectionPrinting(
+    userId: string,
+    cardId: string,
+    printing: StoredPrinting,
+    finish: CollectionFinish,
+  ): Promise<void>;
   /** For-trade piles this viewer is allowed to see. Empty when the collection is private to them. */
   listTradeCollection(viewerId: string | null, ownerId: string): Promise<CollectionCard[]>;
 

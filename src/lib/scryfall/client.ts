@@ -1,4 +1,7 @@
 import { cardLookupKey } from "@/lib/decklist/names";
+import { isUuid } from "@/lib/data/validation";
+import { offeredFinishes } from "@/lib/printing";
+import type { CollectionFinish } from "@/lib/collection";
 
 export interface ScryfallCard {
   id: string;
@@ -26,6 +29,12 @@ export interface ScryfallCard {
       art_crop?: string;
     };
   }>;
+  oracle_id?: string;
+  set?: string;
+  set_name?: string;
+  collector_number?: string;
+  released_at?: string;
+  finishes?: string[];
 }
 
 export interface ScryfallSearchResponse {
@@ -206,6 +215,8 @@ export async function getScryfallCard(
     // One signal for the request and the body read.
     const res = await fetch(`https://api.scryfall.com/cards/${encodeURIComponent(id)}`, {
       headers: SCRYFALL_HEADERS,
+      redirect: "error",
+      credentials: "omit",
       next: { revalidate: 3600 },
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -311,4 +322,103 @@ async function fetchCollection(
     }
     throw new ScryfallLookupError("unavailable", "Scryfall collection lookup failed");
   }
+}
+
+/** One printing in the change-printing picker. Display fields only. */
+export interface CardPrinting {
+  id: string;
+  name: string;
+  setName: string;
+  setCode: string;
+  collectorNumber: string;
+  releasedAt: string;
+  imageUri: string | null;
+  finishes: CollectionFinish[];
+}
+
+const SCRYFALL_ORIGIN = "https://api.scryfall.com";
+
+function pinnedScryfallUrl(path: string): URL {
+  const url = new URL(path, SCRYFALL_ORIGIN);
+  if (url.origin !== SCRYFALL_ORIGIN) {
+    throw new ScryfallLookupError("unavailable", "Scryfall card lookup failed");
+  }
+  return url;
+}
+
+function printingImage(card: ScryfallCard): string | null {
+  return (
+    card.image_uris?.small ||
+    card.image_uris?.normal ||
+    card.card_faces?.[0]?.image_uris?.small ||
+    card.card_faces?.[0]?.image_uris?.normal ||
+    null
+  );
+}
+
+/**
+ * Every printing of one card. The oracle id is checked to be a UUID and is
+ * the only thing placed in the query. Pages are requested on api.scryfall.com
+ * directly (`redirect: "error"`); Scryfall's `next_page` URL is ignored so a
+ * response cannot send the next fetch somewhere else. At most two pages.
+ */
+export async function listCardPrintings(oracleId: string): Promise<CardPrinting[]> {
+  if (!isUuid(oracleId)) return [];
+  const found: ScryfallCard[] = [];
+  for (let page = 1; page <= 2; page++) {
+    const url = pinnedScryfallUrl("/cards/search");
+    url.searchParams.set("q", `oracleid:${oracleId}`);
+    url.searchParams.set("unique", "prints");
+    url.searchParams.set("order", "released");
+    url.searchParams.set("page", String(page));
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: SCRYFALL_HEADERS,
+        redirect: "error",
+        credentials: "omit",
+        cache: "no-store",
+        signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err instanceof ScryfallLookupError) throw err;
+      const name = err instanceof Error ? err.name : "";
+      if (name === "TimeoutError" || name === "AbortError") {
+        throw new ScryfallLookupError("timeout", "Scryfall card lookup timed out");
+      }
+      throw new ScryfallLookupError("unavailable", "Scryfall card lookup failed");
+    }
+    if (res.status === 404) {
+      await res.body?.cancel().catch(() => undefined);
+      break;
+    }
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new ScryfallLookupError("unavailable", `Scryfall card lookup failed (${res.status})`);
+    }
+    const body = JSON.parse(await readCapped(res, SCRYFALL_CARD_MAX_BYTES)) as ScryfallSearchResponse;
+    const pageCards = (body.data ?? []).filter((card) => card.oracle_id === oracleId && isUuid(card.id));
+    for (const card of pageCards) {
+      if (!found.some((row) => row.id === card.id)) found.push(card);
+    }
+    if (!body.has_more) break;
+  }
+  const printings = found.map((card) => ({
+    id: card.id,
+    name: card.name,
+    setName: card.set_name?.trim() || card.set?.toUpperCase() || "Unknown set",
+    setCode: (card.set ?? "").toUpperCase(),
+    collectorNumber: card.collector_number ?? "",
+    releasedAt: card.released_at ?? "",
+    imageUri: printingImage(card),
+    finishes: offeredFinishes(card.finishes),
+  }));
+  printings.sort((a, b) => {
+    const byDate = b.releasedAt.localeCompare(a.releasedAt);
+    if (byDate !== 0) return byDate;
+    const bySet = a.setName.localeCompare(b.setName, "en");
+    if (bySet !== 0) return bySet;
+    return a.collectorNumber.localeCompare(b.collectorNumber, "en", { numeric: true });
+  });
+  return printings;
 }
