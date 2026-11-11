@@ -74,7 +74,7 @@ export default async function DeckDetailPage({
               {deck.name}
             </h1>
             {deck.forkedFromId && <Badge variant="secondary">Branch</Badge>}
-            {(deck.copiedFromDeck || deck.copySourceUnavailable) && (
+            {deck.copiedFromDeck && (
               <Badge variant="secondary">Copy</Badge>
             )}
             {preferred && <Badge>Preferred: {preferred.name}</Badge>}
@@ -111,11 +111,6 @@ export default async function DeckDetailPage({
               >
                 {deck.copiedFromDeck.name}
               </Link>
-            </p>
-          )}
-          {deck.copySourceUnavailable && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              The deck this was copied from isn&apos;t available.
             </p>
           )}
           {canEdit && deck.colors === null && (

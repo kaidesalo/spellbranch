@@ -29,7 +29,8 @@ import {
   canViewDeck,
 } from "@/lib/permissions";
 import { toPublicProfile } from "@/lib/data/profiles";
-import { defaultCopyName, requireForkName } from "@/lib/fork-name";
+import { defaultBranchName, defaultCopyName, requireForkName } from "@/lib/fork-name";
+import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import type { CopyLink, Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
 
 /**
@@ -81,7 +82,8 @@ function decorateDeck(
       ? deck.preferredBranchId
       : null;
   // A copy's source id is only attached when the viewer can see that deck.
-  // Otherwise the payload says the source is unavailable and drops the id.
+  // A hidden or missing source looks the same as a deck that is not a copy.
+  // The two owners still get the name and handle through copyLinks.
   const rawCopyId = deck.copiedFromId ?? null;
   const copySource = rawCopyId
     ? store.decks.find((d) => d.id === rawCopyId)
@@ -97,7 +99,7 @@ function decorateDeck(
     ...deck,
     copiedFromId: copiedFromDeck ? rawCopyId : null,
     copiedFromDeck,
-    copySourceUnavailable: Boolean(rawCopyId) && !copiedFromDeck,
+    copySourceUnavailable: false,
     preferredBranchId,
     // Decks saved before the commander or colors features have no field at all.
     commander: deck.commander ?? null,
@@ -156,6 +158,23 @@ function copyLink(
 }
 
 const byUpdatedDesc = (a: Deck, b: Deck) => b.updatedAt.localeCompare(a.updatedAt);
+
+/** Keep in step with enforce_fork_copy_rate() in migration 010. */
+const FORK_COPY_LIMIT = 20;
+const FORK_COPY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * One bucket for forks and copies. Throws before the new deck is inserted.
+ * A thrown error leaves the store unchanged, matching the database rollback.
+ */
+function chargeForkCopy(store: DataStore, userId: string, nowMs: number) {
+  const recent = (store.forkCopyHits ?? []).filter(
+    (hit) => nowMs - Date.parse(hit.at) < FORK_COPY_WINDOW_MS,
+  );
+  const mine = recent.filter((hit) => hit.userId === userId);
+  if (mine.length >= FORK_COPY_LIMIT) throw new DataError(RATE_LIMITED_MESSAGE);
+  store.forkCopyHits = [...recent, { userId, at: new Date(nowMs).toISOString() }];
+}
 
 /** The deck's colors as stored; null (no colors picked) for older decks. */
 function deckColors(deck: Deck): string[] | null {
@@ -450,8 +469,9 @@ export const localRepository: Repository = {
       }
       // Checked after the permission test so a bad name can't confirm that a
       // hidden deck exists. Omitted: the same suffix fork_deck() writes.
-      const forkName = name === undefined ? `${source.name} (branch)` : requireForkName(name);
+      const forkName = name === undefined ? defaultBranchName(source.name) : requireForkName(name);
       const now = new Date().toISOString();
+      chargeForkCopy(store, userId, Date.parse(now));
       const newId = uuidv4();
       // Same rule as fork_deck() in the database (review F4). The new row
       // joins the original deck's branch list, not the deck that was clicked
@@ -487,6 +507,7 @@ export const localRepository: Repository = {
       }
       const copyName = name === undefined ? defaultCopyName(source.name) : requireForkName(name);
       const now = new Date().toISOString();
+      chargeForkCopy(store, userId, Date.parse(now));
       const newId = uuidv4();
       // A copy is a new root. It keeps a source pointer for compare and does
       // not join the source's branch list. Visibility matches fork_deck().

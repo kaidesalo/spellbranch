@@ -41,6 +41,11 @@ export interface DataStore {
   deckCards: DeckCard[];
   comments: Comment[];
   sessions: Record<string, string>;
+  /**
+   * Local-mode fork/copy rate limit (migration 010). One timestamp per
+   * successful call. Omitted on stores saved before this field existed.
+   */
+  forkCopyHits?: { userId: string; at: string }[];
 }
 
 type Env = Record<string, string | undefined>;

@@ -17,7 +17,7 @@ function sliceBetween(start: string, end: string): string {
 
 describe("migration 010", () => {
   it("walks nested forks to the root without deleting rows or creating self-links", () => {
-    const backfill = sliceBetween("3. Backfill", "4. fork_deck");
+    const backfill = sliceBetween("3. Backfill", "4. Shared fork/copy");
     expect(backfill).toMatch(/while updated > 0 and guard < 32/);
     expect(backfill).toMatch(/parent\.forked_from_id <> child\.id/);
     expect(backfill).toMatch(/set forked_from_id = parent\.forked_from_id/);
@@ -38,6 +38,12 @@ describe("migration 010", () => {
     expect(fork).toMatch(/security invoker/);
     expect(fork).not.toMatch(/security definer/);
     expect(fork).toMatch(/coalesce\(color_identity/);
+    expect(fork).toMatch(/lock_visible_deck\(source\)/);
+    expect(fork).not.toMatch(/for share/);
+    expect(trigger).toMatch(/enforce_fork_copy_rate\(\)/);
+    expect(fork).toMatch(/left\(src\.name, 80 - char_length\(' \(branch\)'\)\)/);
+    expect(trigger).toMatch(/lock_visible_deck/);
+    expect(trigger).not.toMatch(/for share/);
     // The insert names the deck the caller forked. The trigger rewrites it.
     expect(fork).toMatch(/src\.id/);
   });
@@ -55,7 +61,12 @@ describe("migration 010", () => {
     expect(link).toMatch(/not public\.can_view_deck\(deck, viewer\)/);
     expect(link).toMatch(/public\.can_view_deck\(src, viewer\)/);
     expect(link).toMatch(/return query select null::uuid, false/);
-    expect(link).toMatch(/return query select null::uuid, true/);
+    expect(link).not.toMatch(/return query select null::uuid, true/);
+    expect(sql).toMatch(/function public\.lock_visible_deck\(target uuid\)/);
+    expect(sql).toMatch(/for share;/);
+    expect(sql).toMatch(/function public\.enforce_fork_copy_rate\(\)/);
+    expect(sql).toMatch(/private\.rate_limit_hit_core\('db:fork_or_copy:uid:'/);
+    expect(sql).toMatch(/revoke all on function public\.enforce_fork_copy_rate\(\) from public, anon/);
     expect(sql).toMatch(/grant execute on function public\.copy_source_link\(uuid\) to anon, authenticated/);
     expect(sql).toMatch(/function public\.copy_links_for_deck\(target uuid\)/);
     expect(sql).toMatch(/revoke execute on function public\.copy_links_for_deck\(uuid\) from public, anon/);
@@ -67,6 +78,7 @@ describe("migration 010", () => {
   it("does not change the deck-name length constraint, and shortens the copy default", () => {
     expect(sql).not.toMatch(/decks_name_length/);
     expect(sql).toMatch(/left\(src\.name, 80 - char_length\(' \(copy\)'\)\)/);
+    expect(sql).toMatch(/left\(src\.name, 80 - char_length\(' \(branch\)'\)\)/);
     expect(sql).toMatch(/^begin;/m);
     expect(sql).toMatch(/^commit;/m);
     expect(sql).toMatch(/Re-run 010 after any re-run of 002/);

@@ -217,6 +217,8 @@ describe("supabase adapter: decks", () => {
       const bad = repoWith(() => pgError(code));
       expect(await dataError(bad.repo.forkDeck(ME, DECK))).toBe("You are not allowed to fork this deck");
     }
+    const limited = repoWith(() => pgError("PT429"));
+    expect(await dataError(limited.repo.forkDeck(ME, DECK))).toBe("Too many attempts. Please try again later.");
   });
 
   it("setPreferredBranch: owner check, then an UPDATE; trigger rejection is a clear error", async () => {
@@ -253,6 +255,8 @@ describe("supabase adapter: decks", () => {
       const bad = repoWith(() => pgError(code));
       expect(await dataError(bad.repo.copyDeck(ME, DECK))).toBe("You are not allowed to copy this deck");
     }
+    const limited = repoWith(() => pgError("PT429"));
+    expect(await dataError(limited.repo.copyDeck(ME, DECK))).toBe("Too many attempts. Please try again later.");
   });
 
   it("getDeck uses copy_source_link and never selects copied_from_id", async () => {
@@ -288,7 +292,7 @@ describe("supabase adapter: decks", () => {
     const missing = await hidden.repo.getDeck(ME, COPY);
     expect(missing?.copiedFromId).toBeNull();
     expect(missing?.copiedFromDeck ?? null).toBeNull();
-    expect(missing?.copySourceUnavailable).toBe(true);
+    expect(missing?.copySourceUnavailable).toBe(false);
     expect(JSON.stringify(missing)).not.toContain(DECK);
     expect(hidden.calls.filter((c) => c.fn === "copy_source_link")).toHaveLength(1);
     expect(hidden.calls.filter((c) => isTable(c, "decks") && c.single)).toHaveLength(1);

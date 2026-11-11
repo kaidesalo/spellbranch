@@ -13,8 +13,7 @@ export const COPY_NAME_SUFFIX = " (copy)";
 
 /**
  * "<source> (branch)", shortened from the source name so the result fits
- * decks.name (1–80). fork_deck() itself does not shorten: a source name that
- * already uses the whole limit still fails inside the database function.
+ * decks.name (1–80). fork_deck() uses the same trim when no name is passed in.
  */
 export function defaultBranchName(sourceName: string): string {
   return nameWithSuffix(sourceName, BRANCH_NAME_SUFFIX);

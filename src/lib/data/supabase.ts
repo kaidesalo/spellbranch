@@ -57,7 +57,7 @@ import type {
  *   reads the chosen name. Nothing here keeps a second, owner-only copy.
  * - copied_from_id is not selected. A source id arrives only from
  *   rpc('copy_source_link'), and only when that function says the source
- *   is visible. An unavailable source is a boolean with no id.
+ *   is visible. A hidden or missing source is the same as no source: no id.
  * - Deck inserts never send forked_from_id / preferred_branch_id:
  *   enforce_deck_links() rejects preferred_branch_id on API INSERTs, so a
  *   preferred branch is only ever set by a later UPDATE (setPreferredBranch).
@@ -428,7 +428,9 @@ async function copySourceLink(
   if (error) throw new SupabaseDataError("copy_source_link", error.code);
   const row = (Array.isArray(data) ? data[0] : data) as CopySourceRow | null | undefined;
   const sourceId = row && typeof row.source_id === "string" ? row.source_id : null;
-  return { sourceId, unavailable: !sourceId && row?.unavailable === true };
+  // unavailable=true used to mean "a source exists but you cannot see it".
+  // That hint is ignored. The two owners learn the link from copy_links_for_deck.
+  return { sourceId, unavailable: false };
 }
 
 /**
@@ -611,12 +613,13 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
           decorated.copySourceUnavailable = false;
         } else {
           // The function said the source was visible, then it wasn't. Drop the id.
+          // Same shape as a deck that is not a copy.
           decorated.copiedFromId = null;
-          decorated.copySourceUnavailable = true;
+          decorated.copySourceUnavailable = false;
         }
-      } else if (link.unavailable) {
+      } else {
         decorated.copiedFromId = null;
-        decorated.copySourceUnavailable = true;
+        decorated.copySourceUnavailable = false;
       }
       return decorated;
     },
@@ -901,6 +904,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const { data, error } = await client.rpc("fork_deck", { source: deckId });
       if (error) {
+        if (error.code === "PT429") throw new DataError(RATE_LIMITED_MESSAGE);
         // The trigger names this case when the caller can see the original
         // deck and that deck has forks turned off. A hidden root stays the
         // generic refusal, so the message does not reveal it.
@@ -928,6 +932,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const { data, error } = await client.rpc("copy_deck", { source: deckId });
       if (error) {
+        if (error.code === "PT429") throw new DataError(RATE_LIMITED_MESSAGE);
         if (error.code === "42501" || error.code === "P0002") throw new DataError(denied);
         throw new SupabaseDataError("copy_deck", error.code);
       }
