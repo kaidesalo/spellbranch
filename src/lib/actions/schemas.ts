@@ -87,6 +87,33 @@ export const addCardSchema = z.object({
 
 export const boardSchema = z.enum(["main", "side", "maybe"]);
 
+export const collectionFinishSchema = z.enum(["nonfoil", "foil", "etched"]);
+export const collectionConditionSchema = z.enum(["NM", "LP", "MP", "HP", "DMG"]).nullable();
+export const collectionQuantitySchema = z.number().int().min(1).max(9999);
+
+export const addCollectionSchema = z.object({
+  scryfallId: idSchema,
+  quantity: collectionQuantitySchema.optional().default(1),
+  finish: collectionFinishSchema.optional().default("nonfoil"),
+  condition: collectionConditionSchema.optional().default(null),
+  forTrade: z.boolean().optional().default(false),
+});
+
+export const updateCollectionSchema = z.object({
+  quantity: collectionQuantitySchema,
+  finish: collectionFinishSchema,
+  condition: collectionConditionSchema,
+  forTrade: z.boolean(),
+});
+
+export const collectionVisibilitySchema = z.enum(["private", "friends", "public"]);
+
+export const collectionListSchema = z
+  .string()
+  .trim()
+  .min(1, "Paste a card list.")
+  .max(DECKLIST_MAX_CHARS, "That list is too long to import.");
+
 export const favoriteSchema = z.object({
   scryfallId: z.string().min(1).max(LIMITS.scryfallId),
   cardName: z.string().min(1).max(LIMITS.cardName),

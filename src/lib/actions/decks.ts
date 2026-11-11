@@ -83,6 +83,7 @@ export async function createDeckAction(formData: FormData): Promise<ActionResult
   }
 
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   revalidatePath("/dashboard");
   redirect(`/decks/${id}`);
 }
@@ -112,6 +113,7 @@ export async function updateDeckMetaAction(
 
   revalidatePath(`/decks/${deckId}`);
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   return { success: true };
 }
 
@@ -127,8 +129,9 @@ export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   }
 
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   revalidatePath("/dashboard");
-  redirect("/decks");
+  redirect("/my-cards");
 }
 
 /**
@@ -398,6 +401,7 @@ export async function setCommanderAction(
 
   revalidatePath(`/decks/${deckId}`);
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   return { success: true };
 }
 
@@ -418,6 +422,7 @@ export async function forkDeckAction(deckId: string, formData: FormData): Promis
 
   revalidatePath(`/decks/${deckId}`);
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   redirect(`/decks/${newId}`);
 }
 
@@ -438,6 +443,7 @@ export async function copyDeckAction(deckId: string, formData: FormData): Promis
 
   revalidatePath(`/decks/${deckId}`);
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   redirect(`/decks/${newId}`);
 }
 

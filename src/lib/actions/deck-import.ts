@@ -168,6 +168,7 @@ function scryfallMessage(err: unknown): string {
 
 function revalidateDeck(id?: string) {
   revalidatePath("/decks");
+  revalidatePath("/my-cards");
   revalidatePath("/dashboard");
   if (id) revalidatePath(`/decks/${id}`);
 }

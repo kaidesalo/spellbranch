@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/queries/profiles";
+import { getRepository } from "@/lib/data";
 import { UserProfile } from "@/components/profile/user-profile";
 
 export async function generateMetadata({
@@ -26,11 +27,13 @@ export default async function UserProfilePage({
   const { username } = await params;
   const [view, viewer] = await Promise.all([getUserProfile(username), getSessionUser()]);
   if (!view) notFound();
+  const tradeCards = await getRepository().listTradeCollection(viewer?.id ?? null, view.profile.id);
 
   return (
     <UserProfile
       profile={view.profile}
       decks={view.decks}
+      tradeCards={tradeCards}
       isSelf={viewer?.id === view.profile.id}
     />
   );

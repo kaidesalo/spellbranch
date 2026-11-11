@@ -10,6 +10,12 @@ import {
 } from "@/lib/data/deck-color-rules";
 import { normalizeDeckColors, storedCardIdentity } from "@/lib/deck-colors";
 import { isMainBoard, mainboardQuantity, normalizeBoard } from "@/lib/deck-boards";
+import {
+  COLLECTION_MAX_QUANTITY,
+  normalizeCollectionVisibility,
+  normalizeCondition,
+  normalizeFinish,
+} from "@/lib/collection";
 import { commanderProblem, normalizeColorIdentity, normalizeCommander } from "@/lib/commander";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
@@ -19,6 +25,7 @@ import {
   decideSendRequest,
   findPair,
 } from "@/lib/data/friend-rules";
+import type { CollectionCard } from "@/lib/types";
 import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, isUuid, scryfallImageOrNull } from "@/lib/data/validation";
 import { LIMITS } from "@/lib/data/limits";
@@ -100,6 +107,8 @@ const COLOR_CONFLICT = "That doesn't fit this deck's colors any more. Reload the
 const PROFILE_COLS = "id, username, display_name, avatar_url";
 const FRIENDSHIP_COLS = "id, requester_id, addressee_id, status, created_at";
 const FAVORITE_COLS = "id, user_id, scryfall_id, card_name, image_uri, mana_cost, type_line, created_at";
+const COLLECTION_COLS =
+  "id, user_id, scryfall_id, card_name, image_uri, mana_cost, type_line, quantity, finish, condition, for_trade, created_at, updated_at";
 
 type DeckRow = {
   id: string;
@@ -158,6 +167,21 @@ type FriendshipRow = {
   addressee_id: string;
   status: string;
   created_at: string;
+};
+type CollectionRow = {
+  id: string;
+  user_id: string;
+  scryfall_id: string;
+  card_name: string;
+  image_uri: string | null;
+  mana_cost: string | null;
+  type_line: string | null;
+  quantity: number;
+  finish: string;
+  condition: string | null;
+  for_trade: boolean;
+  created_at: string;
+  updated_at: string;
 };
 type FavoriteRow = {
   id: string;
@@ -251,6 +275,22 @@ const toTypeOrder = (r: TypeOrderRow): DeckTypeOrder => ({
   deckId: r.deck_id,
   typeKey: r.type_key,
   position: r.position,
+});
+
+const toCollection = (r: CollectionRow): CollectionCard => ({
+  id: r.id,
+  userId: r.user_id,
+  scryfallId: r.scryfall_id,
+  cardName: r.card_name,
+  imageUri: r.image_uri,
+  manaCost: r.mana_cost,
+  typeLine: r.type_line,
+  quantity: r.quantity,
+  finish: normalizeFinish(r.finish),
+  condition: normalizeCondition(r.condition),
+  forTrade: r.for_trade,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
 });
 
 export const toProfile = (r: ProfileRow): PublicProfile => ({
@@ -1521,6 +1561,147 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         profile: { ...toProfile(row), bio },
         decks: decks.sort(byUpdatedDesc),
       };
+    },
+
+    async listMyCollection(userId) {
+      const client = await getClient();
+      const rows = check(
+        "collection_cards",
+        await client
+          .from("collection_cards")
+          .select(COLLECTION_COLS)
+          .eq("user_id", userId)
+          .order("card_name", { ascending: true }),
+      ) as CollectionRow[] | null;
+      return (rows ?? []).map(toCollection);
+    },
+
+    async getCollectionVisibility(userId) {
+      const client = await getClient();
+      const row = check(
+        "collection_settings",
+        await client.from("collection_settings").select("visibility").eq("user_id", userId).maybeSingle(),
+      ) as { visibility: string } | null;
+      return normalizeCollectionVisibility(row?.visibility);
+    },
+
+    async setCollectionVisibility(userId, visibility) {
+      const client = await getClient();
+      const next = normalizeCollectionVisibility(visibility);
+      const existing = check(
+        "collection_settings",
+        await client.from("collection_settings").select("user_id").eq("user_id", userId).maybeSingle(),
+      ) as { user_id: string } | null;
+      if (existing) {
+        const rows = check(
+          "collection_settings update",
+          await client
+            .from("collection_settings")
+            .update({ visibility: next })
+            .eq("user_id", userId)
+            .select("user_id"),
+        ) as { user_id: string }[] | null;
+        if (!rows?.length) throw new DataError("You cannot edit this collection");
+        return;
+      }
+      check(
+        "collection_settings insert",
+        await client.from("collection_settings").insert({ user_id: userId, visibility: next }),
+      );
+    },
+
+    async addCollectionCard(userId, input) {
+      const client = await getClient();
+      const finish = normalizeFinish(input.finish);
+      const existing = check(
+        "collection_cards find",
+        await client
+          .from("collection_cards")
+          .select("id, quantity")
+          .eq("user_id", userId)
+          .eq("scryfall_id", input.scryfallId)
+          .eq("finish", finish)
+          .maybeSingle(),
+      ) as { id: string; quantity: number } | null;
+      const fields = {
+        card_name: input.cardName,
+        image_uri: scryfallImageOrNull(input.imageUri),
+        mana_cost: input.manaCost,
+        type_line: input.typeLine,
+        condition: input.condition,
+        for_trade: input.forTrade,
+      };
+      if (existing) {
+        check(
+          "collection_cards update",
+          await client
+            .from("collection_cards")
+            .update({
+              ...fields,
+              quantity: Math.min(COLLECTION_MAX_QUANTITY, existing.quantity + input.quantity),
+            })
+            .eq("id", existing.id)
+            .eq("user_id", userId),
+        );
+        return;
+      }
+      const inserted = await client.from("collection_cards").insert({
+        user_id: userId,
+        scryfall_id: input.scryfallId,
+        quantity: Math.min(COLLECTION_MAX_QUANTITY, input.quantity),
+        finish,
+        ...fields,
+      });
+      if (inserted.error?.code === "23505") {
+        throw new DataError("You already track that finish of this card. Reload and try again.");
+      }
+      check("collection_cards insert", inserted);
+    },
+
+    async updateCollectionCard(userId, cardId, input) {
+      if (!isUuid(cardId)) throw new DataError("Card not found in your collection");
+      const client = await getClient();
+      const res = await client
+        .from("collection_cards")
+        .update({
+          quantity: input.quantity,
+          finish: input.finish,
+          condition: input.condition,
+          for_trade: input.forTrade,
+        })
+        .eq("id", cardId)
+        .eq("user_id", userId)
+        .select("id");
+      if (res.error?.code === "23505") {
+        throw new DataError("You already track that finish of this card.");
+      }
+      const rows = check("collection_cards update", res) as { id: string }[] | null;
+      if (!rows?.length) throw new DataError("Card not found in your collection");
+    },
+
+    async removeCollectionCard(userId, cardId) {
+      if (!isUuid(cardId)) throw new DataError("Card not found in your collection");
+      const client = await getClient();
+      const rows = check(
+        "collection_cards delete",
+        await client.from("collection_cards").delete().eq("id", cardId).eq("user_id", userId).select("id"),
+      ) as { id: string }[] | null;
+      if (!rows?.length) throw new DataError("Card not found in your collection");
+    },
+
+    async listTradeCollection(_viewerId, ownerId) {
+      if (!isUuid(ownerId)) return [];
+      const client = await getClient();
+      const rows = check(
+        "collection_cards trade",
+        await client
+          .from("collection_cards")
+          .select(COLLECTION_COLS)
+          .eq("user_id", ownerId)
+          .eq("for_trade", true)
+          .order("card_name", { ascending: true }),
+      ) as CollectionRow[] | null;
+      return (rows ?? []).map(toCollection);
     },
   };
 }

@@ -111,9 +111,9 @@ const ids = <T extends { id: string }>(rows: T[]) => rows.map((r) => r.id).sort(
 
 describe("deleteDeckAction, local backend", () => {
   it("the owner deletes the deck and is sent to /decks", async () => {
-    await expect(deleteDeckAction(DECK)).rejects.toThrow("NEXT_REDIRECT /decks");
+    await expect(deleteDeckAction(DECK)).rejects.toThrow("NEXT_REDIRECT /my-cards");
     expect(ids(db.decks)).toEqual([FORK, OTHER, BOB_PARENT].sort());
-    expect(revalidated).toEqual(["/decks", "/dashboard"]);
+    expect(revalidated).toEqual(["/decks", "/my-cards", "/dashboard"]);
   });
 
   it("cascades the deck's cards and comments (anyone's), and keeps forks", async () => {
@@ -154,11 +154,11 @@ describe("deleteDeckAction, Supabase backend", () => {
   });
 
   it("the owner's delete is scoped to id and owner_id, then redirects", async () => {
-    await expect(deleteDeckAction(DECK)).rejects.toThrow("NEXT_REDIRECT /decks");
+    await expect(deleteDeckAction(DECK)).rejects.toThrow("NEXT_REDIRECT /my-cards");
     expect(supabaseCalls).toHaveLength(1);
     expect(supabaseCalls[0]).toMatchObject({ table: "decks", op: "delete", returning: "id" });
     expect(supabaseCalls[0].filters).toEqual(expect.arrayContaining([["eq", "id", DECK], ["eq", "owner_id", ALICE]]));
-    expect(revalidated).toEqual(["/decks", "/dashboard"]);
+    expect(revalidated).toEqual(["/decks", "/my-cards", "/dashboard"]);
   });
 
   it("a non-owner's delete matches 0 rows and is refused", async () => {

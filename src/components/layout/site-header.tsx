@@ -19,11 +19,18 @@ import {
 
 const links = [
   { href: "/dashboard", label: "Home" },
-  { href: "/decks", label: "Decks" },
+  { href: "/my-cards", label: "My cards" },
   { href: "/friends", label: "Friends" },
   { href: "/favorites", label: "Favorites" },
   { href: "/profile", label: "Profile" },
 ];
+
+function linkActive(pathname: string, href: string) {
+  if (href === "/my-cards") {
+    return pathname.startsWith("/my-cards") || pathname.startsWith("/decks") || pathname.startsWith("/browse");
+  }
+  return pathname.startsWith(href);
+}
 
 export function SiteHeader({ user }: { user: SessionUser | null }) {
   const pathname = usePathname();
@@ -56,7 +63,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                   href={link.href}
                   className={cn(
                     "rounded-lg px-3 py-2 label-caps transition-colors",
-                    pathname.startsWith(link.href)
+                    linkActive(pathname, link.href)
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
@@ -99,7 +106,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                       onClick={() => setOpenPath(null)}
                       className={cn(
                         "rounded-lg px-3 py-3 text-sm font-medium",
-                        pathname.startsWith(link.href)
+                        linkActive(pathname, link.href)
                           ? "bg-primary text-primary-foreground"
                           : "text-foreground",
                       )}

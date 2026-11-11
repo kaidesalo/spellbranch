@@ -1,5 +1,7 @@
+import type { CollectionCondition, CollectionFinish } from "@/lib/collection";
 import type { DeckBoard } from "@/lib/deck-boards";
 import type {
+  CollectionCard,
   Comment,
   DeckCommander,
   DeckFormat,
@@ -59,6 +61,25 @@ export interface CardInput {
    * board and is a separate row.
    */
   board?: DeckBoard;
+}
+
+export interface CollectionInput {
+  scryfallId: string;
+  cardName: string;
+  imageUri: string | null;
+  manaCost: string | null;
+  typeLine: string | null;
+  quantity: number;
+  finish: CollectionFinish;
+  condition: CollectionCondition | null;
+  forTrade: boolean;
+}
+
+export interface CollectionUpdate {
+  quantity: number;
+  finish: CollectionFinish;
+  condition: CollectionCondition | null;
+  forTrade: boolean;
 }
 
 export interface FavoriteInput {
@@ -229,6 +250,21 @@ export interface Repository {
   listFavorites(userId: string): Promise<FavoriteCard[]>;
   addFavorite(userId: string, input: FavoriteInput): Promise<void>;
   removeFavorite(userId: string, favoriteId: string): Promise<void>;
+
+  // Collection. The owner sees every pile. Other people see for-trade piles
+  // only, and only when the owner's collection visibility allows them.
+  listMyCollection(userId: string): Promise<CollectionCard[]>;
+  getCollectionVisibility(userId: string): Promise<Visibility>;
+  setCollectionVisibility(userId: string, visibility: Visibility): Promise<void>;
+  /**
+   * Adds a pile, or raises the quantity when that printing and finish
+   * already exist (capped at 9999). Card text comes from the server.
+   */
+  addCollectionCard(userId: string, input: CollectionInput): Promise<void>;
+  updateCollectionCard(userId: string, cardId: string, input: CollectionUpdate): Promise<void>;
+  removeCollectionCard(userId: string, cardId: string): Promise<void>;
+  /** For-trade piles this viewer is allowed to see. Empty when the collection is private to them. */
+  listTradeCollection(viewerId: string | null, ownerId: string): Promise<CollectionCard[]>;
 
   // Friends
   getFriendsData(userId: string): Promise<FriendsData>;
