@@ -33,8 +33,8 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
   const menuOpen = openPath === pathname;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="sticky top-0 z-40 min-w-0 border-b border-border/70 bg-background/90 backdrop-blur-md">
+      <div className="mx-auto flex h-16 min-w-0 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href={user ? "/dashboard" : "/"} className="flex min-w-0 items-center">
           <Image
             src="/spellbranch-logo.png"

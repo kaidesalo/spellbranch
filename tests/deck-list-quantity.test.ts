@@ -39,13 +39,13 @@ describe("DeckList quantity", () => {
     expect(input).toContain('value="7"');
     expect(input).toContain('inputMode="numeric"');
     expect(input).toContain('type="text"');
-    expect(input).toMatch(/class="[^"]*\bsize-10\b[^"]*\btext-sm\b[^"]*\bfont-medium\b/);
+    expect(input).toMatch(/class="[^"]*\bsize-9\b[^"]*\btext-sm\b[^"]*\bfont-medium\b/);
     expect(input).toMatch(/class="[^"]*\btabular-nums\b/);
     // -/+ and trash are still there, with a 40px target.
     for (const label of ["Decrease Swamp", "Increase Swamp", "Remove Swamp"]) {
       expect(html).toContain(`aria-label="${label}"`);
     }
-    expect(html).toContain("size-10");
+    expect(html).toContain("size-9");
     // Stepper sits above delete and Move on a phone; sm+ is one line of controls.
     expect(html).toContain("flex-col");
     expect(html).toContain("sm:flex-row");

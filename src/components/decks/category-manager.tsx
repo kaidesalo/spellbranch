@@ -121,7 +121,7 @@ export function CategoryManager({
       <Button
         variant="outline"
         size="sm"
-        className="max-sm:px-2 max-sm:tracking-normal!"
+        className="max-w-full shrink max-sm:px-2 max-sm:tracking-normal!"
         data-testid="manage-categories"
         onClick={() => setOpen(true)}
       >

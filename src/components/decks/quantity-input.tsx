@@ -71,7 +71,7 @@ export function QuantityInput({
       }}
       className={cn(
         // Looks like the plain number until hovered or focused.
-        "size-10 rounded-md border border-transparent bg-transparent p-0 text-center text-sm font-medium tabular-nums text-foreground outline-none transition-colors",
+        "size-9 rounded-md border border-transparent bg-transparent p-0 text-center text-sm font-medium tabular-nums text-foreground outline-none transition-colors",
         "hover:border-border focus-visible:border-ring focus-visible:bg-background/70 focus-visible:ring-2 focus-visible:ring-ring/50",
         "selection:bg-primary selection:text-primary-foreground",
         busy && "cursor-progress opacity-70",

@@ -44,9 +44,10 @@ export default async function RootLayout({
       lang="en"
       className={`${inter.variable} ${cinzel.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full min-w-0 flex-col">
         <SiteHeader user={user} />
-        <main className="flex-1">{children}</main>
+        {/* clip is a backstop. The deck page itself has to fit the viewport. */}
+        <main className="min-w-0 flex-1 overflow-x-clip">{children}</main>
         <Toaster richColors position="top-center" />
       </body>
     </html>
