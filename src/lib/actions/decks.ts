@@ -45,6 +45,16 @@ function failure(err: unknown, fallback: string): ActionResult {
   return result;
 }
 
+/** null when the write may proceed. */
+async function limitDeckWrite(
+  policy: "deck-write" | "deck-edit",
+  userId: string,
+): Promise<ActionResult | null> {
+  const allowed = await limit(policy, { ip: await requestIp(), userId });
+  if (!allowed.ok) return limitError(allowed);
+  return null;
+}
+
 function parseDeckForm(formData: unknown) {
   if (!isFormData(formData)) {
     return { success: false as const, error: { issues: [{ message: "Invalid deck" }] } };
@@ -71,6 +81,9 @@ export async function createDeckAction(formData: FormData): Promise<ActionResult
   }
   // New decks must pick colors; only decks from before this feature have none.
   if (!parsed.data.colors) return { error: "Pick the deck's colors" };
+
+  const blocked = await limitDeckWrite("deck-write", user.id);
+  if (blocked) return blocked;
 
   let id: string;
   try {
@@ -100,6 +113,9 @@ export async function updateDeckMetaAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid deck" };
   }
 
+  const blocked = await limitDeckWrite("deck-write", user.id);
+  if (blocked) return blocked;
+
   try {
     // No colors in the form leaves them as they are; narrowing them so a
     // card or the commander no longer fits is refused with the list.
@@ -121,6 +137,9 @@ export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   const user = await requireUser();
   const id = check(idSchema, deckId, "Deck not found");
   if (!id.ok) return { error: id.error };
+
+  const blocked = await limitDeckWrite("deck-write", user.id);
+  if (blocked) return blocked;
 
   try {
     await getRepository().deleteDeck(user.id, deckId);
@@ -196,6 +215,9 @@ export async function updateCardQuantityAction(
   const qty = check(quantitySchema, quantity, "Quantity must be between 0 and 99");
   if (!qty.ok) return { error: qty.error };
 
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
+
   try {
     // The repository checks that the user owns the deck and the card is in it.
     // Raising an off-color mainboard card's quantity is refused; lowering never
@@ -222,6 +244,9 @@ export async function moveCardToBoardAction(
   const parsed = boardSchema.safeParse(board);
   if (!parsed.success) return { error: "Invalid board" };
 
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
+
   try {
     await getRepository().moveCardToBoard(user.id, deckId, cardId, parsed.data);
   } catch (err) {
@@ -238,6 +263,9 @@ export async function createCategoryAction(deckId: string, name: string): Promis
   if (!id.ok) return { error: id.error };
   const parsed = categoryNameSchema.safeParse(name);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid category" };
+
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
 
   try {
     const categoryId = await getRepository().createCategory(user.id, deckId, parsed.data);
@@ -261,6 +289,9 @@ export async function renameCategoryAction(
   const parsed = categoryNameSchema.safeParse(name);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid category" };
 
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
+
   try {
     await getRepository().renameCategory(user.id, deckId, categoryId, parsed.data);
   } catch (err) {
@@ -277,6 +308,9 @@ export async function deleteCategoryAction(deckId: string, categoryId: string): 
   if (!id.ok) return { error: id.error };
   const category = check(idSchema, categoryId, "Category not found");
   if (!category.ok) return { error: category.error };
+
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
 
   try {
     await getRepository().deleteCategory(user.id, deckId, categoryId);
@@ -301,6 +335,9 @@ export async function moveCardToCategoryAction(
   const assignment = categoryAssignmentSchema.safeParse(categoryId);
   if (!assignment.success) return { error: "Category not found" };
 
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
+
   try {
     await getRepository().moveCardToCategory(user.id, deckId, cardId, assignment.data);
   } catch (err) {
@@ -320,6 +357,9 @@ export async function reorderDeckSectionsAction(
   if (!id.ok) return { error: id.error };
   const parsed = sectionOrderSchema.safeParse(sections);
   if (!parsed.success) return { error: "Reload the deck and try again" };
+
+  const blocked = await limitDeckWrite("deck-edit", user.id);
+  if (blocked) return blocked;
 
   try {
     await getRepository().reorderSections(user.id, deckId, parsed.data);
@@ -456,6 +496,9 @@ export async function setPreferredBranchAction(
   if (!source.ok) return { error: source.error };
   const branch = check(idSchema.nullable(), branchId, "Branch does not belong to this deck");
   if (!branch.ok) return { error: branch.error };
+
+  const blocked = await limitDeckWrite("deck-write", user.id);
+  if (blocked) return blocked;
 
   try {
     await getRepository().setPreferredBranch(user.id, sourceDeckId, branchId);

@@ -59,6 +59,53 @@ export const POLICIES = {
     { by: "ip", limit: 20, windowSec: 10 * MINUTE },
     { by: "user", limit: 10, windowSec: 10 * MINUTE },
   ],
+  // Comments on a deck the caller can already see. A short thread is normal.
+  comment: [
+    { by: "ip", limit: 60, windowSec: 10 * MINUTE },
+    { by: "user", limit: 30, windowSec: 10 * MINUTE },
+  ],
+  // Send, accept, decline, or remove a friend request.
+  "friend-write": [
+    { by: "ip", limit: 60, windowSec: 10 * MINUTE },
+    { by: "user", limit: 30, windowSec: 10 * MINUTE },
+  ],
+  // Display name and bio. People do not rewrite a profile in a loop.
+  "profile-write": [
+    { by: "ip", limit: 20, windowSec: HOUR },
+    { by: "user", limit: 10, windowSec: HOUR },
+  ],
+  // Collection edits that do not call Scryfall: quantity, finish, trade
+  // flag, visibility, and deletes. Adding a card stays on card-lookup.
+  "collection-write": [
+    { by: "ip", limit: 300, windowSec: 10 * MINUTE },
+    { by: "user", limit: 150, windowSec: 10 * MINUTE },
+  ],
+  // Create a deck, edit its name/colors/visibility, delete it, or pick a
+  // preferred branch.
+  "deck-write": [
+    { by: "ip", limit: 40, windowSec: 10 * MINUTE },
+    { by: "user", limit: 20, windowSec: 10 * MINUTE },
+  ],
+  // Quantity, board, category, and section edits while building a deck.
+  // Roomy on purpose: tapping + on a hundred cards is one sitting.
+  "deck-edit": [
+    { by: "ip", limit: 400, windowSec: 10 * MINUTE },
+    { by: "user", limit: 200, windowSec: 10 * MINUTE },
+  ],
+  // Save or remove a favorite.
+  "favorite-write": [
+    { by: "ip", limit: 120, windowSec: 10 * MINUTE },
+    { by: "user", limit: 60, windowSec: 10 * MINUTE },
+  ],
+  // Public profile pages (/u/{username}), including the for-trade list.
+  "profile-view": [{ by: "ip", limit: 60, windowSec: MINUTE }],
+  // Deck-stats Scryfall cache misses. A repeat view of the same printings
+  // is a cache hit and is not counted. Anonymous viewers use a per-IP user
+  // bucket (there is no account id).
+  "deck-stats": [
+    { by: "ip", limit: 60, windowSec: 10 * MINUTE },
+    { by: "user", limit: 40, windowSec: 10 * MINUTE },
+  ],
 } as const satisfies Record<string, readonly Bucket[]>;
 
 export type PolicyName = keyof typeof POLICIES;

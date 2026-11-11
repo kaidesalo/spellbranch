@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseEnv } from "@/lib/supabase/config";
-import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
+import { SUPABASE_COOKIE_OPTIONS, supabaseCookieWriteOptions } from "@/lib/supabase/cookie-options";
 
 /**
  * Supabase client for Server Components, Server Functions and Route Handlers.
@@ -21,10 +21,10 @@ export async function createClient() {
       },
       setAll(cookiesToSet) {
         try {
-          // Keep `options` as given: @supabase/ssr has already merged
-          // SUPABASE_COOKIE_OPTIONS (and maxAge) into it.
+          // @supabase/ssr merges HttpOnly/Secure/SameSite, then forces maxAge
+          // back to 400 days. Put the 30-day lifetime back; maxAge 0 still clears.
           cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
+            cookieStore.set(name, value, supabaseCookieWriteOptions(options)),
           );
         } catch {
           // Called from a Server Component, which can't set cookies.

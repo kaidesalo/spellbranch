@@ -232,6 +232,9 @@ export async function updateProfileAction(
     return { error: `Bio must be ${LIMITS.bio} characters or fewer` };
   }
 
+  const allowed = await limit("profile-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
+
   if (isSupabaseConfigured()) {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase

@@ -3,6 +3,16 @@ import type { Visibility } from "@/lib/types";
 /** A physical pile can be larger than a deck slot. Matches collection_cards_quantity_check. */
 export const COLLECTION_MAX_QUANTITY = 9999;
 
+/**
+ * Distinct printings (one row per printing and finish) one person may store.
+ * Matches collection_cards_limit() in supabase/migrations/016_p3_cleanup.sql.
+ * Updates of an existing row do not count. Rows already stored stay if the
+ * cap is lowered later; only a new insert is refused.
+ */
+export const COLLECTION_MAX_ROWS = 5000;
+
+export const COLLECTION_CAP_MESSAGE = `Your collection already has ${COLLECTION_MAX_ROWS} cards`;
+
 export const COLLECTION_FINISHES = ["nonfoil", "foil", "etched"] as const;
 export type CollectionFinish = (typeof COLLECTION_FINISHES)[number];
 

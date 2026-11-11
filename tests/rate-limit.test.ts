@@ -176,6 +176,45 @@ describe("policies", () => {
     expect(retryAfterFor("deck-import")).toBe(600);
   });
 
+  it("limits owner writes, comments, friend requests, profile views, and deck stats", () => {
+    expect(POLICIES.comment).toEqual([
+      { by: "ip", limit: 60, windowSec: 600 },
+      { by: "user", limit: 30, windowSec: 600 },
+    ]);
+    expect(POLICIES["friend-write"]).toEqual([
+      { by: "ip", limit: 60, windowSec: 600 },
+      { by: "user", limit: 30, windowSec: 600 },
+    ]);
+    expect(POLICIES["profile-write"]).toEqual([
+      { by: "ip", limit: 20, windowSec: 3600 },
+      { by: "user", limit: 10, windowSec: 3600 },
+    ]);
+    expect(POLICIES["collection-write"]).toEqual([
+      { by: "ip", limit: 300, windowSec: 600 },
+      { by: "user", limit: 150, windowSec: 600 },
+    ]);
+    expect(POLICIES["deck-write"]).toEqual([
+      { by: "ip", limit: 40, windowSec: 600 },
+      { by: "user", limit: 20, windowSec: 600 },
+    ]);
+    expect(POLICIES["deck-edit"]).toEqual([
+      { by: "ip", limit: 400, windowSec: 600 },
+      { by: "user", limit: 200, windowSec: 600 },
+    ]);
+    expect(POLICIES["favorite-write"]).toEqual([
+      { by: "ip", limit: 120, windowSec: 600 },
+      { by: "user", limit: 60, windowSec: 600 },
+    ]);
+    expect(POLICIES["profile-view"]).toEqual([{ by: "ip", limit: 60, windowSec: 60 }]);
+    expect(POLICIES["deck-stats"]).toEqual([
+      { by: "ip", limit: 60, windowSec: 600 },
+      { by: "user", limit: 40, windowSec: 600 },
+    ]);
+    expect(retryAfterFor("comment")).toBe(600);
+    expect(retryAfterFor("profile-write")).toBe(3600);
+    expect(retryAfterFor("profile-view")).toBe(60);
+  });
+
   it("retry-after is the policy's longest window", () => {
     expect(retryAfterFor("sign-in")).toBe(3600);
     expect(retryAfterFor("confirm")).toBe(300);

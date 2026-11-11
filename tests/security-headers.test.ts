@@ -13,6 +13,9 @@ describe("L5 security headers", () => {
     expect(byKey["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
     expect(byKey["X-Frame-Options"]).toBe("DENY");
     expect(byKey["Permissions-Policy"]).toMatch(/camera=\(\)/);
+    expect(byKey["Cross-Origin-Opener-Policy"]).toBe("same-origin");
+    expect(byKey["Cross-Origin-Resource-Policy"]).toBe("same-site");
+    expect(byKey["Cross-Origin-Embedder-Policy"]).toBeUndefined();
     // /auth/confirm overrides Referrer-Policy (token_hash in the URL), but
     // not with no-referrer, which would turn Origin into "null".
     const confirm = rules.find((r) => r.source === "/auth/confirm")!;
@@ -20,10 +23,15 @@ describe("L5 security headers", () => {
     expect(rules.indexOf(confirm)).toBeGreaterThan(rules.indexOf(all));
   });
 
-  it("adds HSTS only in production", () => {
+  it("adds HSTS only in production, without preload", () => {
     const keys = (env: Record<string, string>) => staticSecurityHeaders(env).map((h) => h.key);
     expect(keys({ NODE_ENV: "production" })).toContain("Strict-Transport-Security");
     expect(keys({ NODE_ENV: "development" })).not.toContain("Strict-Transport-Security");
+    const hsts = staticSecurityHeaders({ NODE_ENV: "production" }).find(
+      (header) => header.key === "Strict-Transport-Security",
+    );
+    expect(hsts?.value).toBe("max-age=63072000; includeSubDomains");
+    expect(hsts?.value.toLowerCase()).not.toContain("preload");
   });
 
   it("CSP: nonce + strict-dynamic scripts, no unsafe-inline/eval scripts in prod, Scryfall images, no framing", () => {

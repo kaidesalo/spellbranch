@@ -54,6 +54,16 @@ describe("forkNameError", () => {
       `Deck name must be at most ${LIMITS.deckName} characters`,
     );
   });
+
+  it("counts an emoji as one character, matching char_length()", () => {
+    const emoji = "🐉";
+    expect(emoji.length).toBe(2);
+    expect(forkNameError(emoji.repeat(LIMITS.deckName))).toBeNull();
+    expect(forkNameError(`  ${emoji.repeat(LIMITS.deckName)}  `)).toBeNull();
+    expect(forkNameError(emoji.repeat(LIMITS.deckName + 1))).toBe(
+      `Deck name must be at most ${LIMITS.deckName} characters`,
+    );
+  });
 });
 
 describe("branchSwitcherModel", () => {

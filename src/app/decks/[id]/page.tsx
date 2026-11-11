@@ -93,6 +93,7 @@ export default async function DeckDetailPage({
         }
       : null,
     identity: deck.colors,
+    userId: user?.id ?? null,
   });
   const formatLabel = DECK_FORMATS.find((format) => format.value === deck.format)?.label ?? deck.format;
 

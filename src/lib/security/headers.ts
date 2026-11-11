@@ -60,6 +60,14 @@ export function staticSecurityHeaders(env: Env = process.env): { key: string; va
       value:
         "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()",
     },
+    // Severs window.opener. Auth is a full-page redirect to /auth/confirm,
+    // not a popup, so same-origin does not break sign-in.
+    { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+    // Our responses are for this site. Scryfall images are loaded *from*
+    // Scryfall (img-src), so this does not apply to them. Cross-Origin-
+    // Embedder-Policy is intentionally absent: require-corp would block
+    // those images. HSTS preload is also absent; that is a separate rollout.
+    { key: "Cross-Origin-Resource-Policy", value: "same-site" },
   ];
   if (env.NODE_ENV === "production") {
     // Browsers ignore HSTS on plain-http localhost, so this is safe for `next start`.

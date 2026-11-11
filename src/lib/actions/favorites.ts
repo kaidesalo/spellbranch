@@ -5,8 +5,9 @@ import type { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
 import { check, favoriteSchema, idSchema } from "@/lib/actions/schemas";
+import { limit, limitError, requestIp } from "@/lib/rate-limit";
 
-export type ActionResult = { error?: string; success?: boolean };
+export type ActionResult = { error?: string; success?: boolean; retryAfterSec?: number };
 
 export async function addFavoriteAction(
   input: z.infer<typeof favoriteSchema>,
@@ -16,6 +17,9 @@ export async function addFavoriteAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid card" };
   }
+
+  const allowed = await limit("favorite-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
 
   try {
     await getRepository().addFavorite(user.id, {
@@ -39,6 +43,9 @@ export async function removeFavoriteAction(
   const user = await requireUser();
   const id = check(idSchema, favoriteId, "Favorite not found");
   if (!id.ok) return { error: id.error };
+
+  const allowed = await limit("favorite-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
 
   try {
     await getRepository().removeFavorite(user.id, favoriteId);

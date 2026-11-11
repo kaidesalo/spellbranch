@@ -39,8 +39,12 @@ function nameWithSuffix(sourceName: string, suffix: string): string {
 /** A message safe to show the user, or null when the trimmed name is usable. */
 export function forkNameError(name: string): string | null {
   const trimmed = name.trim();
-  if (trimmed.length < 1) return "Deck name is required";
-  if (trimmed.length > LIMITS.deckName) {
+  // Code points, same as nameWithSuffix and Postgres char_length(). An emoji
+  // is one character. String.length would count UTF-16 code units and reject
+  // a name the database accepts.
+  const chars = Array.from(trimmed).length;
+  if (chars < 1) return "Deck name is required";
+  if (chars > LIMITS.deckName) {
     return `Deck name must be at most ${LIMITS.deckName} characters`;
   }
   return null;

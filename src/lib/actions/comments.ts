@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository, userMessage } from "@/lib/data";
 import { check, commentBodySchema, idSchema } from "@/lib/actions/schemas";
+import { limit, limitError, requestIp } from "@/lib/rate-limit";
 
-export type ActionResult = { error?: string; success?: boolean };
+export type ActionResult = { error?: string; success?: boolean; retryAfterSec?: number };
 
 export async function addCommentAction(
   deckId: string,
@@ -17,6 +18,9 @@ export async function addCommentAction(
   const parsed = check(commentBodySchema, body, "Invalid comment");
   if (!parsed.ok) return { error: parsed.error };
   const text = parsed.data;
+
+  const allowed = await limit("comment", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
 
   try {
     await getRepository().addComment(user.id, deckId, text);
