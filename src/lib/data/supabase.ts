@@ -21,6 +21,13 @@ import {
 import type { FriendRow, Repository } from "@/lib/data/types";
 import { USERNAME_RE, isUuid, scryfallImageOrNull } from "@/lib/data/validation";
 import { LIMITS } from "@/lib/data/limits";
+import {
+  CATEGORY_MESSAGES,
+  categoryNameKey,
+  nextCategoryPosition,
+  normalizeCategoryName,
+  parseSectionOrder,
+} from "@/lib/deck-categories";
 import { requireForkName } from "@/lib/fork-name";
 import { ORIGINAL_DECK_FORKS_LOCKED } from "@/lib/permissions";
 import type {
@@ -28,7 +35,9 @@ import type {
   CopyLink,
   Deck,
   DeckCard,
+  DeckCategory,
   DeckCommander,
+  DeckTypeOrder,
   DeckFormat,
   DeckWithMeta,
   FavoriteCard,
@@ -78,7 +87,9 @@ type PgError = { code?: string; message?: string; hint?: string } | null;
 export const DECK_COLS =
   "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, colors, created_at, updated_at";
 const CARD_COLS =
-  "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, created_at";
+  "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, category_id, created_at";
+const CATEGORY_COLS = "id, deck_id, name, position, created_at, updated_at";
+const TYPE_ORDER_COLS = "deck_id, type_key, position";
 /** What the deck-colors rules need from each card. */
 const CARD_COLOR_COLS = "id, card_name, colors, color_identity, quantity";
 
@@ -121,8 +132,18 @@ type CardRow = {
   color_identity?: string[] | null;
   oracle_text: string | null;
   quantity: number;
+  category_id?: string | null;
   created_at: string;
 };
+type CategoryRow = {
+  id: string;
+  deck_id: string;
+  name: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+};
+type TypeOrderRow = { deck_id: string; type_key: string; position: number };
 type CardColorRow = Pick<CardRow, "id" | "card_name" | "colors" | "color_identity" | "quantity">;
 type ProfileRow = { id: string; username: string; display_name: string; avatar_url: string | null };
 type FriendshipRow = {
@@ -206,7 +227,23 @@ const toCard = (r: CardRow): DeckCard => ({
   colorIdentity: Array.isArray(r.color_identity) ? normalizeDeckColors(r.color_identity) : null,
   oracleText: r.oracle_text,
   quantity: r.quantity,
+  categoryId: r.category_id ?? null,
   createdAt: r.created_at,
+});
+
+const toCategory = (r: CategoryRow): DeckCategory => ({
+  id: r.id,
+  deckId: r.deck_id,
+  name: r.name,
+  position: r.position,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const toTypeOrder = (r: TypeOrderRow): DeckTypeOrder => ({
+  deckId: r.deck_id,
+  typeKey: r.type_key,
+  position: r.position,
 });
 
 export const toProfile = (r: ProfileRow): PublicProfile => ({
@@ -287,6 +324,32 @@ function cardColorWrite<T>(op: string, res: { data: T; error: PgError }): T {
   return check(op, res);
 }
 
+/** Category writes: turn constraint failures into messages the UI can show. */
+function categoryWrite<T>(op: string, res: { data: T; error: PgError }): T {
+  const error = res.error;
+  if (error) {
+    const message = error.message ?? "";
+    if (error.code === "23505" && message.includes("deck_categories_name_lower")) {
+      throw new DataError(CATEGORY_MESSAGES.duplicate);
+    }
+    if (error.code === "23514" && message.includes("deck_categories_name_shape")) {
+      throw new DataError(CATEGORY_MESSAGES.tooLong);
+    }
+    if (error.hint === "spellbranch_deck_category" && message.includes("40 categories")) {
+      throw new DataError(CATEGORY_MESSAGES.cap);
+    }
+    if (
+      error.hint === "spellbranch_deck_category" ||
+      message.includes("deck_cards_category_same_deck")
+    ) {
+      throw new DataError(CATEGORY_MESSAGES.notFound);
+    }
+    if (error.code === "22023") throw new DataError(CATEGORY_MESSAGES.reload);
+    if (error.code === "42501" || error.code === "P0002") throw new DataError(CATEGORY_MESSAGES.denied);
+  }
+  return check(op, res);
+}
+
 const uniq = (xs: (string | null | undefined)[]) =>
   [...new Set(xs.filter((x): x is string => Boolean(x)))];
 
@@ -316,11 +379,18 @@ async function decorate(
   const ids = decks.map((d) => d.id);
   const sourceIds = uniq(decks.map((d) => d.forkedFromId));
 
-  const [cardsRes, branchesRes, sourcesRes, sourceBranchesRes, owners] = await Promise.all([
+  const [cardsRes, categoriesRes, typeOrdersRes, branchesRes, sourcesRes, sourceBranchesRes, owners] =
+    await Promise.all([
     client
       .from("deck_cards")
       .select(withCards ? CARD_COLS : "deck_id, quantity")
       .in("deck_id", ids),
+    withCards
+      ? client.from("deck_categories").select(CATEGORY_COLS).in("deck_id", ids)
+      : Promise.resolve({ data: [], error: null }),
+    withCards
+      ? client.from("deck_type_orders").select(TYPE_ORDER_COLS).in("deck_id", ids)
+      : Promise.resolve({ data: [], error: null }),
     client.from("decks").select(DECK_COLS).in("forked_from_id", ids),
     sourceIds.length
       ? client.from("decks").select(DECK_COLS).in("id", sourceIds)
@@ -332,6 +402,12 @@ async function decorate(
   ]);
 
   const cardRows = (check("deck_cards", cardsRes) ?? []) as unknown as CardRow[];
+  const categoryRows = withCards
+    ? ((check("deck_categories", categoriesRes) ?? []) as CategoryRow[])
+    : [];
+  const typeOrderRows = withCards
+    ? ((check("deck_type_orders", typeOrdersRes) ?? []) as TypeOrderRow[])
+    : [];
   const branches = ((check("decks", branchesRes) ?? []) as DeckRow[]).map(toDeck);
   const sources = ((check("decks", sourcesRes) ?? []) as DeckRow[]).map(toDeck);
   const sourceBranchRows = withSourceBranches
@@ -364,6 +440,15 @@ async function decorate(
       preferredBranchId,
       owner: owners.get(deck.ownerId),
       cards: withCards ? mine.map(toCard) : undefined,
+      categories: withCards
+        ? categoryRows
+            .filter((c) => c.deck_id === deck.id)
+            .map(toCategory)
+            .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
+        : undefined,
+      typeSectionOrders: withCards
+        ? typeOrderRows.filter((t) => t.deck_id === deck.id).map(toTypeOrder)
+        : undefined,
       cardCount: mine.reduce((sum, c) => sum + c.quantity, 0),
       forkCount: deckBranches.length,
       sourceDeck: deck.forkedFromId
@@ -893,6 +978,133 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         ) as { id: string }[] | null;
         if (!rows?.length) throw new DataError("Card not found in deck");
       }
+      await touchDeck(client, deckId);
+    },
+
+    async createCategory(userId, deckId, name) {
+      const parsed = normalizeCategoryName(name);
+      if (!parsed.ok) throw new DataError(parsed.error);
+      const client = await getClient();
+      await requireOwnDeck(client, userId, deckId, CATEGORY_MESSAGES.denied);
+      const existing = categoryWrite(
+        "deck_categories",
+        await client.from("deck_categories").select("id, name, position").eq("deck_id", deckId),
+      ) as { id: string; name: string; position: number }[] | null;
+      const mine = existing ?? [];
+      if (mine.length >= LIMITS.deckCategories) throw new DataError(CATEGORY_MESSAGES.cap);
+      const key = categoryNameKey(parsed.name);
+      if (mine.some((c) => categoryNameKey(c.name) === key)) {
+        throw new DataError(CATEGORY_MESSAGES.duplicate);
+      }
+      const row = categoryWrite(
+        "deck_categories insert",
+        await client
+          .from("deck_categories")
+          .insert({
+            deck_id: deckId,
+            name: parsed.name,
+            position: nextCategoryPosition(mine),
+          })
+          .select("id")
+          .single(),
+      ) as { id: string };
+      await touchDeck(client, deckId);
+      return row.id;
+    },
+
+    async renameCategory(userId, deckId, categoryId, name) {
+      const parsed = normalizeCategoryName(name);
+      if (!parsed.ok) throw new DataError(parsed.error);
+      if (!isUuid(categoryId)) throw new DataError(CATEGORY_MESSAGES.notFound);
+      const client = await getClient();
+      await requireOwnDeck(client, userId, deckId, CATEGORY_MESSAGES.denied);
+      const existing = categoryWrite(
+        "deck_categories",
+        await client.from("deck_categories").select("id, name").eq("deck_id", deckId),
+      ) as { id: string; name: string }[] | null;
+      const mine = existing ?? [];
+      if (!mine.some((c) => c.id === categoryId)) throw new DataError(CATEGORY_MESSAGES.notFound);
+      const key = categoryNameKey(parsed.name);
+      if (mine.some((c) => c.id !== categoryId && categoryNameKey(c.name) === key)) {
+        throw new DataError(CATEGORY_MESSAGES.duplicate);
+      }
+      const rows = categoryWrite(
+        "deck_categories rename",
+        await client
+          .from("deck_categories")
+          .update({ name: parsed.name })
+          .eq("id", categoryId)
+          .eq("deck_id", deckId)
+          .select("id"),
+      ) as { id: string }[] | null;
+      if (!rows?.length) throw new DataError(CATEGORY_MESSAGES.notFound);
+      await touchDeck(client, deckId);
+    },
+
+    async deleteCategory(userId, deckId, categoryId) {
+      if (!isUuid(categoryId)) throw new DataError(CATEGORY_MESSAGES.notFound);
+      const client = await getClient();
+      await requireOwnDeck(client, userId, deckId, CATEGORY_MESSAGES.denied);
+      // ON DELETE SET NULL clears the cards' category_id. The cards stay.
+      const rows = categoryWrite(
+        "deck_categories delete",
+        await client
+          .from("deck_categories")
+          .delete()
+          .eq("id", categoryId)
+          .eq("deck_id", deckId)
+          .select("id"),
+      ) as { id: string }[] | null;
+      if (!rows?.length) throw new DataError(CATEGORY_MESSAGES.notFound);
+      await touchDeck(client, deckId);
+    },
+
+    async moveCardToCategory(userId, deckId, cardId, categoryId) {
+      if (!isUuid(cardId)) throw new DataError(CATEGORY_MESSAGES.cardMissing);
+      if (categoryId !== null && !isUuid(categoryId)) throw new DataError(CATEGORY_MESSAGES.notFound);
+      const client = await getClient();
+      await requireOwnDeck(client, userId, deckId, CATEGORY_MESSAGES.denied);
+      if (categoryId !== null) {
+        const category = categoryWrite(
+          "deck_categories find",
+          await client
+            .from("deck_categories")
+            .select("id")
+            .eq("id", categoryId)
+            .eq("deck_id", deckId)
+            .maybeSingle(),
+        ) as { id: string } | null;
+        if (!category) throw new DataError(CATEGORY_MESSAGES.notFound);
+      }
+      const rows = categoryWrite(
+        "deck_cards category",
+        await client
+          .from("deck_cards")
+          .update({ category_id: categoryId })
+          .eq("id", cardId)
+          .eq("deck_id", deckId)
+          .select("id"),
+      ) as { id: string }[] | null;
+      if (!rows?.length) throw new DataError(CATEGORY_MESSAGES.cardMissing);
+      await touchDeck(client, deckId);
+    },
+
+    async reorderSections(userId, deckId, sections) {
+      const client = await getClient();
+      const deck = await requireOwnDeck(client, userId, deckId, CATEGORY_MESSAGES.denied);
+      const existing = categoryWrite(
+        "deck_categories",
+        await client.from("deck_categories").select("id").eq("deck_id", deck.id),
+      ) as { id: string }[] | null;
+      const parsed = parseSectionOrder((existing ?? []).map((c) => c.id), sections);
+      if (!parsed.ok) throw new DataError(parsed.error);
+      categoryWrite(
+        "set_deck_section_order",
+        await client.rpc("set_deck_section_order", {
+          deck: deckId,
+          sections: parsed.items.map((item) => (item.kind === "category" ? item.id : `type:${item.typeKey}`)),
+        }),
+      );
       await touchDeck(client, deckId);
     },
 

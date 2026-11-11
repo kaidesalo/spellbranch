@@ -1,6 +1,6 @@
 import type { DeckCard } from "@/lib/types";
 
-const TYPE_ORDER = [
+export const TYPE_ORDER = [
   "Commander",
   "Creature",
   "Planeswalker",
@@ -14,6 +14,11 @@ const TYPE_ORDER = [
 ] as const;
 
 export type CardTypeGroup = (typeof TYPE_ORDER)[number];
+
+/** Type groups the deck list derives. Commander is a pinned slot, not a pile. */
+export const FALLBACK_TYPE_ORDER = TYPE_ORDER.filter(
+  (type): type is Exclude<CardTypeGroup, "Commander"> => type !== "Commander",
+);
 
 /**
  * Card types of the front face, lowercased, subtypes removed.

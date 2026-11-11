@@ -47,6 +47,9 @@ export function answeringCopyLink(respond: Responder): Responder {
     const reply = respond(call);
     if (reply) return reply;
     if (call.fn === "copy_source_link" || call.fn === "copy_links_for_deck") return ok([]);
+    // Deck pages load categories alongside cards. Tests that don't set any
+    // get an empty list; a responder that returns its own reply still wins.
+    if (call.table === "deck_categories" || call.table === "deck_type_orders") return ok([]);
     return undefined;
   };
 }

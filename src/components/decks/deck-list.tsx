@@ -5,39 +5,50 @@ import Image from "next/image";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { groupCardsByType, totalCards } from "@/lib/card-types";
+import { groupDeckCards } from "@/lib/deck-categories";
+import { totalCards } from "@/lib/card-types";
 import { deckCountLabel } from "@/lib/commander";
 import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
 import { QuantityInput } from "@/components/decks/quantity-input";
+import { MoveCardSheet } from "@/components/decks/move-card-sheet";
 import { CardZoom } from "@/components/cards/card-zoom";
 import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
-import { updateCardQuantityAction } from "@/lib/actions/decks";
-import type { DeckCard } from "@/lib/types";
+import { moveCardToCategoryAction, updateCardQuantityAction } from "@/lib/actions/decks";
+import type { DeckCard, DeckCategory, DeckTypeOrder } from "@/lib/types";
+
+type ListChange =
+  | { type: "quantity"; id: string; quantity: number }
+  | { type: "category"; id: string; categoryId: string | null };
 
 export function DeckList({
   deckId,
   cards,
+  categories = [],
+  typeSectionOrders = [],
   canEdit,
   hasCommander = false,
 }: {
   deckId: string;
   cards: DeckCard[];
+  categories?: DeckCategory[];
+  typeSectionOrders?: DeckTypeOrder[];
   canEdit: boolean;
   /** Adds "1 commander +" to the count; the commander isn't in `cards`. */
   hasCommander?: boolean;
 }) {
-  // Quantity edits and removals show at once; if the server says no, the
-  // transition ends with the server's `cards` unchanged and the optimistic
-  // value rolls back on its own.
-  const [shownCards, applyQuantity] = useOptimistic(
-    cards,
-    (state, { id, quantity }: { id: string; quantity: number }) =>
-      quantity === 0
-        ? state.filter((c) => c.id !== id)
-        : state.map((c) => (c.id === id ? { ...c, quantity } : c)),
-  );
-  const groups = groupCardsByType(shownCards);
+  // Quantity edits, removals, and category moves show at once; if the server
+  // says no, the transition ends with the server's `cards` unchanged and the
+  // optimistic value rolls back on its own.
+  const [shownCards, applyChange] = useOptimistic(cards, (state, change: ListChange) => {
+    if (change.type === "quantity") {
+      return change.quantity === 0
+        ? state.filter((c) => c.id !== change.id)
+        : state.map((c) => (c.id === change.id ? { ...c, quantity: change.quantity } : c));
+    }
+    return state.map((c) => (c.id === change.id ? { ...c, categoryId: change.categoryId } : c));
+  });
+  const groups = groupDeckCards(shownCards, categories, typeSectionOrders);
   const [pending, startTransition] = useTransition();
 
   /**
@@ -47,7 +58,7 @@ export function DeckList({
    */
   function setQuantity(card: DeckCard, next: number) {
     startTransition(async () => {
-      applyQuantity({ id: card.id, quantity: next });
+      applyChange({ type: "quantity", id: card.id, quantity: next });
       let error: string | undefined;
       try {
         error = (await updateCardQuantityAction(deckId, card.id, next)).error;
@@ -59,7 +70,20 @@ export function DeckList({
     });
   }
 
-  if (shownCards.length === 0) {
+  function moveCard(card: DeckCard, categoryId: string | null) {
+    startTransition(async () => {
+      applyChange({ type: "category", id: card.id, categoryId });
+      let error: string | undefined;
+      try {
+        error = (await moveCardToCategoryAction(deckId, card.id, categoryId)).error;
+      } catch {
+        error = "Could not move card";
+      }
+      if (error) toast.error(error);
+    });
+  }
+
+  if (shownCards.length === 0 && categories.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
         <p className="font-medium">No cards yet</p>
@@ -77,22 +101,25 @@ export function DeckList({
         {deckCountLabel(totalCards(shownCards), hasCommander)} · {shownCards.length} unique
       </p>
       {groups.map((group) => (
-        <section key={group.type}>
-          <h3 className="mb-2 flex items-center justify-between label-caps text-primary">
-            <span>{group.type}</span>
+        <section key={group.key} data-kind={group.kind}>
+          <h3 className="mb-2 flex items-center justify-between gap-3 label-caps text-primary">
+            <span className="min-w-0 break-words">{group.label}</span>
             <span className="font-medium tabular-nums tracking-normal text-muted-foreground">
               {group.count}
             </span>
           </h3>
           <ul className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/50">
+            {group.cards.length === 0 && (
+              <li className="px-3 py-4 text-sm text-muted-foreground">No cards in this category yet.</li>
+            )}
             {group.cards.map((card) => (
               <li
                 key={card.id}
-                className="flex flex-col gap-2 px-2.5 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-3 sm:py-2"
+                className="flex items-center gap-2 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2"
               >
                 <CardZoom
                   card={zoomCardFromSaved(card.cardName, card.imageUri)}
-                  className="flex min-w-0 flex-1 items-center gap-3"
+                  className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3"
                 >
                   {card.imageUri ? (
                     <Image
@@ -100,63 +127,78 @@ export function DeckList({
                       alt=""
                       width={36}
                       height={50}
-                      className="h-[50px] w-9 rounded object-cover"
+                      className="h-[50px] w-9 shrink-0 rounded object-cover"
                       unoptimized
                     />
                   ) : (
-                    <div className="h-[50px] w-9 rounded bg-muted" />
+                    <div className="h-[50px] w-9 shrink-0 rounded bg-muted" />
                   )}
                   {/* spans, not p/div: a <button> may only hold phrasing content */}
                   <span className="block min-w-0 flex-1">
-                    <span className="block truncate font-medium group-hover/zoom:underline">
-                      {card.cardName}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="min-w-0 truncate font-medium group-hover/zoom:underline">
+                        {card.cardName}
+                      </span>
+                      {!canEdit && (
+                        <span className="shrink-0 rounded bg-muted px-1 py-px text-[0.7rem] font-medium leading-none tabular-nums text-muted-foreground">
+                          x{card.quantity}
+                        </span>
+                      )}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       <ManaCost cost={card.manaCost} fallback="—" /> · {card.typeLine}
                     </span>
                   </span>
                 </CardZoom>
-                {canEdit ? (
-                  <div className="flex items-center gap-1.5 pl-12 sm:shrink-0 sm:gap-1 sm:pl-0">
-                    <Button
-                      size="icon-xs"
-                      variant="outline"
-                      className="max-sm:size-8! max-sm:[&_svg]:size-4!"
-                      disabled={pending}
-                      onClick={() => setQuantity(card, card.quantity - 1)}
-                      aria-label={`Decrease ${card.cardName}`}
-                    >
-                      <Minus />
-                    </Button>
-                    <QuantityInput
-                      cardName={card.cardName}
-                      quantity={card.quantity}
-                      busy={pending}
-                      onCommit={(next) => setQuantity(card, next)}
-                    />
-                    <Button
-                      size="icon-xs"
-                      variant="outline"
-                      className="max-sm:size-8! max-sm:[&_svg]:size-4!"
-                      disabled={pending || card.quantity >= MAX_CARD_QUANTITY}
-                      onClick={() => setQuantity(card, card.quantity + 1)}
-                      aria-label={`Increase ${card.cardName}`}
-                    >
-                      <Plus />
-                    </Button>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      className="max-sm:size-8! max-sm:[&_svg]:size-4!"
-                      disabled={pending}
-                      onClick={() => setQuantity(card, 0)}
-                      aria-label={`Remove ${card.cardName}`}
-                    >
-                      <Trash2 />
-                    </Button>
+                {canEdit && (
+                  <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="size-10"
+                        disabled={pending}
+                        onClick={() => setQuantity(card, card.quantity - 1)}
+                        aria-label={`Decrease ${card.cardName}`}
+                      >
+                        <Minus />
+                      </Button>
+                      <QuantityInput
+                        cardName={card.cardName}
+                        quantity={card.quantity}
+                        busy={pending}
+                        onCommit={(next) => setQuantity(card, next)}
+                      />
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="size-10"
+                        disabled={pending || card.quantity >= MAX_CARD_QUANTITY}
+                        onClick={() => setQuantity(card, card.quantity + 1)}
+                        aria-label={`Increase ${card.cardName}`}
+                      >
+                        <Plus />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-10"
+                        disabled={pending}
+                        onClick={() => setQuantity(card, 0)}
+                        aria-label={`Remove ${card.cardName}`}
+                      >
+                        <Trash2 />
+                      </Button>
+                      <MoveCardSheet
+                        card={card}
+                        categories={categories}
+                        pending={pending}
+                        onMove={(categoryId) => moveCard(card, categoryId)}
+                      />
+                    </div>
                   </div>
-                ) : (
-                  <span className="text-sm font-medium tabular-nums">{card.quantity}</span>
                 )}
               </li>
             ))}

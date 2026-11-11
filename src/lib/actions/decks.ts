@@ -11,12 +11,15 @@ import { limit, limitError, requestIp } from "@/lib/rate-limit";
 import { getScryfallCard, ScryfallLookupError } from "@/lib/scryfall/client";
 import {
   addCardSchema,
+  categoryAssignmentSchema,
+  categoryNameSchema,
   check,
   deckSchema,
   forkNameSchema,
   idSchema,
   isFormData,
   quantitySchema,
+  sectionOrderSchema,
 } from "@/lib/actions/schemas";
 
 export type ActionResult = {
@@ -199,6 +202,105 @@ export async function updateCardQuantityAction(
 
   revalidatePath(`/decks/${deckId}`);
   return { success: true, quantity: qty.data };
+}
+
+export async function createCategoryAction(deckId: string, name: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const parsed = categoryNameSchema.safeParse(name);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid category" };
+
+  try {
+    const categoryId = await getRepository().createCategory(user.id, deckId, parsed.data);
+    revalidatePath(`/decks/${deckId}`);
+    return { success: true, id: categoryId };
+  } catch (err) {
+    return { error: userMessage(err, "Could not add category") };
+  }
+}
+
+export async function renameCategoryAction(
+  deckId: string,
+  categoryId: string,
+  name: string,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const category = check(idSchema, categoryId, "Category not found");
+  if (!category.ok) return { error: category.error };
+  const parsed = categoryNameSchema.safeParse(name);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid category" };
+
+  try {
+    await getRepository().renameCategory(user.id, deckId, categoryId, parsed.data);
+  } catch (err) {
+    return { error: userMessage(err, "Could not rename category") };
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  return { success: true };
+}
+
+export async function deleteCategoryAction(deckId: string, categoryId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const category = check(idSchema, categoryId, "Category not found");
+  if (!category.ok) return { error: category.error };
+
+  try {
+    await getRepository().deleteCategory(user.id, deckId, categoryId);
+  } catch (err) {
+    return { error: userMessage(err, "Could not delete category") };
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  return { success: true };
+}
+
+export async function moveCardToCategoryAction(
+  deckId: string,
+  cardId: string,
+  categoryId: string | null,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const card = check(idSchema, cardId, "Card not found in deck");
+  if (!card.ok) return { error: card.error };
+  const assignment = categoryAssignmentSchema.safeParse(categoryId);
+  if (!assignment.success) return { error: "Category not found" };
+
+  try {
+    await getRepository().moveCardToCategory(user.id, deckId, cardId, assignment.data);
+  } catch (err) {
+    return { error: userMessage(err, "Could not move card") };
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  return { success: true };
+}
+
+export async function reorderDeckSectionsAction(
+  deckId: string,
+  sections: string[],
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const parsed = sectionOrderSchema.safeParse(sections);
+  if (!parsed.success) return { error: "Reload the deck and try again" };
+
+  try {
+    await getRepository().reorderSections(user.id, deckId, parsed.data);
+  } catch (err) {
+    return { error: userMessage(err, "Could not reorder categories") };
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  return { success: true };
 }
 
 export async function removeCardFromDeckAction(

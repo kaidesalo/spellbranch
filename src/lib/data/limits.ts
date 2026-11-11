@@ -15,6 +15,10 @@ export const LIMITS = {
   oracleText: 4000,
   imageUri: 512,
   colors: 5,
+  /** deck_categories.name. Counted in Unicode code points (Array.from / char_length). */
+  categoryName: 40,
+  /** How many custom categories one deck may have. Type groups are not rows. */
+  deckCategories: 40,
 } as const;
 
 /** The five Magic colors; deck_cards.colors may only contain these. */

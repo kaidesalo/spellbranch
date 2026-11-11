@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardSearch } from "@/components/cards/card-search";
 import { DeckList } from "@/components/decks/deck-list";
+import { CategoryManager } from "@/components/decks/category-manager";
 import { CommanderSlot } from "@/components/decks/commander-slot";
 import { deckCountLabel } from "@/lib/commander";
 import { CommentSection } from "@/components/comments/comment-section";
@@ -241,12 +242,24 @@ export default async function DeckDetailPage({
             />
           )}
           <section className="rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5">
-            <h2 className="mb-4 text-xl font-semibold">
-              Deck list
-            </h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">
+                Deck list
+              </h2>
+              {canEdit && (
+                <CategoryManager
+                  deckId={deck.id}
+                  cards={deck.cards ?? []}
+                  categories={deck.categories ?? []}
+                  typeSectionOrders={deck.typeSectionOrders ?? []}
+                />
+              )}
+            </div>
             <DeckList
               deckId={deck.id}
               cards={deck.cards ?? []}
+              categories={deck.categories ?? []}
+              typeSectionOrders={deck.typeSectionOrders ?? []}
               canEdit={canEdit}
               hasCommander={Boolean(commander)}
             />
