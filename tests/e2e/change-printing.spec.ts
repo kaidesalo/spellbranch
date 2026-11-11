@@ -146,6 +146,24 @@ test("printing picker fits on a phone and scrolls inside the sheet", async ({ pa
     const sheet = page.getByTestId("change-printing-sheet");
     await expect(sheet).toBeVisible();
     await expect(sheet.getByTestId("printing-option").first()).toBeVisible({ timeout: 20_000 });
+    await expect(sheet.getByTestId("printing-option").first()).toHaveAttribute("aria-current", "true");
+    const image = sheet.locator("img").first();
+    await expect(image).toBeVisible();
+    const box = await image.boundingBox();
+    expect(box, "printing image").not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(140);
+    expect(box!.width).toBeLessThanOrEqual(210);
+    expect(box!.height / box!.width).toBeGreaterThan(1.3);
+    expect(box!.height / box!.width).toBeLessThan(1.5);
+    if (width >= 375) {
+      const tops = await sheet.getByTestId("printing-option").evaluateAll((els) =>
+        els.slice(0, 2).map((el) => Math.round(el.getBoundingClientRect().top)),
+      );
+      expect(tops[0], `${width}px two columns`).toBe(tops[1]);
+    }
+    await sheet.getByTestId("printing-option").first().focus();
+    await page.keyboard.press("Tab");
+    await expect(sheet.getByTestId("printing-option").nth(1)).toBeFocused();
     await noOverflow(page, `picker ${width}`);
     const scrolls = await sheet.locator(".overflow-y-auto").evaluate((el) => el.scrollHeight > el.clientHeight);
     expect(scrolls).toBe(true);
@@ -161,17 +179,47 @@ test("desktop printing picker does not widen the page", async ({ page }) => {
   await expect(page.getByTestId("change-printing-sheet").getByTestId("printing-option").first()).toBeVisible({
     timeout: 20_000,
   });
+  const image = page.getByTestId("change-printing-sheet").locator("img").first();
+  const box = await image.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(146);
+  expect(box!.width).toBeLessThanOrEqual(200);
   await noOverflow(page, "desktop picker");
 });
 
-test("webkit screenshot of the printing picker", async ({ page }) => {
+test("collection picker shows finish choices on the tile", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/my-cards?section=collection");
+  await page.getByRole("button", { name: "Change printing of Lightning Bolt" }).click();
+  const sheet = page.getByTestId("change-printing-sheet");
+  const multi = sheet.getByRole("button", { name: /Choose a finish for/ }).first();
+  await expect(multi).toBeVisible({ timeout: 20_000 });
+  await multi.click();
+  await expect(sheet.getByRole("button", { name: "Nonfoil", exact: true })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Foil", exact: true })).toBeVisible();
+  await noOverflow(page, "collection finishes");
+});
+
+test("webkit screenshots of the printing tiles", async ({ page }) => {
+  const dir = existsSync("/opt/cursor/artifacts") ? "/opt/cursor/artifacts" : "test-results/printings";
+  mkdirSync(dir, { recursive: true });
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/decks/${DECK}`);
   await page.getByRole("button", { name: "Change printing of Lightning Bolt" }).click();
   const sheet = page.getByTestId("change-printing-sheet");
-  await expect(sheet.getByTestId("printing-option").first()).toBeVisible({ timeout: 20_000 });
+  await expect(sheet.locator("img").first()).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => sheet.locator("img").first().evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(100);
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-  const dir = existsSync("/opt/cursor/artifacts") ? "/opt/cursor/artifacts" : "test-results/printings";
-  mkdirSync(dir, { recursive: true });
-  await sheet.screenshot({ path: `${dir}/webkit-390-change-printing.png` });
+  await sheet.screenshot({ path: `${dir}/webkit-390-printing-tiles.png` });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`/decks/${DECK}`);
+  await page.getByRole("button", { name: "Change printing of Lightning Bolt" }).click();
+  const wide = page.getByTestId("change-printing-sheet");
+  await expect(wide.locator("img").first()).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => wide.locator("img").first().evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(100);
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await wide.screenshot({ path: `${dir}/desktop-1280-printing-tiles.png` });
 });

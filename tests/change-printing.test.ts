@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DataStore, LocalUser } from "@/lib/data/store";
-import { offeredFinishes, sameCardOracle } from "@/lib/printing";
+import { offeredFinishes, printingsWithCurrentFirst, sameCardOracle } from "@/lib/printing";
 
 let db: DataStore;
 vi.mock("@/lib/data/store", () => ({
@@ -61,6 +61,13 @@ describe("printing identity", () => {
     expect(sameCardOracle("abc", "def")).toBe(false);
     expect(sameCardOracle(undefined, "abc")).toBe(false);
     expect(sameCardOracle("abc", null)).toBe(false);
+  });
+
+  it("puts the current printing first and leaves the rest in order", () => {
+    const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(printingsWithCurrentFirst(rows, "c").map((row) => row.id)).toEqual(["c", "a", "b"]);
+    expect(printingsWithCurrentFirst(rows, null).map((row) => row.id)).toEqual(["a", "b", "c"]);
+    expect(printingsWithCurrentFirst(rows, "missing").map((row) => row.id)).toEqual(["a", "b", "c"]);
   });
 
   it("keeps only finishes a collection can store", () => {

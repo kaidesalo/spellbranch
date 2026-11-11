@@ -346,12 +346,13 @@ function pinnedScryfallUrl(path: string): URL {
   return url;
 }
 
+/** Normal is sharp at a tile; small is the fallback when a printing has no normal image. */
 function printingImage(card: ScryfallCard): string | null {
   return (
-    card.image_uris?.small ||
     card.image_uris?.normal ||
-    card.card_faces?.[0]?.image_uris?.small ||
+    card.image_uris?.small ||
     card.card_faces?.[0]?.image_uris?.normal ||
+    card.card_faces?.[0]?.image_uris?.small ||
     null
   );
 }
