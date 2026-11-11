@@ -11,6 +11,7 @@ import { limit, limitError, requestIp } from "@/lib/rate-limit";
 import { getScryfallCard, ScryfallLookupError } from "@/lib/scryfall/client";
 import {
   addCardSchema,
+  boardSchema,
   categoryAssignmentSchema,
   categoryNameSchema,
   check,
@@ -169,7 +170,7 @@ export async function addCardToDeckAction(deckId: string, input: unknown): Promi
   if (!card) return { error: "This card can't be added (its Scryfall data is too long)." };
 
   try {
-    await repo.addCard(user.id, deckId, card);
+    await repo.addCard(user.id, deckId, { ...card, board: parsed.data.board });
   } catch (err) {
     return failure(err, "Could not add card");
   }
@@ -194,7 +195,8 @@ export async function updateCardQuantityAction(
 
   try {
     // The repository checks that the user owns the deck and the card is in it.
-    // Raising an off-color card's quantity is refused; lowering never is.
+    // Raising an off-color mainboard card's quantity is refused; lowering never
+    // is. Sideboard and maybeboard quantities are not color-checked.
     await getRepository().setCardQuantity(user.id, deckId, cardId, qty.data);
   } catch (err) {
     return failure(err, "Could not update card");
@@ -202,6 +204,29 @@ export async function updateCardQuantityAction(
 
   revalidatePath(`/decks/${deckId}`);
   return { success: true, quantity: qty.data };
+}
+
+export async function moveCardToBoardAction(
+  deckId: string,
+  cardId: string,
+  board: unknown,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const ids = check(idSchema, deckId, "Deck not found");
+  if (!ids.ok) return { error: ids.error };
+  const card = check(idSchema, cardId, "Card not found in deck");
+  if (!card.ok) return { error: card.error };
+  const parsed = boardSchema.safeParse(board);
+  if (!parsed.success) return { error: "Invalid board" };
+
+  try {
+    await getRepository().moveCardToBoard(user.id, deckId, cardId, parsed.data);
+  } catch (err) {
+    return failure(err, "Could not move card");
+  }
+
+  revalidatePath(`/decks/${deckId}`);
+  return { success: true };
 }
 
 export async function createCategoryAction(deckId: string, name: string): Promise<ActionResult> {

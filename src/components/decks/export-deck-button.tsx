@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Download } from "lucide-react";
-import { decklistFilename, exportDecklist } from "@/lib/decklist/export";
+import { decklistFilename, exportDecklist, type ExportDeckCard } from "@/lib/decklist/export";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,7 @@ export function ExportDeckButton({
 }: {
   deckName: string;
   commanderName: string | null;
-  cards: { cardName: string; quantity: number }[];
+  cards: readonly ExportDeckCard[];
 }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -75,7 +75,8 @@ export function ExportDeckButton({
           <DialogTitle>Export deck list</DialogTitle>
           <DialogDescription>
             Paste this into Moxfield or Archidekt. Each line is a quantity and a card name, like 1
-            Sol Ring.
+            Sol Ring. Sideboard and Maybeboard, when this deck has them, follow the main list under
+            those headings. Importing the text brings back the main list only.
             {commanderName
               ? " The commander is the first line, then a blank line, which is how Moxfield marks the commander. In Archidekt, move that card into the Commander category if it lands in the deck."
               : ""}

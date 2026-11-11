@@ -16,6 +16,7 @@ import {
 import { addCardToDeckAction } from "@/lib/actions/decks";
 import { addFavoriteAction } from "@/lib/actions/favorites";
 import { zoomCardFromScryfall } from "@/lib/card-zoom";
+import { BOARD_LABEL, type DeckBoard } from "@/lib/deck-boards";
 import { offColorReason } from "@/lib/deck-colors";
 import { CardZoom } from "./card-zoom";
 import { ManaCost, ManaText } from "./mana-symbols";
@@ -25,11 +26,14 @@ export function CardSearch({
   deckId,
   canEdit,
   deckColors,
+  board = "main",
 }: {
   deckId: string;
   canEdit: boolean;
   /** null: the deck has no colors, so every card fits. */
   deckColors: string[] | null;
+  /** Cards are added to this board. Only mainboard adds are color-checked. */
+  board?: DeckBoard;
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ScryfallCard | null>(null);
@@ -37,7 +41,9 @@ export function CardSearch({
   const { cards: visibleCards, loading, error, showEmptyHint } = useScryfallSearch(query);
   const visibleSelected = pickVisibleSelection(visibleCards, selected);
   // Display only: the server checks the color identity it fetches itself.
-  const offColor = (card: ScryfallCard) => offColorReason(card.color_identity ?? [], deckColors);
+  const checksColors = board === "main";
+  const offColor = (card: ScryfallCard) =>
+    checksColors ? offColorReason(card.color_identity ?? [], deckColors) : null;
   const selectedOffColor = visibleSelected ? offColor(visibleSelected) : null;
 
   function addSelected() {
@@ -48,9 +54,10 @@ export function CardSearch({
       const result = await addCardToDeckAction(deckId, {
         scryfallId: visibleSelected.id,
         quantity: 1,
+        board,
       });
       if (result.error) toast.error(result.error);
-      else toast.success(`Added ${visibleSelected.name}`);
+      else toast.success(`Added ${visibleSelected.name} to ${BOARD_LABEL[board]}`);
     });
   }
 
@@ -189,7 +196,7 @@ export function CardSearch({
                       aria-describedby={selectedOffColor ? "add-off-color" : undefined}
                     >
                       <Plus data-icon="inline-start" />
-                      Add card
+                      {board === "main" ? "Add card" : `Add to ${BOARD_LABEL[board]}`}
                     </Button>
                   )}
                   {canEdit && selectedOffColor && (

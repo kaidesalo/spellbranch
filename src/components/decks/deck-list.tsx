@@ -8,18 +8,25 @@ import { Button } from "@/components/ui/button";
 import { groupDeckCards } from "@/lib/deck-categories";
 import { totalCards } from "@/lib/card-types";
 import { deckCountLabel } from "@/lib/commander";
+import { BOARD_LABEL, type DeckBoard } from "@/lib/deck-boards";
 import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
 import { QuantityInput } from "@/components/decks/quantity-input";
 import { MoveCardSheet } from "@/components/decks/move-card-sheet";
+import { MoveBoardSheet } from "@/components/decks/move-board-sheet";
 import { CardZoom } from "@/components/cards/card-zoom";
 import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
-import { moveCardToCategoryAction, updateCardQuantityAction } from "@/lib/actions/decks";
+import {
+  moveCardToBoardAction,
+  moveCardToCategoryAction,
+  updateCardQuantityAction,
+} from "@/lib/actions/decks";
 import type { DeckCard, DeckCategory, DeckTypeOrder } from "@/lib/types";
 
 type ListChange =
   | { type: "quantity"; id: string; quantity: number }
-  | { type: "category"; id: string; categoryId: string | null };
+  | { type: "category"; id: string; categoryId: string | null }
+  | { type: "board"; id: string };
 
 export function DeckList({
   deckId,
@@ -28,6 +35,7 @@ export function DeckList({
   typeSectionOrders = [],
   canEdit,
   hasCommander = false,
+  board = "main",
 }: {
   deckId: string;
   cards: DeckCard[];
@@ -36,6 +44,8 @@ export function DeckList({
   canEdit: boolean;
   /** Adds "1 commander +" to the count; the commander isn't in `cards`. */
   hasCommander?: boolean;
+  /** The board these cards belong to. Categories are a mainboard concern. */
+  board?: DeckBoard;
 }) {
   // Quantity edits, removals, and category moves show at once; if the server
   // says no, the transition ends with the server's `cards` unchanged and the
@@ -46,6 +56,7 @@ export function DeckList({
         ? state.filter((c) => c.id !== change.id)
         : state.map((c) => (c.id === change.id ? { ...c, quantity: change.quantity } : c));
     }
+    if (change.type === "board") return state.filter((c) => c.id !== change.id);
     return state.map((c) => (c.id === change.id ? { ...c, categoryId: change.categoryId } : c));
   });
   const groups = groupDeckCards(shownCards, categories, typeSectionOrders);
@@ -70,6 +81,20 @@ export function DeckList({
     });
   }
 
+  function moveBoard(card: DeckCard, next: DeckBoard) {
+    startTransition(async () => {
+      applyChange({ type: "board", id: card.id });
+      let error: string | undefined;
+      try {
+        error = (await moveCardToBoardAction(deckId, card.id, next)).error;
+      } catch {
+        error = "Could not move card";
+      }
+      if (error) toast.error(error);
+      else toast.success(`Moved ${card.cardName} to ${BOARD_LABEL[next]}`);
+    });
+  }
+
   function moveCard(card: DeckCard, categoryId: string | null) {
     startTransition(async () => {
       applyChange({ type: "category", id: card.id, categoryId });
@@ -83,13 +108,23 @@ export function DeckList({
     });
   }
 
-  if (shownCards.length === 0 && categories.length === 0) {
+  if (shownCards.length === 0 && (board !== "main" || categories.length === 0)) {
+    const title = board === "main" ? "No cards yet" : `Nothing on the ${BOARD_LABEL[board].toLowerCase()}`;
     return (
       <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-        <p className="font-medium">No cards yet</p>
+        <p className="font-medium">{title}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          <span className="lg:hidden">Search Scryfall above to add your first card.</span>
-          <span className="hidden lg:inline">Search Scryfall on the left to add your first card.</span>
+          {board === "main" ? (
+            <>
+              <span className="lg:hidden">Search Scryfall above to add your first card.</span>
+              <span className="hidden lg:inline">Search Scryfall on the left to add your first card.</span>
+            </>
+          ) : (
+            <>
+              <span className="lg:hidden">Search Scryfall above to add a card here, or move one from another board.</span>
+              <span className="hidden lg:inline">Search Scryfall on the left to add a card here, or move one from another board.</span>
+            </>
+          )}
         </p>
       </div>
     );
@@ -98,7 +133,14 @@ export function DeckList({
   return (
     <div className="space-y-6">
       <p className="text-sm font-medium tabular-nums text-muted-foreground">
-        {deckCountLabel(totalCards(shownCards), hasCommander)} · {shownCards.length} unique
+        {board === "main"
+          ? `${deckCountLabel(totalCards(shownCards), hasCommander)} · ${shownCards.length} unique`
+          : `${totalCards(shownCards)} ${totalCards(shownCards) === 1 ? "card" : "cards"} · ${shownCards.length} unique`}
+        {board !== "main" && (
+          <span className="mt-1 block font-normal">
+            Not counted in the deck total or its color checks.
+          </span>
+        )}
       </p>
       {groups.map((group) => (
         <section key={group.key} data-kind={group.kind}>
@@ -191,11 +233,18 @@ export function DeckList({
                       >
                         <Trash2 />
                       </Button>
-                      <MoveCardSheet
+                      {board === "main" && (
+                        <MoveCardSheet
+                          card={card}
+                          categories={categories}
+                          pending={pending}
+                          onMove={(categoryId) => moveCard(card, categoryId)}
+                        />
+                      )}
+                      <MoveBoardSheet
                         card={card}
-                        categories={categories}
                         pending={pending}
-                        onMove={(categoryId) => moveCard(card, categoryId)}
+                        onMove={(next) => moveBoard(card, next)}
                       />
                     </div>
                   </div>

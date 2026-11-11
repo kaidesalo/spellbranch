@@ -3,6 +3,9 @@ import { staticSecurityHeaders } from "./src/lib/security/headers";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Playwright (and phones hitting the dev server by IP) are not "localhost".
+  // Without this, Next blocks the dev client and deck-page controls never hydrate.
+  allowedDevOrigins: ["127.0.0.1"],
   // Content-Security-Policy is per-request (nonce) and set in src/proxy.ts.
   async headers() {
     return [

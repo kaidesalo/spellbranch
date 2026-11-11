@@ -1,14 +1,17 @@
+import { normalizeBoard, type DeckBoard } from "@/lib/deck-boards";
 import type { CardDiff, DeckCard } from "@/lib/types";
 
 /** The card fields a diff needs (full DeckCards also fit). */
 type DiffCard = Pick<
   DeckCard,
-  "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity"
+  "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity" | "board"
 >;
 
 function keyOf(card: DiffCard) {
-  return card.scryfallId;
+  return `${card.scryfallId}\0${normalizeBoard(card.board)}`;
 }
+
+const BOARD_ORDER: Record<DeckBoard, number> = { main: 0, side: 1, maybe: 2 };
 
 export function compareDeckLists(
   sourceCards: DiffCard[],
@@ -51,7 +54,7 @@ export function compareDeckLists(
     else if (sourceQty !== branchQty) kind = "quantity";
 
     diffs.push({
-      scryfallId: id,
+      scryfallId: sample.scryfallId,
       cardName: sample.cardName,
       imageUri: sample.imageUri,
       typeLine: sample.typeLine,
@@ -59,6 +62,7 @@ export function compareDeckLists(
       sourceQty,
       branchQty,
       kind,
+      board: normalizeBoard(sample.board),
     });
   }
 
@@ -66,7 +70,9 @@ export function compareDeckLists(
   return diffs.sort((a, b) => {
     const byKind = order[a.kind] - order[b.kind];
     if (byKind !== 0) return byKind;
-    return a.cardName.localeCompare(b.cardName);
+    const byName = a.cardName.localeCompare(b.cardName);
+    if (byName !== 0) return byName;
+    return BOARD_ORDER[normalizeBoard(a.board)] - BOARD_ORDER[normalizeBoard(b.board)];
   });
 }
 
@@ -85,16 +91,17 @@ export function findReplacements(diffs: CardDiff[]) {
   const added = diffs.filter((d) => d.kind === "added");
   const pairs: Array<{ removed: CardDiff; added: CardDiff }> = [];
   const usedAdded = new Set<string>();
+  const rowKey = (diff: CardDiff) => `${diff.scryfallId}\0${normalizeBoard(diff.board)}`;
 
   for (const rem of removed) {
     const remType = rem.typeLine.split("—")[0]?.trim() ?? rem.typeLine;
     const match = added.find(
       (add) =>
-        !usedAdded.has(add.scryfallId) &&
+        !usedAdded.has(rowKey(add)) &&
         (add.typeLine.split("—")[0]?.trim() ?? add.typeLine) === remType,
     );
     if (match) {
-      usedAdded.add(match.scryfallId);
+      usedAdded.add(rowKey(match));
       pairs.push({ removed: rem, added: match });
     }
   }

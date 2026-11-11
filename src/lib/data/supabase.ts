@@ -8,7 +8,8 @@ import {
   assertQuantityRaiseFits,
   colorsForCommander,
 } from "@/lib/data/deck-color-rules";
-import { normalizeDeckColors } from "@/lib/deck-colors";
+import { normalizeDeckColors, storedCardIdentity } from "@/lib/deck-colors";
+import { isMainBoard, mainboardQuantity, normalizeBoard } from "@/lib/deck-boards";
 import { commanderProblem, normalizeColorIdentity, normalizeCommander } from "@/lib/commander";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
@@ -79,19 +80,20 @@ export type ClientFactory = () => Promise<Client>;
 
 type PgError = { code?: string; message?: string; hint?: string } | null;
 
-// The commander_* columns come from migration 006 and decks.colors /
-// deck_cards.color_identity from 008: apply them before deploying this
-// version (PostgREST rejects a select of unknown columns).
+// The commander_* columns come from migration 006, decks.colors /
+// deck_cards.color_identity from 008, and deck_cards.board from 014: apply
+// them before deploying this version (PostgREST rejects a select of unknown
+// columns).
 // (One string literal: supabase-js types the result from it.)
 /** Every deck SELECT. Explicit columns only: never `*`, never copied_from_id. */
 export const DECK_COLS =
   "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, colors, created_at, updated_at";
 const CARD_COLS =
-  "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, category_id, created_at";
+  "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, category_id, board, created_at";
 const CATEGORY_COLS = "id, deck_id, name, position, created_at, updated_at";
 const TYPE_ORDER_COLS = "deck_id, type_key, position";
 /** What the deck-colors rules need from each card. */
-const CARD_COLOR_COLS = "id, card_name, colors, color_identity, quantity";
+const CARD_COLOR_COLS = "id, card_name, colors, color_identity, quantity, board";
 
 /** Shown when a deck-colors CHECK or trigger (008) refuses a write the app let through (a race). */
 const COLOR_CONFLICT = "That doesn't fit this deck's colors any more. Reload the deck and try again.";
@@ -133,6 +135,7 @@ type CardRow = {
   oracle_text: string | null;
   quantity: number;
   category_id?: string | null;
+  board?: string | null;
   created_at: string;
 };
 type CategoryRow = {
@@ -144,7 +147,10 @@ type CategoryRow = {
   updated_at: string;
 };
 type TypeOrderRow = { deck_id: string; type_key: string; position: number };
-type CardColorRow = Pick<CardRow, "id" | "card_name" | "colors" | "color_identity" | "quantity">;
+type CardColorRow = Pick<
+  CardRow,
+  "id" | "card_name" | "colors" | "color_identity" | "quantity" | "board"
+>;
 type ProfileRow = { id: string; username: string; display_name: string; avatar_url: string | null };
 type FriendshipRow = {
   id: string;
@@ -228,6 +234,7 @@ const toCard = (r: CardRow): DeckCard => ({
   oracleText: r.oracle_text,
   quantity: r.quantity,
   categoryId: r.category_id ?? null,
+  board: normalizeBoard(r.board),
   createdAt: r.created_at,
 });
 
@@ -383,7 +390,7 @@ async function decorate(
     await Promise.all([
     client
       .from("deck_cards")
-      .select(withCards ? CARD_COLS : "deck_id, quantity")
+      .select(withCards ? CARD_COLS : "deck_id, quantity, board")
       .in("deck_id", ids),
     withCards
       ? client.from("deck_categories").select(CATEGORY_COLS).in("deck_id", ids)
@@ -449,7 +456,7 @@ async function decorate(
       typeSectionOrders: withCards
         ? typeOrderRows.filter((t) => t.deck_id === deck.id).map(toTypeOrder)
         : undefined,
-      cardCount: mine.reduce((sum, c) => sum + c.quantity, 0),
+      cardCount: mainboardQuantity(mine),
       forkCount: deckBranches.length,
       sourceDeck: deck.forkedFromId
         ? sourceRow
@@ -576,6 +583,7 @@ async function cardsForColorCheck(client: Client, deckId: string) {
     colors: r.colors ?? [],
     colorIdentity: r.color_identity ?? null,
     quantity: r.quantity,
+    board: r.board,
   }));
 }
 
@@ -897,7 +905,8 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const deck = await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
       const colorIdentity = normalizeDeckColors(card.colorIdentity);
-      assertCardFits(card.cardName, colorIdentity, deck.colors);
+      const board = normalizeBoard(card.board);
+      if (board === "main") assertCardFits(card.cardName, colorIdentity, deck.colors);
       const existing = check(
         "deck_cards find",
         await client
@@ -905,6 +914,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
           .select("id, quantity")
           .eq("deck_id", deckId)
           .eq("scryfall_id", card.scryfallId)
+          .eq("board", board)
           .maybeSingle(),
       ) as { id: string; quantity: number } | null;
 
@@ -917,7 +927,8 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
               quantity: Math.min(99, existing.quantity + card.quantity),
               color_identity: colorIdentity,
             })
-            .eq("id", existing.id),
+            .eq("id", existing.id)
+            .eq("board", board),
         );
       } else {
         cardColorWrite(
@@ -933,6 +944,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
             color_identity: colorIdentity,
             oracle_text: card.oracleText,
             quantity: card.quantity,
+            board,
           }),
         );
       }
@@ -960,7 +972,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
               .maybeSingle(),
           ) as CardColorRow | null;
           if (!current) throw new DataError("Card not found in deck");
-          if (quantity > current.quantity) {
+          if (quantity > current.quantity && isMainBoard(current.board)) {
             assertQuantityRaiseFits(
               { cardName: current.card_name, colors: current.colors ?? [], colorIdentity: current.color_identity },
               deck.colors,
@@ -1056,6 +1068,77 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
           .select("id"),
       ) as { id: string }[] | null;
       if (!rows?.length) throw new DataError(CATEGORY_MESSAGES.notFound);
+      await touchDeck(client, deckId);
+    },
+
+    async moveCardToBoard(userId, deckId, cardId, board) {
+      const target = normalizeBoard(board);
+      if (!isUuid(cardId)) throw new DataError("Card not found in deck");
+      const client = await getClient();
+      const deck = await requireOwnDeck(client, userId, deckId, "You cannot edit this deck");
+      const current = check(
+        "deck_cards find",
+        await client
+          .from("deck_cards")
+          .select("id, scryfall_id, card_name, quantity, colors, color_identity, board")
+          .eq("id", cardId)
+          .eq("deck_id", deckId)
+          .maybeSingle(),
+      ) as {
+        id: string;
+        scryfall_id: string;
+        card_name: string;
+        quantity: number;
+        colors: string[] | null;
+        color_identity: string[] | null;
+        board: string | null;
+      } | null;
+      if (!current) throw new DataError("Card not found in deck");
+      if (normalizeBoard(current.board) === target) return;
+      if (target === "main") {
+        assertCardFits(
+          current.card_name,
+          storedCardIdentity({ colorIdentity: current.color_identity, colors: current.colors }),
+          deck.colors,
+        );
+      }
+      const other = check(
+        "deck_cards find board",
+        await client
+          .from("deck_cards")
+          .select("id, quantity")
+          .eq("deck_id", deckId)
+          .eq("scryfall_id", current.scryfall_id)
+          .eq("board", target)
+          .maybeSingle(),
+      ) as { id: string; quantity: number } | null;
+
+      if (other && other.id !== current.id) {
+        cardColorWrite(
+          "deck_cards merge",
+          await client
+            .from("deck_cards")
+            .update({ quantity: Math.min(99, other.quantity + current.quantity) })
+            .eq("id", other.id)
+            .eq("deck_id", deckId),
+        );
+        check(
+          "deck_cards move delete",
+          await client.from("deck_cards").delete().eq("id", cardId).eq("deck_id", deckId),
+        );
+      } else {
+        const res = await client
+          .from("deck_cards")
+          .update({ board: target })
+          .eq("id", cardId)
+          .eq("deck_id", deckId)
+          .select("id");
+        if (res.error?.code === "23505") {
+          throw new DataError("That card is already on that board. Reload the deck and try again.");
+        }
+        const rows = cardColorWrite("deck_cards board", res) as { id: string }[] | null;
+        if (!rows?.length) throw new DataError("Card not found in deck");
+      }
       await touchDeck(client, deckId);
     },
 

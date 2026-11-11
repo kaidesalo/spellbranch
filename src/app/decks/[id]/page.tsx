@@ -15,6 +15,8 @@ import { DeckList } from "@/components/decks/deck-list";
 import { CategoryManager } from "@/components/decks/category-manager";
 import { CommanderSlot } from "@/components/decks/commander-slot";
 import { deckCountLabel } from "@/lib/commander";
+import { boardCounts, cardsOnBoard, normalizeBoard } from "@/lib/deck-boards";
+import { BoardSwitcher } from "@/components/decks/board-switcher";
 import { CommentSection } from "@/components/comments/comment-section";
 import { BranchSwitcher } from "@/components/decks/branch-switcher";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
@@ -24,10 +26,14 @@ import { CopyDeckForm } from "@/components/decks/copy-deck-form";
 
 export default async function DeckDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ board?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { board: boardParam } = await searchParams;
+  const board = normalizeBoard(Array.isArray(boardParam) ? boardParam[0] : boardParam);
   const deck = await getDeckById(id);
   if (!deck) notFound();
 
@@ -59,9 +65,13 @@ export default async function DeckDetailPage({
   // the 99). Only Commander decks show the slot.
   const isCommanderFormat = deck.format === "commander";
   const commander = isCommanderFormat ? deck.commander : null;
+  const allCards = deck.cards ?? [];
+  const counts = boardCounts(allCards);
+  const boardCards = cardsOnBoard(allCards, board);
+  const mainCards = cardsOnBoard(allCards, "main");
   const commanderAlsoInList = Boolean(
     commander &&
-      deck.cards?.some(
+      mainCards.some(
         (c) => c.scryfallId === commander.scryfallId || c.cardName === commander.cardName,
       ),
   );
@@ -140,9 +150,10 @@ export default async function DeckDetailPage({
           <ExportDeckButton
             deckName={deck.name}
             commanderName={commander?.cardName ?? null}
-            cards={(deck.cards ?? []).map((card) => ({
+            cards={allCards.map((card) => ({
               cardName: card.cardName,
               quantity: card.quantity,
+              board: card.board,
             }))}
           />
           {canEdit && (
@@ -227,12 +238,16 @@ export default async function DeckDetailPage({
         />
       )}
 
+      <div className="mt-4 min-w-0">
+        <BoardSwitcher deckId={deck.id} current={board} counts={counts} />
+      </div>
+
       <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 lg:mt-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <aside className="min-w-0 rounded-2xl border border-border/80 bg-card/70 p-3 sm:p-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-hidden">
           <h2 className="mb-3 text-xl font-semibold">
             Card search
           </h2>
-          <CardSearch deckId={deck.id} canEdit={canEdit} deckColors={deck.colors} />
+          <CardSearch deckId={deck.id} canEdit={canEdit} deckColors={deck.colors} board={board} />
         </aside>
         <div className="min-w-0 space-y-8">
           {isCommanderFormat && (
@@ -249,10 +264,10 @@ export default async function DeckDetailPage({
               <h2 className="min-w-0 text-xl font-semibold">
                 Deck list
               </h2>
-              {canEdit && (
+              {canEdit && board === "main" && (
                 <CategoryManager
                   deckId={deck.id}
-                  cards={deck.cards ?? []}
+                  cards={mainCards}
                   categories={deck.categories ?? []}
                   typeSectionOrders={deck.typeSectionOrders ?? []}
                 />
@@ -260,11 +275,12 @@ export default async function DeckDetailPage({
             </div>
             <DeckList
               deckId={deck.id}
-              cards={deck.cards ?? []}
-              categories={deck.categories ?? []}
+              cards={boardCards}
+              categories={board === "main" ? (deck.categories ?? []) : []}
               typeSectionOrders={deck.typeSectionOrders ?? []}
               canEdit={canEdit}
               hasCommander={Boolean(commander)}
+              board={board}
             />
           </section>
           <CommentSection

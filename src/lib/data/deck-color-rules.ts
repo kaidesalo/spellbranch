@@ -7,6 +7,7 @@ import {
   offColorReason,
   storedCardIdentity,
 } from "@/lib/deck-colors";
+import { isMainBoard } from "@/lib/deck-boards";
 import type { DeckCard, DeckCommander } from "@/lib/types";
 
 /**
@@ -15,7 +16,15 @@ import type { DeckCard, DeckCommander } from "@/lib/types";
  * DeckColorError with a message that is safe to show.
  */
 
-type StoredCard = Pick<DeckCard, "cardName" | "colors"> & { colorIdentity?: string[] | null };
+type StoredCard = Pick<DeckCard, "cardName" | "colors"> & {
+  colorIdentity?: string[] | null;
+  /** Omitted or "main": counts toward color legality. Side and maybe do not. */
+  board?: string | null;
+};
+
+function mainboardOnly<T extends { board?: string | null }>(cards: readonly T[]): T[] {
+  return cards.filter((card) => isMainBoard(card.board));
+}
 
 const plural = (n: number) => (n === 1 ? "1 card doesn't" : `${n} cards don't`);
 
@@ -34,7 +43,7 @@ export function assertColorsFitDeck(
       `${commander.cardName}'s color identity (${describeColors(commander.colorIdentity)}) doesn't fit ${name}. Pick colors that include it, or change the commander first.`,
     );
   }
-  const off = offColorCardNames(cards, colors);
+  const off = offColorCardNames(mainboardOnly(cards), colors);
   if (off.length > 0) {
     throw new DeckColorError(
       `Can't change the deck to ${name}: ${plural(off.length)} fit. Remove ${off.length === 1 ? "it" : "them"} first, or pick wider colors.`,
@@ -62,7 +71,7 @@ export function colorsForCommander(
     }
     return deckColors;
   }
-  const off = offColorCardNames(cards, identity);
+  const off = offColorCardNames(mainboardOnly(cards), identity);
   if (off.length > 0) {
     throw new DeckColorError(
       `Can't make ${commander.cardName} the commander: ${plural(off.length)} fit its color identity (${describeColors(identity)}). Remove ${off.length === 1 ? "it" : "them"} first.`,

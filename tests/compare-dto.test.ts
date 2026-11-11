@@ -26,7 +26,7 @@ describe("toCompareSide", () => {
     const side = toCompareSide(deck);
     expect(side).toEqual({
       id: "d1", name: "Deck", format: "modern", cardCount: 2, ownerUsername: "ann", commander: null,
-      cards: [{ scryfallId: "s1", cardName: "Sol Ring", imageUri: null, manaCost: "{1}", typeLine: "Artifact", quantity: 2 }],
+      cards: [{ scryfallId: "s1", cardName: "Sol Ring", imageUri: null, manaCost: "{1}", typeLine: "Artifact", quantity: 2, board: "main" }],
     });
     expect(JSON.stringify(side)).not.toMatch(/SECRET|HIDDEN|BRANCH-NOTES|owner-1|ORACLE/);
   });
