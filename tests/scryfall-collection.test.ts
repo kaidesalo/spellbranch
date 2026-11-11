@@ -4,6 +4,7 @@ import {
   SCRYFALL_COLLECTION_TIMEOUT_MS,
   SCRYFALL_NAME_LOOKUP_MAX,
   ScryfallLookupError,
+  getScryfallCardsById,
   getScryfallCardsByName,
 } from "@/lib/scryfall/client";
 
@@ -95,5 +96,32 @@ describe("getScryfallCardsByName", () => {
     await expect(getScryfallCardsByName(["Sol Ring"], { timeoutMs: 20 })).rejects.toMatchObject({
       kind: "timeout",
     });
+  });
+});
+
+const BOLT = "7673784e-db4b-43a1-8d55-1bb9fc1e284f";
+
+describe("getScryfallCardsById", () => {
+  it("posts ids to api.scryfall.com and does not follow redirects", async () => {
+    const fetch = stubFetch(async (url, init) => {
+      expect(String(url).startsWith("https://api.scryfall.com/")).toBe(true);
+      expect(init.redirect).toBe("error");
+      expect(init.credentials).toBe("omit");
+      const body = JSON.parse(String(init.body)) as { identifiers: { id: string }[] };
+      return Response.json({
+        data: body.identifiers.map((id) => ({ id: id.id, name: "Lightning Bolt", type_line: "Instant", cmc: 1 })),
+      });
+    });
+    const found = await getScryfallCardsById([BOLT, BOLT.toUpperCase(), "not-a-uuid"], { gapMs: 0 });
+    expect(found).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const sent = JSON.parse(String(fetch.mock.calls[0]![1].body)) as { identifiers: { id: string }[] };
+    expect(sent.identifiers).toEqual([{ id: BOLT }]);
+  });
+
+  it("treats a 404 as no printings", async () => {
+    const fetch = stubFetch(async () => new Response("{}", { status: 404 }));
+    expect(await getScryfallCardsById([BOLT], { gapMs: 0 })).toEqual([]);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

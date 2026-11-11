@@ -35,6 +35,12 @@ export interface ScryfallCard {
   collector_number?: string;
   released_at?: string;
   finishes?: string[];
+  cmc?: number;
+  produced_mana?: string[];
+  prices?: {
+    usd?: string | null;
+    usd_foil?: string | null;
+  };
 }
 
 export interface ScryfallSearchResponse {
@@ -288,26 +294,66 @@ export async function getScryfallCardsByName(
   for (let i = 0; i < unique.length; i += SCRYFALL_COLLECTION_LIMIT) {
     if (i > 0 && gapMs > 0) await new Promise((resolve) => setTimeout(resolve, gapMs));
     const chunk = unique.slice(i, i + SCRYFALL_COLLECTION_LIMIT);
-    found.push(...(await fetchCollection(chunk, timeoutMs, maxBytes)));
+    found.push(...(await fetchCollection(chunk.map((name) => ({ name })), timeoutMs, maxBytes, "throw")));
+  }
+  return found;
+}
+
+/**
+ * Printings by Scryfall id, for deck stats (price, mana value, produced mana).
+ * Ids that are not UUIDs are skipped. A 404 (nothing matched) is an empty
+ * list. Any other failure throws, same as the name lookup. Host-pinned:
+ * only api.scryfall.com, `redirect: "error"`, no cookies.
+ */
+export async function getScryfallCardsById(
+  ids: readonly string[],
+  opts: { timeoutMs?: number; maxBytes?: number; gapMs?: number } = {},
+): Promise<ScryfallCard[]> {
+  const timeoutMs = opts.timeoutMs ?? SCRYFALL_COLLECTION_TIMEOUT_MS;
+  const maxBytes = opts.maxBytes ?? SCRYFALL_COLLECTION_MAX_BYTES;
+  const gapMs = opts.gapMs ?? SCRYFALL_COLLECTION_GAP_MS;
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (typeof id !== "string" || !isUuid(id)) continue;
+    const key = id.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(key);
+  }
+  if (unique.length > SCRYFALL_NAME_LOOKUP_MAX) {
+    throw new ScryfallLookupError("unavailable", "Too many cards");
+  }
+  const found: ScryfallCard[] = [];
+  for (let i = 0; i < unique.length; i += SCRYFALL_COLLECTION_LIMIT) {
+    if (i > 0 && gapMs > 0) await new Promise((resolve) => setTimeout(resolve, gapMs));
+    const chunk = unique.slice(i, i + SCRYFALL_COLLECTION_LIMIT);
+    found.push(...(await fetchCollection(chunk.map((id) => ({ id })), timeoutMs, maxBytes, "empty")));
   }
   return found;
 }
 
 async function fetchCollection(
-  names: string[],
+  identifiers: Array<{ name: string } | { id: string }>,
   timeoutMs: number,
   maxBytes: number,
+  notFound: "throw" | "empty",
 ): Promise<ScryfallCard[]> {
   try {
-    const res = await fetch("https://api.scryfall.com/cards/collection", {
+    const url = pinnedScryfallUrl("/cards/collection");
+    const res = await fetch(url.href, {
       method: "POST",
       headers: { ...SCRYFALL_HEADERS, "Content-Type": "application/json" },
-      body: JSON.stringify({ identifiers: names.map((name) => ({ name })) }),
+      body: JSON.stringify({ identifiers }),
       redirect: "error",
       credentials: "omit",
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
+    if (res.status === 404 && notFound === "empty") {
+      await res.body?.cancel().catch(() => undefined);
+      return [];
+    }
     if (!res.ok) {
       await res.body?.cancel().catch(() => undefined);
       throw new ScryfallLookupError("unavailable", `Scryfall collection lookup failed (${res.status})`);

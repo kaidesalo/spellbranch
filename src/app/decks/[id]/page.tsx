@@ -15,11 +15,15 @@ import { DeckList } from "@/components/decks/deck-list";
 import { CategoryManager } from "@/components/decks/category-manager";
 import { CommanderSlot } from "@/components/decks/commander-slot";
 import { deckCountLabel } from "@/lib/commander";
+import { loadDeckStats } from "@/lib/deck-stats-load";
+import type { DeckStatSource } from "@/lib/deck-stats";
+import { DECK_FORMATS } from "@/lib/types";
 import { boardCounts, cardsOnBoard, normalizeBoard } from "@/lib/deck-boards";
 import { BoardSwitcher } from "@/components/decks/board-switcher";
 import { CommentSection } from "@/components/comments/comment-section";
 import { BranchSwitcher } from "@/components/decks/branch-switcher";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
+import { DeckStatistics } from "@/components/decks/deck-stats";
 import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 import { ForkDeckForm } from "@/components/decks/fork-deck-form";
 import { CopyDeckForm } from "@/components/decks/copy-deck-form";
@@ -75,6 +79,22 @@ export default async function DeckDetailPage({
         (c) => c.scryfallId === commander.scryfallId || c.cardName === commander.cardName,
       ),
   );
+  const stats = await loadDeckStats({
+    cards: allCards.map(statSource),
+    commander: commander
+      ? {
+          cardName: commander.cardName,
+          scryfallId: commander.scryfallId,
+          quantity: 1,
+          board: "main",
+          manaCost: commander.manaCost,
+          typeLine: commander.typeLine,
+          colorIdentity: commander.colorIdentity,
+        }
+      : null,
+    identity: deck.colors,
+  });
+  const formatLabel = DECK_FORMATS.find((format) => format.value === deck.format)?.label ?? deck.format;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
@@ -230,6 +250,15 @@ export default async function DeckDetailPage({
         </div>
       </div>
 
+      <DeckStatistics
+        stats={stats}
+        formatLabel={formatLabel}
+        colors={deck.colors}
+        countLabel={deckCountLabel(deck.cardCount ?? 0, Boolean(commander))}
+        scryfallUnavailable={stats.scryfallUnavailable}
+        includesCommander={stats.includesCommander}
+      />
+
       {switcher && (
         <BranchSwitcher
           currentId={deck.id}
@@ -292,4 +321,24 @@ export default async function DeckDetailPage({
       </div>
     </div>
   );
+}
+
+function statSource(card: {
+  cardName: string;
+  scryfallId: string;
+  quantity: number;
+  board?: string | null;
+  manaCost: string | null;
+  typeLine: string;
+  colorIdentity?: readonly string[] | null;
+}): DeckStatSource {
+  return {
+    cardName: card.cardName,
+    scryfallId: card.scryfallId,
+    quantity: card.quantity,
+    board: card.board,
+    manaCost: card.manaCost,
+    typeLine: card.typeLine,
+    colorIdentity: card.colorIdentity,
+  };
 }
