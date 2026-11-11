@@ -1,3 +1,4 @@
+import { normalizeBoard } from "@/lib/deck-boards";
 import type { DeckCard, DeckCommander, DeckWithMeta } from "@/lib/types";
 
 /**
@@ -8,7 +9,7 @@ import type { DeckCard, DeckCommander, DeckWithMeta } from "@/lib/types";
  */
 export type CompareCard = Pick<
   DeckCard,
-  "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity"
+  "scryfallId" | "cardName" | "imageUri" | "manaCost" | "typeLine" | "quantity" | "board"
 >;
 
 export type CompareCommander = Pick<
@@ -50,6 +51,7 @@ export function toCompareSide(deck: DeckWithMeta): CompareSide {
       manaCost: c.manaCost,
       typeLine: c.typeLine,
       quantity: c.quantity,
+      board: normalizeBoard(c.board),
     })),
   };
 }

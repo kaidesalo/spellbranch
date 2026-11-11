@@ -493,7 +493,10 @@ describe("supabase adapter: cards", () => {
     await repo.addCard(ME, DECK, { ...card, quantity: 4 });
     const update = calls.find((c) => isTable(c, "deck_cards", "update"))!;
     expect(update.payload).toEqual({ quantity: 99, color_identity: [] });
-    expect(update.filters).toEqual([["eq", "id", CARD]]);
+    expect(update.filters).toEqual([
+      ["eq", "id", CARD],
+      ["eq", "board", "main"],
+    ]);
   });
 
   it("setCardQuantity: 0 deletes, missing card is an error", async () => {

@@ -9,7 +9,8 @@ import {
   assertQuantityRaiseFits,
   colorsForCommander,
 } from "@/lib/data/deck-color-rules";
-import { normalizeDeckColors } from "@/lib/deck-colors";
+import { normalizeDeckColors, storedCardIdentity } from "@/lib/deck-colors";
+import { isMainBoard, mainboardQuantity, normalizeBoard } from "@/lib/deck-boards";
 import { commanderProblem, normalizeCommander } from "@/lib/commander";
 import {
   FRIEND_MESSAGES,
@@ -119,7 +120,7 @@ function decorateDeck(
       .filter((c) => c.deckId === deck.id)
       .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)),
     typeSectionOrders: (store.deckTypeOrders ?? []).filter((t) => t.deckId === deck.id),
-    cardCount: cards.reduce((sum, c) => sum + c.quantity, 0),
+    cardCount: mainboardQuantity(cards),
     forkCount: branches.length,
     sourceDeck,
     branches,
@@ -455,18 +456,26 @@ export const localRepository: Repository = {
     await updateStore((store) => {
       const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
       const colorIdentity = normalizeDeckColors(card.colorIdentity);
-      assertCardFits(card.cardName, colorIdentity, deckColors(deck));
+      const board = normalizeBoard(card.board);
+      // Sideboard and maybeboard are holding areas. Only the mainboard has
+      // to fit the deck's colors.
+      if (board === "main") assertCardFits(card.cardName, colorIdentity, deckColors(deck));
       const existing = store.deckCards.find(
-        (c) => c.deckId === deckId && c.scryfallId === card.scryfallId,
+        (c) =>
+          c.deckId === deckId &&
+          c.scryfallId === card.scryfallId &&
+          normalizeBoard(c.board) === board,
       );
       if (existing) {
         existing.quantity = Math.min(99, existing.quantity + card.quantity);
         existing.colorIdentity = colorIdentity;
+        existing.board = board;
       } else {
         store.deckCards.push({
           id: uuidv4(),
           deckId,
           ...card,
+          board,
           colorIdentity,
           imageUri: scryfallImageOrNull(card.imageUri),
           createdAt: new Date().toISOString(),
@@ -486,7 +495,9 @@ export const localRepository: Repository = {
       } else {
         const card = store.deckCards.find((c) => c.id === cardId && c.deckId === deckId);
         if (!card) throw new DataError("Card not found in deck");
-        if (quantity > card.quantity) assertQuantityRaiseFits(card, deckColors(deck));
+        if (quantity > card.quantity && isMainBoard(card.board)) {
+          assertQuantityRaiseFits(card, deckColors(deck));
+        }
         card.quantity = quantity;
       }
       deck.updatedAt = new Date().toISOString();
@@ -547,6 +558,33 @@ export const localRepository: Repository = {
         if (card.deckId === deckId && card.categoryId === categoryId) card.categoryId = null;
       }
       store.deckCategories = (store.deckCategories ?? []).filter((c) => c.id !== categoryId);
+      deck.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async moveCardToBoard(userId, deckId, cardId, board) {
+    const target = normalizeBoard(board);
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, "You cannot edit this deck");
+      const card = store.deckCards.find((c) => c.id === cardId && c.deckId === deckId);
+      if (!card) throw new DataError("Card not found in deck");
+      if (normalizeBoard(card.board) === target) return;
+      if (target === "main") {
+        assertCardFits(card.cardName, storedCardIdentity(card), deckColors(deck));
+      }
+      const other = store.deckCards.find(
+        (c) =>
+          c.deckId === deckId &&
+          c.id !== card.id &&
+          c.scryfallId === card.scryfallId &&
+          normalizeBoard(c.board) === target,
+      );
+      if (other) {
+        other.quantity = Math.min(99, other.quantity + card.quantity);
+        store.deckCards = store.deckCards.filter((c) => c.id !== card.id);
+      } else {
+        card.board = target;
+      }
       deck.updatedAt = new Date().toISOString();
     });
   },

@@ -12,6 +12,7 @@ import {
 } from "@/lib/deck-diff";
 import { setPreferredBranchAction } from "@/lib/actions/decks";
 import { compareCommanders, type CompareSide } from "@/lib/compare-dto";
+import { BOARD_LABEL, normalizeBoard } from "@/lib/deck-boards";
 import { deckCountLabel } from "@/lib/commander";
 import { cn } from "@/lib/utils";
 import { CardZoom } from "@/components/cards/card-zoom";
@@ -180,7 +181,7 @@ export function CompareView({
           <ul className="space-y-2">
             {replacements.map((pair) => (
               <li
-                key={`${pair.removed.scryfallId}-${pair.added.scryfallId}`}
+                key={`${pair.removed.scryfallId}:${normalizeBoard(pair.removed.board)}-${pair.added.scryfallId}:${normalizeBoard(pair.added.board)}`}
                 className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm"
               >
                 <span className="text-rose-300 line-through">
@@ -222,7 +223,7 @@ export function CompareView({
             <ul className="divide-y divide-border/70 bg-background/50">
               {changed.map((diff) => (
                 <li
-                  key={diff.scryfallId}
+                  key={`${diff.scryfallId}:${normalizeBoard(diff.board)}`}
                   className={cn(
                     "grid grid-cols-[1fr_auto_auto] items-center gap-2 px-4 py-2 text-sm",
                     diff.kind === "added" && "bg-emerald-400/15",
@@ -238,6 +239,11 @@ export function CompareView({
                       >
                         {diff.cardName}
                       </CardZoom>
+                      {normalizeBoard(diff.board) !== "main" && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          {BOARD_LABEL[normalizeBoard(diff.board)]}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       <ManaCost cost={diff.manaCost} fallback="—" /> · {diff.typeLine}

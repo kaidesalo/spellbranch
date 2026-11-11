@@ -84,6 +84,7 @@ describe("addCardToDeckAction", () => {
       colorIdentity: ["R"],
       oracleText: "Lightning Bolt deals 3 damage to any target.",
       quantity: 2,
+      board: "main",
     });
   });
 

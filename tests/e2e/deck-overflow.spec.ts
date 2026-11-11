@@ -14,7 +14,13 @@ function hashPassword(password: string) {
   return `${salt}:${hash}`;
 }
 
-function card(id: string, name: string, typeLine: string, manaCost: string) {
+function card(
+  id: string,
+  name: string,
+  typeLine: string,
+  manaCost: string,
+  board: "main" | "side" | "maybe" = "main",
+) {
   return {
     id,
     deckId: DECK,
@@ -28,6 +34,7 @@ function card(id: string, name: string, typeLine: string, manaCost: string) {
     oracleText: null,
     quantity: 1,
     categoryId: null,
+    board,
     createdAt: "2026-11-11T00:00:00.000Z",
   };
 }
@@ -88,6 +95,20 @@ test.beforeAll(async () => {
         "Creature — Zombie",
         "{B}",
       ),
+      card(
+        "c1000000-0000-4000-8000-0000000000a3",
+        "Viscera Seer",
+        "Creature — Vampire Wizard",
+        "{B}",
+        "side",
+      ),
+      card(
+        "c1000000-0000-4000-8000-0000000000a4",
+        "Blood Artist",
+        "Creature — Vampire",
+        "{B}",
+        "maybe",
+      ),
     ],
     deckCategories: [],
     deckTypeOrders: [],
@@ -144,7 +165,12 @@ test("deck page does not scroll horizontally on a phone", async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`/decks/${DECK}`);
     await expect(page.getByRole("heading", { name: "Live and Burn" })).toBeVisible();
+    await expect(page.getByTestId("deck-header")).toContainText("1 commander + 2 cards");
+    await expect(page.getByTestId("board-tab-main")).toContainText("2 cards");
+    await expect(page.getByTestId("board-tab-side")).toContainText("1 card");
+    await expect(page.getByTestId("board-tab-maybe")).toContainText("1 card");
     await expect(page.getByRole("button", { name: "Move Ayara, First of Locthwain to a category" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move Ayara, First of Locthwain to another board" })).toBeVisible();
     const report = await overflowReport(page);
     expect(report.scroll, `${width}px overflows via ${report.past.join(" | ")}`).toBe(report.client);
 
@@ -158,7 +184,23 @@ test("deck page does not scroll horizontally on a phone", async ({ page }) => {
     const categories = await page.getByRole("button", { name: "Categories" }).boundingBox();
     expect(categories).not.toBeNull();
     expect(categories!.x + categories!.width).toBeLessThanOrEqual(width + 1);
+
+    const boardMove = await page
+      .getByRole("button", { name: "Move Ayara, First of Locthwain to another board" })
+      .boundingBox();
+    expect(boardMove).not.toBeNull();
+    expect(boardMove!.x).toBeGreaterThanOrEqual(0);
+    expect(boardMove!.x + boardMove!.width).toBeLessThanOrEqual(width + 1);
   }
+});
+
+test("desktop deck page does not scroll horizontally", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`/decks/${DECK}`);
+  await expect(page.getByRole("heading", { name: "Live and Burn" })).toBeVisible();
+  await expect(page.getByTestId("board-switcher")).toBeVisible();
+  const report = await overflowReport(page);
+  expect(report.scroll, `desktop overflows via ${report.past.join(" | ")}`).toBe(report.client);
 });
 
 test("webkit screenshots of the fitted deck page", async ({ page }) => {
@@ -175,4 +217,13 @@ test("webkit screenshots of the fitted deck page", async ({ page }) => {
   await page.locator("section").filter({ has: page.getByRole("heading", { name: "Deck list" }) }).screenshot({
     path: `${dir}/webkit-390-deck-rows.png`,
   });
+  await page.getByTestId("board-switcher").screenshot({ path: `${dir}/webkit-390-board-switcher.png` });
+  const boardButton = page.getByRole("button", { name: "Move Ayara, First of Locthwain to another board" });
+  await boardButton.scrollIntoViewIfNeeded();
+  await boardButton.screenshot({ path: `${dir}/webkit-390-move-board-button.png` });
+  await boardButton.click();
+  await expect(page.getByTestId("move-board-sheet")).toBeVisible();
+  // The dev overlay ("N issues") sits on top of the sheet in next dev.
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.getByTestId("move-board-sheet").screenshot({ path: `${dir}/webkit-390-move-board.png` });
 });

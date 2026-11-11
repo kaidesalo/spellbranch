@@ -78,6 +78,12 @@ export interface DeckCard {
   quantity: number;
   createdAt: string;
   /**
+   * Which board this row lives on. Missing means mainboard (rows saved
+   * before sideboard and maybeboard). The same printing may exist once
+   * per board.
+   */
+  board?: "main" | "side" | "maybe";
+  /**
    * Set when the owner has moved this card into a deck category. Null or
    * missing: the card stays in the type group derived from its type line.
    */
@@ -230,6 +236,8 @@ export interface CardDiff {
   sourceQty: number;
   branchQty: number;
   kind: DiffKind;
+  /** Missing means mainboard. Side and maybe are labeled in the compare view. */
+  board?: "main" | "side" | "maybe";
 }
 
 export const DECK_FORMATS: { value: DeckFormat; label: string }[] = [

@@ -1,3 +1,4 @@
+import type { DeckBoard } from "@/lib/deck-boards";
 import type {
   Comment,
   DeckCommander,
@@ -52,6 +53,12 @@ export interface CardInput {
   colorIdentity: string[];
   oracleText: string | null;
   quantity: number;
+  /**
+   * Which board to add to. Omitted means mainboard. Adding to side or maybe
+   * skips the deck-color check; the same printing may already be on another
+   * board and is a separate row.
+   */
+  board?: DeckBoard;
 }
 
 export interface FavoriteInput {
@@ -127,13 +134,25 @@ export interface Repository {
   /** Changing the format away from "commander" clears the commander. */
   updateDeck(userId: string, deckId: string, input: DeckInput): Promise<void>;
   deleteDeck(userId: string, deckId: string): Promise<void>;
-  /** Refused (DeckColorError) when the card's identity is outside the deck colors. */
+  /**
+   * Refused (DeckColorError) when a mainboard card's identity is outside the
+   * deck colors. Sideboard and maybeboard adds are not color-checked.
+   */
   addCard(userId: string, deckId: string, card: CardInput): Promise<void>;
   /**
-   * quantity 0 removes the card. Raising the quantity of a card outside the
-   * deck colors is refused; lowering it never is.
+   * quantity 0 removes the card. Raising the quantity of a mainboard card
+   * outside the deck colors is refused; lowering it never is. Sideboard and
+   * maybeboard quantities are not color-checked.
    */
   setCardQuantity(userId: string, deckId: string, cardId: string, quantity: number): Promise<void>;
+  /**
+   * Owner only. Moves one row onto another board. The same printing already
+   * on the destination is merged (quantity capped at 99) and that row's
+   * category is kept. Otherwise category_id stays with the card, so moving
+   * back to the mainboard restores its pile. Moving onto the mainboard is
+   * color-checked.
+   */
+  moveCardToBoard(userId: string, deckId: string, cardId: string, board: DeckBoard): Promise<void>;
   /**
    * Owner only. `name` is already trimmed and within the category limits.
    * The new category is empty and sorts after the type groups until the

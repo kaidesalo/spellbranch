@@ -81,7 +81,11 @@ export const importDeckSchema = z.object({
 export const addCardSchema = z.object({
   scryfallId: idSchema,
   quantity: z.number().int().min(1).max(99).optional().default(1),
+  /** Omitted means mainboard. Side and maybe are not part of the deck total. */
+  board: z.enum(["main", "side", "maybe"]).optional().default("main"),
 });
+
+export const boardSchema = z.enum(["main", "side", "maybe"]);
 
 export const favoriteSchema = z.object({
   scryfallId: z.string().min(1).max(LIMITS.scryfallId),
