@@ -46,7 +46,7 @@ function ColorIdentity({ colors }: { colors: string[] }) {
     return <span className="text-xs text-muted-foreground">Colorless</span>;
   }
   return (
-    <span className="flex gap-1" aria-label={`Color identity: ${colors.map((c) => PIP[c]?.label ?? c).join(", ")}`}>
+    <span className="flex min-w-0 flex-wrap gap-1" aria-label={`Color identity: ${colors.map((c) => PIP[c]?.label ?? c).join(", ")}`}>
       {colors.map((c) => (
         <span
           key={c}
@@ -95,7 +95,7 @@ export function CommanderSlot({
       className="overflow-hidden rounded-2xl border-2 border-primary/70 bg-card shadow-[4px_4px_0_0_#344158]"
     >
       {commander ? (
-        <div className="grid sm:grid-cols-[minmax(0,1fr)_170px]">
+        <div className="grid min-w-0 sm:grid-cols-[minmax(0,1fr)_170px]">
           <div className="min-w-0">
             <div className="relative aspect-[626/300] max-h-56 w-full overflow-hidden bg-background sm:max-h-none">
               {commander.artUri ? (
@@ -123,8 +123,8 @@ export function CommanderSlot({
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm">
-              <span>{commander.typeLine}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm">
+              <span className="min-w-0 basis-full break-words sm:basis-auto">{commander.typeLine}</span>
               <ManaCost cost={commander.manaCost} className="text-base" />
               <ColorIdentity colors={commander.colorIdentity} />
             </div>

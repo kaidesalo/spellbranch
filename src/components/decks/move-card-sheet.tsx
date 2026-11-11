@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, FolderInput } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -44,15 +44,16 @@ export function MoveCardSheet({
   return (
     <>
       <Button
-        size="sm"
+        size="icon"
         variant="outline"
-        className="h-10 px-2.5 tracking-normal! text-xs"
+        className="size-9"
         disabled={pending}
         aria-haspopup="dialog"
         aria-label={`Move ${card.cardName} to a category`}
         onClick={() => setOpen(true)}
       >
-        Move
+        <FolderInput />
+        <span className="sr-only">Move</span>
       </Button>
       {open && (
       <Sheet open={open} onOpenChange={setOpen}>

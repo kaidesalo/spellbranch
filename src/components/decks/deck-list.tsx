@@ -115,11 +115,11 @@ export function DeckList({
             {group.cards.map((card) => (
               <li
                 key={card.id}
-                className="flex items-center gap-2 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2"
+                className="flex min-w-0 items-center gap-2 px-2 py-1.5 sm:gap-3 sm:px-3 sm:py-2"
               >
                 <CardZoom
                   card={zoomCardFromSaved(card.cardName, card.imageUri)}
-                  className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3"
+                  className="flex min-w-0 flex-1 basis-0 items-center gap-2 overflow-hidden sm:gap-3"
                 >
                   {card.imageUri ? (
                     <Image
@@ -156,7 +156,7 @@ export function DeckList({
                       <Button
                         size="icon"
                         variant="outline"
-                        className="size-10"
+                        className="size-9"
                         disabled={pending}
                         onClick={() => setQuantity(card, card.quantity - 1)}
                         aria-label={`Decrease ${card.cardName}`}
@@ -172,7 +172,7 @@ export function DeckList({
                       <Button
                         size="icon"
                         variant="outline"
-                        className="size-10"
+                        className="size-9"
                         disabled={pending || card.quantity >= MAX_CARD_QUANTITY}
                         onClick={() => setQuantity(card, card.quantity + 1)}
                         aria-label={`Increase ${card.cardName}`}
@@ -184,7 +184,7 @@ export function DeckList({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-10"
+                        className="size-9"
                         disabled={pending}
                         onClick={() => setQuantity(card, 0)}
                         aria-label={`Remove ${card.cardName}`}
