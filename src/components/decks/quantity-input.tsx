@@ -71,12 +71,10 @@ export function QuantityInput({
       }}
       className={cn(
         // Looks like the plain number until hovered or focused.
-        "h-6 w-6 rounded-md border border-transparent bg-transparent p-0 text-center text-sm font-medium tabular-nums text-foreground outline-none transition-colors",
+        "size-10 rounded-md border border-transparent bg-transparent p-0 text-center text-sm font-medium tabular-nums text-foreground outline-none transition-colors",
         "hover:border-border focus-visible:border-ring focus-visible:bg-background/70 focus-visible:ring-2 focus-visible:ring-ring/50",
         "selection:bg-primary selection:text-primary-foreground",
         busy && "cursor-progress opacity-70",
-        // Phone rows give this a 32px target; sm+ keeps the original footprint.
-        "max-sm:h-8! max-sm:w-8!",
       )}
     />
   );

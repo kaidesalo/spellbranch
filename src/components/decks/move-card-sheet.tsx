@@ -46,7 +46,7 @@ export function MoveCardSheet({
       <Button
         size="sm"
         variant="outline"
-        className="max-sm:h-8 max-sm:px-2 max-sm:tracking-normal!"
+        className="h-10 px-2.5 tracking-normal! text-xs"
         disabled={pending}
         aria-haspopup="dialog"
         aria-label={`Move ${card.cardName} to a category`}
