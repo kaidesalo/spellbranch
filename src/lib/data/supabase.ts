@@ -11,6 +11,7 @@ import {
 import { normalizeDeckColors, storedCardIdentity } from "@/lib/deck-colors";
 import { isMainBoard, mainboardQuantity, normalizeBoard } from "@/lib/deck-boards";
 import {
+  COLLECTION_CAP_MESSAGE,
   COLLECTION_MAX_QUANTITY,
   normalizeCollectionVisibility,
   normalizeCondition,
@@ -341,6 +342,14 @@ class SupabaseDataError extends Error {
 function check<T>(op: string, res: { data: T; error: PgError }): T {
   if (res.error) throw new SupabaseDataError(op, res.error.code);
   return res.data;
+}
+
+/** merge_*_printing RPCs: one transaction for the quantity update and the delete. */
+function throwPrintingMerge(op: string, error: PgError, denied: string, missing: string): never {
+  if (isColorConflict(error)) throw new DeckColorError(COLOR_CONFLICT);
+  if (error?.code === "42501") throw new DataError(denied);
+  if (error?.code === "P0002") throw new DataError(missing);
+  throw new SupabaseDataError(op, error?.code);
 }
 
 /** The 008 CHECK constraints that are about deck colors. */
@@ -1224,14 +1233,18 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
             deck.colors,
           );
         }
-        cardColorWrite(
-          "deck_cards merge printing",
-          await client.from("deck_cards").update({ quantity: nextQty }).eq("id", other.id).eq("deck_id", deckId),
-        );
-        check(
-          "deck_cards printing delete",
-          await client.from("deck_cards").delete().eq("id", current.id).eq("deck_id", deckId),
-        );
+        const merged = await client.rpc("merge_deck_card_printing", {
+          target: other.id,
+          source: current.id,
+        });
+        if (merged.error) {
+          throwPrintingMerge(
+            "merge_deck_card_printing",
+            merged.error,
+            "You cannot edit this deck",
+            "Card not found in deck",
+          );
+        }
       } else if (current.scryfall_id !== printing.scryfallId) {
         const nextIdentity = normalizeDeckColors(printing.colorIdentity);
         const prev = storedCardIdentity({
@@ -1738,6 +1751,9 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       if (inserted.error?.code === "23505") {
         throw new DataError("You already track that finish of this card. Reload and try again.");
       }
+      if (inserted.error?.hint === "spellbranch_collection_cap") {
+        throw new DataError(COLLECTION_CAP_MESSAGE);
+      }
       check("collection_cards insert", inserted);
     },
 
@@ -1795,22 +1811,21 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
           .maybeSingle(),
       ) as { id: string; quantity: number; for_trade: boolean; condition: string | null } | null;
       if (other && other.id !== current.id) {
-        check(
-          "collection_cards merge printing",
-          await client
-            .from("collection_cards")
-            .update({
-              quantity: Math.min(COLLECTION_MAX_QUANTITY, other.quantity + current.quantity),
-              for_trade: other.for_trade || current.for_trade,
-              condition: other.condition ?? current.condition,
-            })
-            .eq("id", other.id)
-            .eq("user_id", userId),
-        );
-        check(
-          "collection_cards printing delete",
-          await client.from("collection_cards").delete().eq("id", current.id).eq("user_id", userId),
-        );
+        const merged = await client.rpc("merge_collection_card_printing", {
+          target: other.id,
+          source: current.id,
+        });
+        if (merged.error) {
+          if (merged.error.hint === "spellbranch_collection_cap") {
+            throw new DataError(COLLECTION_CAP_MESSAGE);
+          }
+          throwPrintingMerge(
+            "merge_collection_card_printing",
+            merged.error,
+            "You cannot edit this collection",
+            "Card not found in your collection",
+          );
+        }
         return;
       }
       if (current.scryfall_id === printing.scryfallId && current.finish === finish) return;

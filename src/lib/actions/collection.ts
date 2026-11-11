@@ -48,6 +48,13 @@ function refresh() {
   revalidatePath("/my-cards");
 }
 
+/** Quantity, finish, trade flag, visibility, and deletes. Adds stay on card-lookup. */
+async function limitCollectionWrite(userId: string): Promise<CollectionActionResult | null> {
+  const allowed = await limit("collection-write", { ip: await requestIp(), userId });
+  if (!allowed.ok) return limitError(allowed);
+  return null;
+}
+
 export async function addCollectionCardAction(input: unknown): Promise<CollectionActionResult> {
   const user = await requireUser();
   const parsed = addCollectionSchema.safeParse(input);
@@ -94,6 +101,8 @@ export async function updateCollectionCardAction(
   if (!id.ok) return { error: id.error };
   const parsed = updateCollectionSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid card" };
+  const blocked = await limitCollectionWrite(user.id);
+  if (blocked) return blocked;
   try {
     await getRepository().updateCollectionCard(user.id, cardId, parsed.data);
   } catch (err) {
@@ -107,6 +116,8 @@ export async function removeCollectionCardAction(cardId: string): Promise<Collec
   const user = await requireUser();
   const id = check(idSchema, cardId, "Card not found in your collection");
   if (!id.ok) return { error: id.error };
+  const blocked = await limitCollectionWrite(user.id);
+  if (blocked) return blocked;
   try {
     await getRepository().removeCollectionCard(user.id, cardId);
   } catch (err) {
@@ -120,6 +131,8 @@ export async function setCollectionVisibilityAction(visibility: unknown): Promis
   const user = await requireUser();
   const parsed = collectionVisibilitySchema.safeParse(visibility);
   if (!parsed.success) return { error: "Pick private, friends, or public" };
+  const blocked = await limitCollectionWrite(user.id);
+  if (blocked) return blocked;
   try {
     await getRepository().setCollectionVisibility(user.id, parsed.data);
   } catch (err) {

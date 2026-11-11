@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {
+  SUPABASE_COOKIE_MAX_AGE,
   SUPABASE_COOKIE_OPTIONS,
   buildSupabaseCookieOptions,
 } from "@/lib/supabase/cookie-options";
@@ -79,11 +80,13 @@ function stubAuthFetch() {
 }
 
 describe("SUPABASE_COOKIE_OPTIONS", () => {
-  it("is HttpOnly, SameSite=Lax, Path=/", () => {
+  it("is HttpOnly, SameSite=Lax, Path=/, and expires after 30 days", () => {
+    expect(SUPABASE_COOKIE_MAX_AGE).toBe(60 * 60 * 24 * 30);
     expect(SUPABASE_COOKIE_OPTIONS).toMatchObject({
       httpOnly: true,
       sameSite: "lax",
       path: "/",
+      maxAge: SUPABASE_COOKIE_MAX_AGE,
     });
     expect(Object.isFrozen(SUPABASE_COOKIE_OPTIONS)).toBe(true);
   });
@@ -132,6 +135,7 @@ describe("Supabase clients write auth cookies with the shared options", () => {
       expect(cookie).toMatch(/;\s*HttpOnly/i);
       expect(cookie).toMatch(/;\s*SameSite=lax/i);
       expect(cookie).toMatch(/;\s*Path=\//i);
+      expect(cookie).toMatch(new RegExp(`;\\s*Max-Age=${SUPABASE_COOKIE_MAX_AGE}`, "i"));
       // NODE_ENV is "test" here, so no Secure flag.
       expect(cookie).not.toMatch(/;\s*Secure/i);
     }
@@ -153,7 +157,13 @@ describe("Supabase clients write auth cookies with the shared options", () => {
     expect(set).toHaveBeenCalled();
     for (const [name, , options] of set.mock.calls) {
       expect(String(name).startsWith(STORAGE_KEY)).toBe(true);
-      expect(options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/", secure: false });
+      expect(options).toMatchObject({
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: false,
+        maxAge: SUPABASE_COOKIE_MAX_AGE,
+      });
     }
   });
 });

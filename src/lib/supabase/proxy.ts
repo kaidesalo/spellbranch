@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv, isSupabaseConfigured } from "@/lib/supabase/config";
-import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
+import { SUPABASE_COOKIE_OPTIONS, supabaseCookieWriteOptions } from "@/lib/supabase/cookie-options";
 
 /**
  * Refreshes the Supabase auth session on each matched request so Server
@@ -40,9 +40,10 @@ export async function updateSession(
       setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = next();
-        // Pass `options` through untouched: it carries HttpOnly/Secure/etc.
+        // HttpOnly/Secure/SameSite come from the library merge. maxAge is
+        // forced back to 30 days (the library would write 400).
         cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options),
+          response.cookies.set(name, value, supabaseCookieWriteOptions(options)),
         );
         // Cache-Control/Expires/Pragma so CDNs never cache a response that sets auth cookies.
         Object.entries(headers ?? {}).forEach(([header, value]) =>

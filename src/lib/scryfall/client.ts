@@ -114,17 +114,40 @@ export async function searchScryfallCards(
   url.searchParams.set("page", String(page));
   url.searchParams.set("unique", "cards");
 
-  const res = await fetch(url.toString(), {
-    headers: SCRYFALL_HEADERS,
-    next: { revalidate: 60 },
-    signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      headers: SCRYFALL_HEADERS,
+      // Same sandbox as the other Scryfall helpers: do not follow a redirect
+      // off api.scryfall.com, and do not send cookies.
+      redirect: "error",
+      credentials: "omit",
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
+    });
+  } catch {
+    return { cards: [], total: 0, error: "Could not reach Scryfall" };
+  }
 
   if (res.status === 404) {
+    await res.body?.cancel().catch(() => undefined);
     return { cards: [], total: 0 };
   }
 
-  const data = (await res.json()) as ScryfallSearchResponse;
+  let data: ScryfallSearchResponse;
+  try {
+    // Same 2 MB cap as the collection / import lookups.
+    data = JSON.parse(await readCapped(res, SCRYFALL_COLLECTION_MAX_BYTES)) as ScryfallSearchResponse;
+  } catch (err) {
+    if (err instanceof ScryfallLookupError && err.kind === "too-large") {
+      return {
+        cards: [],
+        total: 0,
+        error: "Scryfall sent an unexpected answer. Try again in a moment.",
+      };
+    }
+    return { cards: [], total: 0, error: "Could not reach Scryfall" };
+  }
   if (!res.ok) {
     return {
       cards: [],

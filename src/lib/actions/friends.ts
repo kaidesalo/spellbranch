@@ -48,6 +48,9 @@ export async function sendFriendRequestAction(
   const id = check(idSchema, addresseeId, FRIEND_MESSAGES.notFound);
   if (!id.ok) return { error: id.error };
 
+  const allowed = await limit("friend-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
+
   try {
     await getRepository().sendFriendRequest(user.id, addresseeId);
   } catch (err) {
@@ -69,6 +72,9 @@ export async function respondFriendRequestAction(
   const decision = check(z.boolean("Invalid request"), accept, "Invalid request");
   if (!decision.ok) return { error: decision.error };
 
+  const allowed = await limit("friend-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
+
   try {
     await getRepository().respondFriendRequest(user.id, friendshipId, decision.data);
   } catch (err) {
@@ -86,6 +92,9 @@ export async function removeFriendAction(
   const user = await requireUser();
   const id = check(idSchema, friendshipId, FRIEND_MESSAGES.requestNotFound);
   if (!id.ok) return { error: id.error };
+
+  const allowed = await limit("friend-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
 
   try {
     await getRepository().removeFriendship(user.id, friendshipId);

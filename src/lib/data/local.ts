@@ -11,7 +11,12 @@ import {
 } from "@/lib/data/deck-color-rules";
 import { normalizeDeckColors, storedCardIdentity } from "@/lib/deck-colors";
 import { isMainBoard, mainboardQuantity, normalizeBoard } from "@/lib/deck-boards";
-import { COLLECTION_MAX_QUANTITY, normalizeCollectionVisibility } from "@/lib/collection";
+import {
+  COLLECTION_CAP_MESSAGE,
+  COLLECTION_MAX_QUANTITY,
+  COLLECTION_MAX_ROWS,
+  normalizeCollectionVisibility,
+} from "@/lib/collection";
 import { commanderProblem, normalizeCommander } from "@/lib/commander";
 import {
   FRIEND_MESSAGES,
@@ -979,6 +984,8 @@ export const localRepository: Repository = {
         existing.updatedAt = now;
         return;
       }
+      const owned = store.collectionCards.filter((card) => card.userId === userId).length;
+      if (owned >= COLLECTION_MAX_ROWS) throw new DataError(COLLECTION_CAP_MESSAGE);
       store.collectionCards.push({
         id: uuidv4(),
         userId,

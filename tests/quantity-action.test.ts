@@ -34,6 +34,7 @@ vi.mock("@/lib/data", async () => {
 });
 const revalidated: string[] = [];
 vi.mock("next/cache", () => ({ revalidatePath: (p: string) => void revalidated.push(p) }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("redirect"); } }));
 
 const { updateCardQuantityAction, removeCardFromDeckAction } = await import("@/lib/actions/decks");

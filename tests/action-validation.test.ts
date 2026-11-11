@@ -24,6 +24,7 @@ vi.mock("@/lib/data", async () => {
   return { getRepository: () => repo, userMessage: errors.userMessage, DataError: errors.DataError };
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`);
