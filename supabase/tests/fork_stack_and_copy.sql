@@ -10,7 +10,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(51); -- keep in sync with the select ok/is/throws_ok/lives_ok count below
+select plan(62); -- keep in sync with the select ok/is/throws_ok/lives_ok count below
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 
@@ -26,6 +26,7 @@ select ok(
   pg_get_functiondef('public.enforce_deck_links()'::regprocedure) ~ 'new.forked_from_id := root'
   and pg_get_functiondef('public.enforce_deck_links()'::regprocedure) ~ 'spellbranch_root_forks_locked'
   and pg_get_functiondef('public.enforce_deck_links()'::regprocedure) !~ 'select \* into'
+  and pg_get_functiondef('public.enforce_deck_links()'::regprocedure) ~ 'enforce_fork_copy_rate'
   and pg_get_triggerdef((
     select oid from pg_trigger
     where tgname = 'decks_enforce_links' and not tgisinternal
@@ -43,6 +44,18 @@ select ok(
   and (select prosecdef and proconfig @> array['search_path=""']
        from pg_proc where oid = 'public.copy_source_link(uuid)'::regprocedure),
   'fork_deck stays security invoker; copy_source_link is security definer with an empty search_path');
+select ok(
+  (select count(*) from regexp_matches(
+     pg_get_functiondef('public.enforce_deck_links()'::regprocedure), 'lock_visible_deck', 'g')) >= 4
+  and pg_get_functiondef('public.fork_deck(uuid)'::regprocedure) ~ 'lock_visible_deck'
+  and pg_get_functiondef('public.copy_deck(uuid)'::regprocedure) ~ 'lock_visible_deck'
+  and pg_get_functiondef('public.lock_visible_deck(uuid)'::regprocedure) ~ 'for share'
+  and (select prosecdef from pg_proc where oid = 'public.lock_visible_deck(uuid)'::regprocedure)
+  and not has_function_privilege('anon', 'public.lock_visible_deck(uuid)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.lock_visible_deck(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.enforce_fork_copy_rate()', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.enforce_fork_copy_rate()', 'EXECUTE'),
+  'fork and copy lock visible rows via a definer; the shared rate limit is signed-in only');
 
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
  ('e3000000-0000-4000-8000-000000000001','authenticated','authenticated','ann@example.test','{"username":"ann"}'),
@@ -212,8 +225,27 @@ set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002",
 select is(
   (select coalesce(source_id::text, 'null') || '/' || unavailable::text
      from public.copy_source_link((select id from f_copy))),
-  'null/true',
-  'a source Ben can no longer see is unavailable and the id is not returned');
+  (select coalesce(source_id::text, 'null') || '/' || unavailable::text
+     from public.copy_source_link((select id from f_ben))),
+  'a hidden source looks the same as a deck that is not a copy');
+select is(
+  (select link_role from public.copy_links_for_deck((select id from f_copy))),
+  'original',
+  'the copier still sees the hidden source through the owner cross-link');
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000003","role":"authenticated"}';
+select is(
+  (select count(*) from public.decks where id = (select id from f_copy)),
+  1::bigint,
+  'a friend of the copier can see the copy');
+select is(
+  (select coalesce(source_id::text, 'null') || '/' || unavailable::text
+     from public.copy_source_link((select id from f_copy))),
+  'null/false',
+  'that friend is not told a hidden source exists');
+select is(
+  (select count(*) from public.copy_links_for_deck((select id from f_copy))),
+  0::bigint,
+  'that friend gets no owner cross-link');
 select is(
   (select coalesce(source_id::text, 'null') || '/' || unavailable::text
      from public.copy_source_link('e3100000-0000-4000-8000-000000000010')),
@@ -265,6 +297,17 @@ select is(
   (select name from public.decks where id = (select id from f_long)),
   repeat('n', 73) || ' (copy)',
   'copy_deck shortens an 80-character source name so the default fits in 80');
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000002","role":"authenticated"}';
+create temp table f_long_branch on commit drop as
+  select public.fork_deck('e3100000-0000-4000-8000-000000000020') as id;
+grant select on f_long_branch to anon, authenticated, service_role;
+reset role;
+set local "request.jwt.claims" = '';
+select is(
+  (select name from public.decks where id = (select id from f_long_branch)),
+  repeat('n', 71) || ' (branch)',
+  'fork_deck shortens an 80-character source name so the default fits in 80');
 
 -- Copy cross-link: only the owner of the exact deck that was copied and the
 -- owner of the copy. Ann owns the root. Ben owns the branch. Cat and Dan copy it.
@@ -402,6 +445,51 @@ select is(
   (select count(*) from public.copy_links_for_deck((select id from f_copy))),
   0::bigint,
   'a deleted source leaves no cross-link for the copier');
+
+-- 20 forks + copies per user per 10 minutes. A fresh user, so earlier calls
+-- in this file do not spend the budget.
+reset role;
+set local "request.jwt.claims" = '';
+insert into auth.users (id, aud, role, email, raw_user_meta_data) values
+ ('e3000000-0000-4000-8000-000000000007','authenticated','authenticated','rat@example.test','{"username":"rat"}'),
+ ('e3000000-0000-4000-8000-000000000008','authenticated','authenticated','max@example.test','{"username":"max"}');
+insert into public.decks (id, owner_id, name, format, notes, visibility, allow_forks) values
+ ('e3100000-0000-4000-8000-000000000030','e3000000-0000-4000-8000-000000000007','Rate','modern','','public',true);
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000007","role":"authenticated"}';
+do $$
+declare i integer;
+begin
+  for i in 1..20 loop
+    perform public.fork_deck('e3100000-0000-4000-8000-000000000030');
+  end loop;
+end $$;
+select throws_ok(
+  $$select public.fork_deck('e3100000-0000-4000-8000-000000000030')$$,
+  'PT429',
+  'Too many attempts. Please try again later.',
+  'the 21st fork or copy in 10 minutes is refused');
+select throws_ok(
+  $$select public.copy_deck('e3100000-0000-4000-8000-000000000030')$$,
+  'PT429',
+  'Too many attempts. Please try again later.',
+  'forks and copies share one budget');
+reset role;
+set local "request.jwt.claims" = '';
+select is(
+  (select count(*) from public.decks where forked_from_id = 'e3100000-0000-4000-8000-000000000030'),
+  20::bigint,
+  'a refused fork does not land');
+select is(
+  (select count from private.rate_limits
+    where key = 'db:fork_or_copy:uid:e3000000-0000-4000-8000-000000000007'),
+  20,
+  'a refused call rolls its own increment back');
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"e3000000-0000-4000-8000-000000000008","role":"authenticated"}';
+select lives_ok(
+  $$select public.fork_deck('e3100000-0000-4000-8000-000000000030')$$,
+  'another user still has a fork budget');
 
 select * from finish();
 rollback;

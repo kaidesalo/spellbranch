@@ -145,8 +145,9 @@ export interface DeckWithMeta extends Deck {
    */
   copiedFromDeck?: (Deck & { owner?: PublicProfile }) | null;
   /**
-   * True when this deck is a copy and the source is missing or invisible.
-   * No source id is included in that case.
+   * Unused. A hidden or missing source is omitted the same way as a deck
+   * that was never a copy, so this is not a hint. The two owners still see
+   * the other deck through `copyLinks`.
    */
   copySourceUnavailable?: boolean;
   /** Visible forks of this deck. `owner` is set when the branch author's profile loaded. */

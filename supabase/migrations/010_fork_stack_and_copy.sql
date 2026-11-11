@@ -43,7 +43,8 @@
 -- leaving copied_from_id out: a column-only revoke does not hide a column
 -- while the table grant remains. Readers learn a source id only from
 -- copy_source_link(), and only when they can already view both decks. A
--- hidden or missing source comes back as unavailable with a null id.
+-- hidden or missing source comes back the same as "not a copy": null id,
+-- unavailable false. That flag is not a hint that a hidden deck exists.
 -- copy_links_for_deck() is the branch-menu exception. It returns the other
 -- deck's id, name, owner id, and username to the two owners of that copy
 -- (the owner of the exact deck that was copied, and the owner of the copy),
@@ -77,8 +78,41 @@ comment on column public.decks.copied_from_id is
   'Independent copy of this deck. Not a branch. API roles cannot select it; use copy_source_link().';
 
 -- ---------------------------------------------------------------------------
--- 2. enforce_deck_links(): 002, plus root flattening and copy checks
+-- 2. Row locks, then enforce_deck_links()
 -- ---------------------------------------------------------------------------
+-- SELECT FOR SHARE in the caller's own query also applies the decks UPDATE
+-- policy (owner only), so a non-owner's lock read returns no row. This
+-- helper is security definer (bypasses that policy) and locks the row only
+-- when can_view_deck says the caller may already see it. A hidden row is
+-- not locked and is not reported. auth.uid() null (migrations) locks nothing.
+
+create or replace function public.lock_visible_deck(target uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  viewer uuid := auth.uid();
+  visible boolean;
+begin
+  if target is null or viewer is null then
+    return;
+  end if;
+  select public.can_view_deck(d, viewer) into visible
+  from public.decks d
+  where d.id = target;
+  if not coalesce(visible, false) then
+    return;
+  end if;
+  perform 1 from public.decks d where d.id = target for share;
+end;
+$$;
+revoke all on function public.lock_visible_deck(uuid) from public, anon;
+grant execute on function public.lock_visible_deck(uuid) to authenticated;
+
+-- 002, plus root flattening and copy checks.
 
 create or replace function public.enforce_deck_links()
 returns trigger
@@ -115,6 +149,12 @@ begin
     if not trusted then
       -- Every column except copied_from_id. API roles cannot read that one,
       -- and this function runs as the caller. The null keeps the row type.
+      -- The lock is taken first so an in-flight allow_forks or visibility
+      -- change cannot commit under this fork. The shared fork/copy budget
+      -- is charged here so a direct insert cannot skip it. A later error
+      -- rolls the increment back with the insert.
+      perform public.enforce_fork_copy_rate();
+      perform public.lock_visible_deck(declared);
       select
         d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
         d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
@@ -154,6 +194,8 @@ begin
         exit;
       end if;
       seen := seen || root;
+      -- Lock each hop so a parent rewrite cannot move the root under this fork.
+      perform public.lock_visible_deck(root);
       select d.forked_from_id into parent from public.decks d where d.id = root;
       exit when not found or parent is null;
       root := parent;
@@ -167,6 +209,7 @@ begin
     -- fork that deck too: they own it, or it allows forks and they can see
     -- it. A root they cannot see is refused with the generic error (no hint).
     if not trusted then
+      perform public.lock_visible_deck(root);
       select
         d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
         d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
@@ -211,6 +254,8 @@ begin
       raise exception 'A deck cannot be copied from itself' using errcode = '23514';
     end if;
     if not trusted then
+      perform public.enforce_fork_copy_rate();
+      perform public.lock_visible_deck(new.copied_from_id);
       select
         d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
         d.forked_from_id, d.preferred_branch_id, d.created_at, d.updated_at,
@@ -317,8 +362,41 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 4. fork_deck(): 008's body. The trigger attaches the row to the root.
+-- 4. Shared fork/copy budget, then fork_deck()
 -- ---------------------------------------------------------------------------
+-- 20 forks and copies per user per 10 minutes (one bucket). Adjust the two
+-- numbers in enforce_fork_copy_rate(). A refused call raises PT429, and that
+-- error rolls the increment back, so blocked calls do not extend the window.
+-- Same pattern as find_profile() in 004: the counter lives in private, and
+-- only a security definer function writes it. enforce_deck_links() charges
+-- it on an untrusted fork or copy insert, so fork_deck(), copy_deck(), and a
+-- direct insert share one budget and a direct insert cannot skip it.
+-- fork_deck and copy_deck stay security invoker so the deck read is the caller's.
+
+create or replace function public.enforce_fork_copy_rate()
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_ok boolean;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+  select c.allowed into v_ok
+  from private.rate_limit_hit_core('db:fork_or_copy:uid:' || v_uid::text, 20, 600) c;
+  if not v_ok then
+    raise exception 'Too many attempts. Please try again later.' using errcode = 'PT429';
+  end if;
+end;
+$$;
+revoke all on function public.enforce_fork_copy_rate() from public, anon;
+grant execute on function public.enforce_fork_copy_rate() to authenticated;
+
 -- forked_from_id is the deck passed in (the clicked deck). The trigger
 -- checks permission on that deck, rewrites forked_from_id to the root, and
 -- refuses the insert when the caller cannot fork the root (allow_forks is
@@ -334,10 +412,12 @@ as $$
 declare
   src public.decks;
   new_id uuid;
+  branch_name text;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated' using errcode = '42501';
   end if;
+  perform public.lock_visible_deck(source);
 
   select
     d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
@@ -353,6 +433,14 @@ begin
     raise exception 'Deck not found' using errcode = 'P0002';
   end if;
 
+  -- ' (branch)' is 9 characters. decks.name is at most 80 (003). Shorten the
+  -- source name so the default always fits; a caller-supplied name is applied
+  -- by the app afterwards and is checked there.
+  branch_name := src.name || ' (branch)';
+  if char_length(branch_name) > 80 then
+    branch_name := left(src.name, 80 - char_length(' (branch)')) || ' (branch)';
+  end if;
+
   insert into public.decks (
     owner_id, name, format, notes, visibility, allow_forks, forked_from_id,
     commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost,
@@ -360,7 +448,7 @@ begin
   )
   values (
     auth.uid(),
-    src.name || ' (branch)',
+    branch_name,
     src.format,
     src.notes,
     case when src.visibility = 'public' then 'friends' else 'private' end,
@@ -413,6 +501,7 @@ begin
   if auth.uid() is null then
     raise exception 'Not authenticated' using errcode = '42501';
   end if;
+  perform public.lock_visible_deck(source);
 
   select
     d.id, d.owner_id, d.name, d.format, d.notes, d.visibility, d.allow_forks,
@@ -482,10 +571,11 @@ grant execute on function public.copy_deck(uuid) to authenticated;
 -- 6. copy_source_link(): the only read path for copied_from_id
 -- ---------------------------------------------------------------------------
 -- One row. source_id is set only when the caller can view the deck and the
--- source. unavailable is true when the deck is visible, a source is stored,
--- and that source is missing or not visible. Both null/false when the deck
--- itself is missing or hidden, so the function does not confirm that a
--- guessed id exists.
+-- source. A hidden or missing source returns the same row as a deck that is
+-- not a copy (null id, unavailable false), so the flag never hints that a
+-- hidden deck exists. The two owners still see that relationship through
+-- copy_links_for_deck(). Both null/false when the deck itself is missing or
+-- hidden, so the function does not confirm that a guessed id exists.
 
 create or replace function public.copy_source_link(target uuid)
 returns table (source_id uuid, unavailable boolean)
@@ -512,7 +602,7 @@ begin
   if found and public.can_view_deck(src, viewer) then
     return query select src.id, false;
   else
-    return query select null::uuid, true;
+    return query select null::uuid, false;
   end if;
 end;
 $$;

@@ -745,7 +745,7 @@ describe("local adapter: forks stack on the root, copies stay independent", () =
       name: "Hidden Title", format: "modern", notes: "SOURCE-ONLY-NOTE", visibility: "private", allowForks: true,
     });
     const hidden = await repo.getDeck(BOB, copy);
-    expect(hidden?.copySourceUnavailable).toBe(true);
+    expect(hidden?.copySourceUnavailable).toBe(false);
     expect(hidden?.copiedFromDeck ?? null).toBeNull();
     expect(hidden?.copiedFromId).toBeNull();
     expect(hidden?.copyLinks).toEqual([{
@@ -758,6 +758,17 @@ describe("local adapter: forks stack on the root, copies stay independent", () =
     }]);
     expect(JSON.stringify(hidden)).not.toContain("SOURCE-ONLY-NOTE");
     expect(await repo.getCompareData(BOB, root, copy)).toBeNull();
+
+    // A friend who can open the copy gets the same shape as a deck with no source.
+    await befriend(BOB, CAROL);
+    const asFriend = await repo.getDeck(CAROL, copy);
+    expect(asFriend?.copySourceUnavailable).toBe(false);
+    expect(asFriend?.copiedFromId ?? null).toBeNull();
+    expect(asFriend?.copiedFromDeck ?? null).toBeNull();
+    expect(asFriend?.copyLinks).toBeUndefined();
+    expect(JSON.stringify(asFriend)).not.toContain(root);
+    expect(JSON.stringify(asFriend)).not.toContain("Hidden Title");
+    expect(JSON.stringify(asFriend)).not.toContain("SOURCE-ONLY-NOTE");
 
     await repo.deleteDeck(ALICE, root);
     expect(db.decks.find((d) => d.id === copy)?.copiedFromId ?? null).toBeNull();
@@ -825,6 +836,26 @@ describe("local adapter: forks stack on the root, copies stay independent", () =
     const stored = db.decks.find((d) => d.id === copy)!;
     expect(stored.name).toHaveLength(80);
     expect(stored.name.endsWith(" (copy)")).toBe(true);
+    const branch = await repo.forkDeck(ALICE, root);
+    const branched = db.decks.find((d) => d.id === branch)!;
+    expect(branched.name).toHaveLength(80);
+    expect(branched.name.endsWith(" (branch)")).toBe(true);
+  });
+
+  it("shares one 20-per-10-minutes budget across forks and copies", async () => {
+    const root = await repo.createDeck(ALICE, deckInput("Rate root"));
+    for (let i = 0; i < 19; i++) await repo.forkDeck(BOB, root, `B${i}`);
+    await repo.copyDeck(BOB, root, "Bcopy");
+    await rejectsWith(
+      repo.forkDeck(BOB, root, "over"),
+      "Too many attempts. Please try again later.",
+    );
+    await rejectsWith(
+      repo.copyDeck(BOB, root, "over copy"),
+      "Too many attempts. Please try again later.",
+    );
+    expect(db.decks.filter((d) => d.ownerId === BOB)).toHaveLength(20);
+    expect(await repo.forkDeck(CAROL, root, "Carol still can")).toBeTruthy();
   });
 
   it("shows the copy cross-link only to the two owners, and not as a real branch", async () => {
