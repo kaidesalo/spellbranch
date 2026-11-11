@@ -41,9 +41,14 @@
 -- Who can do what
 -- ---------------
 -- SELECT follows the deck: if the decks SELECT policy returns the deck
--- (can_view_deck), its categories and type order are visible. INSERT, UPDATE,
--- and DELETE require the caller to own the deck. There is no hidden column,
--- so these tables use table grants plus RLS, not a column grant list.
+-- (can_view_deck), its categories and type order are visible. INSERT and
+-- DELETE require the caller to own the deck. UPDATE on deck_categories is
+-- column-level (name and position only), same idea as friendships.status in
+-- 002. deck_id is fixed at insert: a BEFORE UPDATE trigger refuses a change
+-- even for a role that bypasses the column grant, so a category cannot be
+-- moved onto another deck (which would both point cards at the wrong deck
+-- and slip past the 40-category cap). The cap locks the parent deck row
+-- (SELECT FOR UPDATE) before it counts, so two sessions cannot both pass.
 -- set_deck_section_order() is security invoker: it writes only rows the
 -- caller's RLS already lets them write, and it refuses a caller who does
 -- not own the deck.
@@ -179,15 +184,21 @@ as $$
 declare
   n integer;
 begin
-  -- A caller who does not own the deck is refused by RLS. Skip the cap so
-  -- that refusal stays 42501, not a 23514 that only an owner should see.
   -- auth.uid() is null for the table owner (migrations), which may insert
-  -- without the cap.
-  if auth.uid() is null or not exists (
-    select 1 from public.decks d
-    where d.id = new.deck_id
-      and d.owner_id = auth.uid()
-  ) then
+  -- without the cap. A signed-in caller locks the parent deck first, so two
+  -- sessions cannot both count 39 and both insert. The lock is also the
+  -- ownership check: only the owner can SELECT the deck FOR UPDATE. A
+  -- non-owner is refused here (42501) or finds no row, and the insert's
+  -- own RLS refuses them either way.
+  if auth.uid() is null then
+    return new;
+  end if;
+  perform 1
+  from public.decks d
+  where d.id = new.deck_id
+    and d.owner_id = auth.uid()
+  for update;
+  if not found then
     return new;
   end if;
   select count(*) into n
@@ -207,6 +218,31 @@ create trigger deck_categories_limit
   for each row execute function public.deck_categories_limit();
 
 revoke execute on function public.deck_categories_limit() from public, anon, authenticated;
+
+-- deck_id is chosen on insert and never changed. Moving a row onto another
+-- deck would leave cards pointing at a foreign category and would bypass
+-- the insert cap. The error is the same generic refusal as any other edit
+-- the caller is not allowed to make.
+create or replace function public.deck_categories_keep_deck()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if new.deck_id is distinct from old.deck_id then
+    raise exception 'You cannot edit this deck' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists deck_categories_keep_deck on public.deck_categories;
+create trigger deck_categories_keep_deck
+  before update on public.deck_categories
+  for each row execute function public.deck_categories_keep_deck();
+
+revoke execute on function public.deck_categories_keep_deck() from public, anon, authenticated;
 
 drop trigger if exists deck_categories_set_updated_at on public.deck_categories;
 create trigger deck_categories_set_updated_at
@@ -329,7 +365,10 @@ create policy "Owners delete deck type order"
 revoke all on table public.deck_categories from public, anon, authenticated;
 revoke all on table public.deck_type_orders from public, anon, authenticated;
 grant select on table public.deck_categories to anon, authenticated;
-grant insert, update, delete on table public.deck_categories to authenticated;
+grant insert, delete on table public.deck_categories to authenticated;
+-- name and position only. deck_id, id, and the timestamps stay put.
+-- updated_at is filled by deck_categories_set_updated_at, not by the caller.
+grant update (name, position) on table public.deck_categories to authenticated;
 grant select on table public.deck_type_orders to anon, authenticated;
 grant insert, update, delete on table public.deck_type_orders to authenticated;
 

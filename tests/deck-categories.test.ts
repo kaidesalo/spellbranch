@@ -388,6 +388,9 @@ describe("migration 013", () => {
     expect(sql).toMatch(/char_length\(name\) between 1 and 40/);
     expect(sql).toMatch(/deck_categories_name_lower/);
     expect(sql).toMatch(/This deck already has 40 categories/);
+    expect(sql).toMatch(/for update;/);
+    expect(sql).toMatch(/new\.deck_id is distinct from old\.deck_id/);
+    expect(sql).toMatch(/grant update \(name, position\) on table public\.deck_categories to authenticated;/);
     expect(LIMITS.deckCategories).toBe(40);
   });
 

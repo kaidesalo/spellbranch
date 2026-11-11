@@ -8,7 +8,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(45);
+select plan(51);
 grant all on all tables in schema pg_temp to anon, authenticated, service_role;
 grant all on all sequences in schema pg_temp to anon, authenticated, service_role;
 
@@ -55,7 +55,10 @@ select ok(
   and not has_table_privilege('anon', 'public.deck_categories', 'DELETE')
   and has_table_privilege('authenticated', 'public.deck_categories', 'SELECT')
   and has_table_privilege('authenticated', 'public.deck_categories', 'INSERT')
-  and has_table_privilege('authenticated', 'public.deck_categories', 'UPDATE')
+  and not has_table_privilege('authenticated', 'public.deck_categories', 'UPDATE')
+  and has_column_privilege('authenticated', 'public.deck_categories', 'name', 'UPDATE')
+  and has_column_privilege('authenticated', 'public.deck_categories', 'position', 'UPDATE')
+  and not has_column_privilege('authenticated', 'public.deck_categories', 'deck_id', 'UPDATE')
   and has_table_privilege('authenticated', 'public.deck_categories', 'DELETE')
   and has_table_privilege('anon', 'public.deck_type_orders', 'SELECT')
   and not has_table_privilege('anon', 'public.deck_type_orders', 'INSERT'),
@@ -124,6 +127,27 @@ select lives_ok(
   $$insert into public.deck_categories (id, deck_id, name, position)
     values ('c1320000-0000-4000-8000-000000000003', 'c1310000-0000-4000-8000-000000000001', 'Card draw', 1001)$$,
   'owner can create a category');
+
+-- Tuple locks are not listed in pg_locks until another session waits, so
+-- the acquisition itself is the FOR UPDATE in the cap trigger. A second
+-- insert then waits on that transaction (Lock / transactionid), which is
+-- how Postgres reports a held row lock. FOR KEY SHARE from the foreign key
+-- would not block a second insert; FOR UPDATE does.
+select ok(
+  pg_get_functiondef('public.deck_categories_limit()'::regprocedure) ~ 'for update',
+  'inserting a category locks the parent deck row before the cap is counted');
+
+select lives_ok(
+  $$update public.deck_categories
+      set name = 'Card draw'
+    where id = 'c1320000-0000-4000-8000-000000000003'$$,
+  'the owner can still rename a category');
+
+select throws_ok(
+  $$update public.deck_categories
+      set deck_id = 'c1310000-0000-4000-8000-000000000003'
+    where id = 'c1320000-0000-4000-8000-000000000001'$$,
+  '42501', null, 'the owner cannot move a category onto another deck');
 
 select throws_ok(
   $$insert into public.deck_categories (deck_id, name, position)
@@ -335,6 +359,25 @@ select throws_ok(
   $$insert into public.deck_categories (deck_id, name, position)
     values ('c1310000-0000-4000-8000-000000000003', 'One more', 3000)$$,
   '23514', null, 'the 41st category is refused and the cards are untouched');
+
+select is(
+  (select count(*) from public.deck_categories
+    where deck_id = 'c1310000-0000-4000-8000-000000000003'),
+  40::bigint, 'the cap still holds at 40');
+
+-- The column grant already blocks API roles. The trigger is the backstop
+-- for a role that bypasses grants (the table owner).
+reset role;
+select throws_ok(
+  $$update public.deck_categories
+      set deck_id = 'c1310000-0000-4000-8000-000000000003'
+    where id = 'c1320000-0000-4000-8000-000000000001'$$,
+  '42501', null, 'a deck_id change is refused even when column grants do not apply');
+select is(
+  (select deck_id::text from public.deck_categories
+    where id = 'c1320000-0000-4000-8000-000000000001'),
+  'c1310000-0000-4000-8000-000000000001',
+  'the category stays on the deck it was inserted for');
 
 select * from finish();
 rollback;
