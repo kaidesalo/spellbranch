@@ -137,10 +137,12 @@ placements(deck_id, card_name, quantity) as (
     ('d0000000-0000-4000-8000-00000000c001'::uuid, 'Brainstorm', 4),
     ('d0000000-0000-4000-8000-00000000c001'::uuid, 'Island', 18)
 )
-insert into public.deck_cards (deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, oracle_text, quantity)
-select p.deck_id, c.scryfall_id, c.card_name, c.image_uri, nullif(c.mana_cost, ''), c.type_line, c.colors, c.oracle_text, p.quantity
+-- board is part of the unique key (014): the same printing may exist once
+-- per board. Seed cards are the deck, so they sit on main.
+insert into public.deck_cards (deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, oracle_text, quantity, board)
+select p.deck_id, c.scryfall_id, c.card_name, c.image_uri, nullif(c.mana_cost, ''), c.type_line, c.colors, c.oracle_text, p.quantity, 'main'
 from placements p join cards c using (card_name)
-on conflict (deck_id, scryfall_id) do nothing;
+on conflict (deck_id, scryfall_id, board) do nothing;
 
 insert into public.comments (deck_id, author_id, body) values
   ('d0000000-0000-4000-8000-00000000a001', '22222222-2222-4222-8222-222222222222', 'Snapcaster over Opt? See my branch.'),

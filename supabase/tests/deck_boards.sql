@@ -96,7 +96,9 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"c1400000-0000-4000-8000-000000000001","role":"authenticated"}';
 
 select is(
-  (select board from public.deck_cards where card_name = 'Opt'),
+  (select board from public.deck_cards
+    where deck_id = 'c1410000-0000-4000-8000-000000000001'
+      and scryfall_id = 'aaaaaaaa-0000-4000-8000-000000000001'),
   'main',
   'a card inserted without a board is main');
 
@@ -135,11 +137,11 @@ select throws_matching(
   'an off-color card is still refused on the mainboard');
 
 select lives_ok(
-  $$update public.deck_cards set quantity = 4 where card_name = 'Lightning Bolt' and board = 'side'$$,
+  $$update public.deck_cards set quantity = 4 where deck_id = 'c1410000-0000-4000-8000-000000000001' and card_name = 'Lightning Bolt' and board = 'side'$$,
   'raising a sideboard quantity is not color-checked');
 
 select throws_matching(
-  $$update public.deck_cards set board = 'main' where card_name = 'Lightning Bolt' and board = 'side'$$,
+  $$update public.deck_cards set board = 'main' where deck_id = 'c1410000-0000-4000-8000-000000000001' and card_name = 'Lightning Bolt' and board = 'side'$$,
   'deck colors',
   'moving an off-color card onto the mainboard is refused');
 
@@ -148,7 +150,7 @@ select lives_ok(
   'narrowing deck colors ignores the off-color sideboard');
 
 select lives_ok(
-  $$update public.deck_cards set board = 'maybe' where card_name = 'Opt' and board = 'main'$$,
+  $$update public.deck_cards set board = 'maybe' where deck_id = 'c1410000-0000-4000-8000-000000000001' and card_name = 'Opt' and board = 'main'$$,
   'an on-color mainboard card can move to the maybeboard');
 select is(
   (select board from public.deck_cards where card_name = 'Opt' and scryfall_id = 'aaaaaaaa-0000-4000-8000-000000000001' and board = 'maybe'),
