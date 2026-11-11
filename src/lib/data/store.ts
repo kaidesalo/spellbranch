@@ -6,6 +6,8 @@ import type {
   Comment,
   Deck,
   DeckCard,
+  DeckCategory,
+  DeckTypeOrder,
   FavoriteCard,
   Friendship,
   PublicProfile,
@@ -39,6 +41,13 @@ export interface DataStore {
   favorites: FavoriteCard[];
   decks: Deck[];
   deckCards: DeckCard[];
+  /**
+   * Owner-defined categories. Omitted on stores saved before categories
+   * existed; readers treat that as none, so old decks keep type groups.
+   */
+  deckCategories?: DeckCategory[];
+  /** Saved type-group positions. Omitted until the owner reorders. */
+  deckTypeOrders?: DeckTypeOrder[];
   comments: Comment[];
   sessions: Record<string, string>;
   /**
@@ -111,6 +120,8 @@ export async function readStore(): Promise<DataStore> {
     favorites: p.favorites ?? [],
     decks: p.decks ?? [],
     deckCards: p.deckCards ?? [],
+    deckCategories: p.deckCategories ?? [],
+    deckTypeOrders: p.deckTypeOrders ?? [],
     comments: p.comments ?? [],
     sessions: p.sessions ?? {},
   };

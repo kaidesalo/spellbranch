@@ -5,39 +5,50 @@ import Image from "next/image";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { groupCardsByType, totalCards } from "@/lib/card-types";
+import { groupDeckCards } from "@/lib/deck-categories";
+import { totalCards } from "@/lib/card-types";
 import { deckCountLabel } from "@/lib/commander";
 import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
 import { QuantityInput } from "@/components/decks/quantity-input";
+import { MoveCardSheet } from "@/components/decks/move-card-sheet";
 import { CardZoom } from "@/components/cards/card-zoom";
 import { ManaCost } from "@/components/cards/mana-symbols";
 import { zoomCardFromSaved } from "@/lib/card-zoom";
-import { updateCardQuantityAction } from "@/lib/actions/decks";
-import type { DeckCard } from "@/lib/types";
+import { moveCardToCategoryAction, updateCardQuantityAction } from "@/lib/actions/decks";
+import type { DeckCard, DeckCategory, DeckTypeOrder } from "@/lib/types";
+
+type ListChange =
+  | { type: "quantity"; id: string; quantity: number }
+  | { type: "category"; id: string; categoryId: string | null };
 
 export function DeckList({
   deckId,
   cards,
+  categories = [],
+  typeSectionOrders = [],
   canEdit,
   hasCommander = false,
 }: {
   deckId: string;
   cards: DeckCard[];
+  categories?: DeckCategory[];
+  typeSectionOrders?: DeckTypeOrder[];
   canEdit: boolean;
   /** Adds "1 commander +" to the count; the commander isn't in `cards`. */
   hasCommander?: boolean;
 }) {
-  // Quantity edits and removals show at once; if the server says no, the
-  // transition ends with the server's `cards` unchanged and the optimistic
-  // value rolls back on its own.
-  const [shownCards, applyQuantity] = useOptimistic(
-    cards,
-    (state, { id, quantity }: { id: string; quantity: number }) =>
-      quantity === 0
-        ? state.filter((c) => c.id !== id)
-        : state.map((c) => (c.id === id ? { ...c, quantity } : c)),
-  );
-  const groups = groupCardsByType(shownCards);
+  // Quantity edits, removals, and category moves show at once; if the server
+  // says no, the transition ends with the server's `cards` unchanged and the
+  // optimistic value rolls back on its own.
+  const [shownCards, applyChange] = useOptimistic(cards, (state, change: ListChange) => {
+    if (change.type === "quantity") {
+      return change.quantity === 0
+        ? state.filter((c) => c.id !== change.id)
+        : state.map((c) => (c.id === change.id ? { ...c, quantity: change.quantity } : c));
+    }
+    return state.map((c) => (c.id === change.id ? { ...c, categoryId: change.categoryId } : c));
+  });
+  const groups = groupDeckCards(shownCards, categories, typeSectionOrders);
   const [pending, startTransition] = useTransition();
 
   /**
@@ -47,7 +58,7 @@ export function DeckList({
    */
   function setQuantity(card: DeckCard, next: number) {
     startTransition(async () => {
-      applyQuantity({ id: card.id, quantity: next });
+      applyChange({ type: "quantity", id: card.id, quantity: next });
       let error: string | undefined;
       try {
         error = (await updateCardQuantityAction(deckId, card.id, next)).error;
@@ -59,7 +70,20 @@ export function DeckList({
     });
   }
 
-  if (shownCards.length === 0) {
+  function moveCard(card: DeckCard, categoryId: string | null) {
+    startTransition(async () => {
+      applyChange({ type: "category", id: card.id, categoryId });
+      let error: string | undefined;
+      try {
+        error = (await moveCardToCategoryAction(deckId, card.id, categoryId)).error;
+      } catch {
+        error = "Could not move card";
+      }
+      if (error) toast.error(error);
+    });
+  }
+
+  if (shownCards.length === 0 && categories.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
         <p className="font-medium">No cards yet</p>
@@ -77,14 +101,17 @@ export function DeckList({
         {deckCountLabel(totalCards(shownCards), hasCommander)} · {shownCards.length} unique
       </p>
       {groups.map((group) => (
-        <section key={group.type}>
-          <h3 className="mb-2 flex items-center justify-between label-caps text-primary">
-            <span>{group.type}</span>
+        <section key={group.key} data-kind={group.kind}>
+          <h3 className="mb-2 flex items-center justify-between gap-3 label-caps text-primary">
+            <span className="min-w-0 break-words">{group.label}</span>
             <span className="font-medium tabular-nums tracking-normal text-muted-foreground">
               {group.count}
             </span>
           </h3>
           <ul className="divide-y divide-border/70 rounded-xl border border-border/70 bg-background/50">
+            {group.cards.length === 0 && (
+              <li className="px-3 py-4 text-sm text-muted-foreground">No cards in this category yet.</li>
+            )}
             {group.cards.map((card) => (
               <li
                 key={card.id}
@@ -154,6 +181,12 @@ export function DeckList({
                     >
                       <Trash2 />
                     </Button>
+                    <MoveCardSheet
+                      card={card}
+                      categories={categories}
+                      pending={pending}
+                      onMove={(categoryId) => moveCard(card, categoryId)}
+                    />
                   </div>
                 ) : (
                   <span className="text-sm font-medium tabular-nums">{card.quantity}</span>

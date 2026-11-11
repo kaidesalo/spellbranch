@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { LIMITS } from "@/lib/data/limits";
+import { FALLBACK_TYPE_ORDER } from "@/lib/card-types";
+import { normalizeCategoryName } from "@/lib/deck-categories";
 import { colorsFromKey } from "@/lib/deck-colors";
 import { DECKLIST_MAX_CHARS } from "@/lib/decklist/parse";
 import { isUuid } from "@/lib/data/validation";
@@ -94,6 +96,27 @@ export const favoriteSchema = z.object({
  * numbers are capped at MAX_CARD_QUANTITY instead of refused, so a typed
  * "500" saves as 99; negatives, decimals, NaN and non-numbers are refused.
  */
+/** Trimmed, 1–40 code points, no control characters. */
+export const categoryNameSchema = z.string().transform((raw, ctx) => {
+  const parsed = normalizeCategoryName(raw);
+  if (!parsed.ok) {
+    ctx.addIssue({ code: "custom", message: parsed.error });
+    return z.NEVER;
+  }
+  return parsed.name;
+});
+
+/** A category id, or null to send the card back to its type group. */
+export const categoryAssignmentSchema = z.union([idSchema, z.null()]);
+
+/**
+ * Order keys: a category uuid, or `type:Creature` (and the other type groups).
+ * The repository checks that every category is listed exactly once.
+ */
+export const sectionOrderSchema = z
+  .array(z.string().max(80))
+  .max(LIMITS.deckCategories + FALLBACK_TYPE_ORDER.length);
+
 export const quantitySchema = z
   .number(QUANTITY_MESSAGE)
   .int(QUANTITY_MESSAGE)

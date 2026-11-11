@@ -77,6 +77,36 @@ export interface DeckCard {
   oracleText: string | null;
   quantity: number;
   createdAt: string;
+  /**
+   * Set when the owner has moved this card into a deck category. Null or
+   * missing: the card stays in the type group derived from its type line.
+   */
+  categoryId?: string | null;
+}
+
+/**
+ * A category the deck owner created. Type groups (Creature, Instant, …) are
+ * not rows: a card with no categoryId is shown in its derived type group.
+ */
+export interface DeckCategory {
+  id: string;
+  deckId: string;
+  name: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Where a derived type group sits after the owner has reordered the deck.
+ * Missing for a type: the historical type order, until the owner arranges
+ * the list (then new type groups follow the arranged ones).
+ */
+export interface DeckTypeOrder {
+  deckId: string;
+  /** Creature, Planeswalker, Instant, Sorcery, Artifact, Enchantment, Battle, Land, or Other. */
+  typeKey: string;
+  position: number;
 }
 
 /**
@@ -145,6 +175,10 @@ export interface SessionUser {
 export interface DeckWithMeta extends Deck {
   owner?: PublicProfile;
   cards?: DeckCard[];
+  /** Custom categories for this deck, in the owner's order. Empty when they have not made any. */
+  categories?: DeckCategory[];
+  /** Saved positions for type groups, after the owner reorders the list. */
+  typeSectionOrders?: DeckTypeOrder[];
   cardCount?: number;
   forkCount?: number;
   sourceDeck?: (Deck & { owner?: PublicProfile }) | null;

@@ -135,6 +135,36 @@ export interface Repository {
    */
   setCardQuantity(userId: string, deckId: string, cardId: string, quantity: number): Promise<void>;
   /**
+   * Owner only. `name` is already trimmed and within the category limits.
+   * The new category is empty and sorts after the type groups until the
+   * owner reorders. New cards are not assigned to it.
+   */
+  createCategory(userId: string, deckId: string, name: string): Promise<string>;
+  /** Owner only. Case-insensitive unique name per deck, excluding itself. */
+  renameCategory(userId: string, deckId: string, categoryId: string, name: string): Promise<void>;
+  /**
+   * Owner only. The category row goes away. Cards that were in it stay in
+   * the deck with no assignment, so they show in their type group again.
+   */
+  deleteCategory(userId: string, deckId: string, categoryId: string): Promise<void>;
+  /**
+   * Owner only. `categoryId` null puts the card back in its type group.
+   * A category from another deck is refused.
+   */
+  moveCardToCategory(
+    userId: string,
+    deckId: string,
+    cardId: string,
+    categoryId: string | null,
+  ): Promise<void>;
+  /**
+   * Owner only. `sections` is every custom category id plus any `type:Creature`
+   * (and the other derived type groups) in the order they should appear.
+   * Omitting a category is refused. Type groups that are left out go back to
+   * the default type order.
+   */
+  reorderSections(userId: string, deckId: string, sections: string[]): Promise<void>;
+  /**
    * Throws a DataError unless userId owns a Commander-format deck deckId.
    * A cheap pre-check, so setCommanderAction refuses before it spends a
    * Scryfall lookup (Cipher L1); setCommander checks again when it writes.

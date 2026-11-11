@@ -31,8 +31,16 @@ import {
 } from "@/lib/permissions";
 import { toPublicProfile } from "@/lib/data/profiles";
 import { defaultBranchName, defaultCopyName, requireForkName } from "@/lib/fork-name";
+import {
+  CATEGORY_MESSAGES,
+  categoryNameKey,
+  nextCategoryPosition,
+  normalizeCategoryName,
+  parseSectionOrder,
+} from "@/lib/deck-categories";
+import { LIMITS } from "@/lib/data/limits";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
-import type { CopyLink, Deck, DeckCard, DeckWithMeta, Friendship } from "@/lib/types";
+import type { CopyLink, Deck, DeckCard, DeckCategory, DeckWithMeta, Friendship } from "@/lib/types";
 
 /**
  * Local JSON store backend (.data/store.json, dev/demo only). The pre-PR-3
@@ -107,6 +115,10 @@ function decorateDeck(
     colors: deckColors(deck),
     owner: ownerProfile(store, deck.ownerId),
     cards,
+    categories: (store.deckCategories ?? [])
+      .filter((c) => c.deckId === deck.id)
+      .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)),
+    typeSectionOrders: (store.deckTypeOrders ?? []).filter((t) => t.deckId === deck.id),
     cardCount: cards.reduce((sum, c) => sum + c.quantity, 0),
     forkCount: branches.length,
     sourceDeck,
@@ -225,9 +237,30 @@ function rootForkBlock(
   return "ok";
 }
 
+function categoriesOf(store: DataStore, deckId: string): DeckCategory[] {
+  return (store.deckCategories ?? []).filter((c) => c.deckId === deckId);
+}
+
 function cloneCards(store: DataStore, fromId: string, toId: string, now: string) {
+  const idMap = new Map<string, string>();
+  store.deckCategories ??= [];
+  for (const category of categoriesOf(store, fromId)) {
+    const id = uuidv4();
+    idMap.set(category.id, id);
+    store.deckCategories.push({ ...category, id, deckId: toId, createdAt: now, updatedAt: now });
+  }
+  store.deckTypeOrders ??= [];
+  for (const row of store.deckTypeOrders.filter((t) => t.deckId === fromId)) {
+    store.deckTypeOrders.push({ ...row, deckId: toId });
+  }
   for (const card of store.deckCards.filter((c) => c.deckId === fromId)) {
-    const copy: DeckCard = { ...card, id: uuidv4(), deckId: toId, createdAt: now };
+    const copy: DeckCard = {
+      ...card,
+      id: uuidv4(),
+      deckId: toId,
+      categoryId: card.categoryId ? (idMap.get(card.categoryId) ?? null) : null,
+      createdAt: now,
+    };
     store.deckCards.push(copy);
   }
 }
@@ -401,6 +434,12 @@ export const localRepository: Repository = {
       editableDeck(store, deckId, userId, "You cannot delete this deck");
       store.decks = store.decks.filter((d) => d.id !== deckId);
       store.deckCards = store.deckCards.filter((c) => c.deckId !== deckId);
+      if (store.deckCategories) {
+        store.deckCategories = store.deckCategories.filter((c) => c.deckId !== deckId);
+      }
+      if (store.deckTypeOrders) {
+        store.deckTypeOrders = store.deckTypeOrders.filter((t) => t.deckId !== deckId);
+      }
       store.comments = store.comments.filter((c) => c.deckId !== deckId);
       for (const d of store.decks) {
         if (d.preferredBranchId === deckId) d.preferredBranchId = null;
@@ -451,6 +490,106 @@ export const localRepository: Repository = {
         card.quantity = quantity;
       }
       deck.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async createCategory(userId, deckId, name) {
+    const parsed = normalizeCategoryName(name);
+    if (!parsed.ok) throw new DataError(parsed.error);
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, CATEGORY_MESSAGES.denied);
+      const mine = categoriesOf(store, deckId);
+      if (mine.length >= LIMITS.deckCategories) throw new DataError(CATEGORY_MESSAGES.cap);
+      const key = categoryNameKey(parsed.name);
+      if (mine.some((c) => categoryNameKey(c.name) === key)) {
+        throw new DataError(CATEGORY_MESSAGES.duplicate);
+      }
+      store.deckCategories ??= [];
+      store.deckCategories.push({
+        id,
+        deckId,
+        name: parsed.name,
+        position: nextCategoryPosition(mine),
+        createdAt: now,
+        updatedAt: now,
+      });
+      deck.updatedAt = now;
+    });
+    return id;
+  },
+
+  async renameCategory(userId, deckId, categoryId, name) {
+    const parsed = normalizeCategoryName(name);
+    if (!parsed.ok) throw new DataError(parsed.error);
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, CATEGORY_MESSAGES.denied);
+      const mine = categoriesOf(store, deckId);
+      const category = mine.find((c) => c.id === categoryId);
+      if (!category) throw new DataError(CATEGORY_MESSAGES.notFound);
+      const key = categoryNameKey(parsed.name);
+      if (mine.some((c) => c.id !== categoryId && categoryNameKey(c.name) === key)) {
+        throw new DataError(CATEGORY_MESSAGES.duplicate);
+      }
+      category.name = parsed.name;
+      category.updatedAt = new Date().toISOString();
+      deck.updatedAt = category.updatedAt;
+    });
+  },
+
+  async deleteCategory(userId, deckId, categoryId) {
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, CATEGORY_MESSAGES.denied);
+      const mine = categoriesOf(store, deckId);
+      if (!mine.some((c) => c.id === categoryId)) throw new DataError(CATEGORY_MESSAGES.notFound);
+      for (const card of store.deckCards) {
+        if (card.deckId === deckId && card.categoryId === categoryId) card.categoryId = null;
+      }
+      store.deckCategories = (store.deckCategories ?? []).filter((c) => c.id !== categoryId);
+      deck.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async moveCardToCategory(userId, deckId, cardId, categoryId) {
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, CATEGORY_MESSAGES.denied);
+      const card = store.deckCards.find((c) => c.id === cardId && c.deckId === deckId);
+      if (!card) throw new DataError(CATEGORY_MESSAGES.cardMissing);
+      if (categoryId !== null) {
+        if (!categoriesOf(store, deckId).some((c) => c.id === categoryId)) {
+          throw new DataError(CATEGORY_MESSAGES.notFound);
+        }
+      }
+      card.categoryId = categoryId;
+      deck.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async reorderSections(userId, deckId, sections) {
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, CATEGORY_MESSAGES.denied);
+      const mine = categoriesOf(store, deckId);
+      const parsed = parseSectionOrder(
+        mine.map((c) => c.id),
+        sections,
+      );
+      if (!parsed.ok) throw new DataError(parsed.error);
+      const now = new Date().toISOString();
+      parsed.items.forEach((item, index) => {
+        if (item.kind !== "category") return;
+        const category = mine.find((c) => c.id === item.id);
+        if (!category) return;
+        category.position = index;
+        category.updatedAt = now;
+      });
+      const kept = (store.deckTypeOrders ?? []).filter((t) => t.deckId !== deckId);
+      for (let index = 0; index < parsed.items.length; index += 1) {
+        const item = parsed.items[index]!;
+        if (item.kind === "type") kept.push({ deckId, typeKey: item.typeKey, position: index });
+      }
+      store.deckTypeOrders = kept;
+      deck.updatedAt = now;
     });
   },
 
