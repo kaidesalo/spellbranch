@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cinzel, Geist_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/site-header";
+import { SiteFooter, footerRevision } from "@/components/layout/site-footer";
 import { getSessionUser } from "@/lib/auth/session";
 import "./globals.css";
 
@@ -44,10 +45,12 @@ export default async function RootLayout({
       lang="en"
       className={`${inter.variable} ${cinzel.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full min-w-0 flex-col">
+      <body className="flex min-h-dvh min-w-0 flex-col">
         <SiteHeader user={user} />
-        {/* clip is a backstop. The deck page itself has to fit the viewport. */}
-        <main className="min-w-0 flex-1 overflow-x-clip">{children}</main>
+        {/* clip is a backstop. The deck page itself has to fit the viewport.
+            flex-1 lets a short page fill the screen so the footer sits at the bottom. */}
+        <main className="flex min-w-0 flex-1 flex-col overflow-x-clip">{children}</main>
+        <SiteFooter revision={footerRevision()} />
         <Toaster richColors position="top-center" />
       </body>
     </html>

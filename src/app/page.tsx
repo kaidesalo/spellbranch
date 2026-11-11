@@ -9,13 +9,13 @@ export default async function HomePage() {
   if (user) redirect("/dashboard");
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative flex flex-1 flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-0">
         <div className="hero-glow absolute -left-24 top-10 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
         <div className="hero-glow absolute -right-16 top-32 h-80 w-80 rounded-full bg-accent/25 blur-3xl" />
       </div>
 
-      <section className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="relative mx-auto grid w-full max-w-7xl flex-1 items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="@container min-w-0 animate-rise">
           <p className="hero-wordmark font-display max-w-full font-semibold text-primary">
             Spellbranch

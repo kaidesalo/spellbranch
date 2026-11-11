@@ -165,6 +165,7 @@ test("deck page does not scroll horizontally on a phone", async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`/decks/${DECK}`);
     await expect(page.getByRole("heading", { name: "Live and Burn" })).toBeVisible();
+    await expect(page.getByTestId("site-footer")).toContainText("beta testing");
     await expect(page.getByTestId("deck-header")).toContainText("1 commander + 2 cards");
     await expect(page.getByTestId("board-tab-main")).toContainText("2 cards");
     await expect(page.getByTestId("board-tab-side")).toContainText("1 card");
@@ -226,4 +227,44 @@ test("webkit screenshots of the fitted deck page", async ({ page }) => {
   // The dev overlay ("N issues") sits on top of the sheet in next dev.
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.getByTestId("move-board-sheet").screenshot({ path: `${dir}/webkit-390-move-board.png` });
+});
+
+test("footer stays in the viewport on short pages and does not overflow", async ({ browser, page }) => {
+  const pages = ["/my-cards", "/browse", `/decks/${DECK}`];
+  for (const width of [320, 375, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const path of pages) {
+      await page.goto(path);
+      await expect(page.getByTestId("site-footer")).toContainText("vulpibyte.dev");
+      const report = await overflowReport(page);
+      expect(report.scroll, `${path} ${width}px via ${report.past.join(" | ")}`).toBe(report.client);
+    }
+  }
+
+  const context = await browser.newContext();
+  const loggedOut = await context.newPage();
+  await loggedOut.setViewportSize({ width: 390, height: 844 });
+  await loggedOut.goto("/login");
+  await expect(loggedOut.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  const footer = loggedOut.getByTestId("site-footer");
+  await expect(footer).toContainText("beta testing");
+  const box = await footer.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeGreaterThan(844 - 4);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844 + 1);
+  const report = await overflowReport(loggedOut);
+  expect(report.scroll, `login via ${report.past.join(" | ")}`).toBe(report.client);
+
+  await loggedOut.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  const dir = existsSync("/opt/cursor/artifacts") ? "/opt/cursor/artifacts" : "test-results/footer";
+  mkdirSync(dir, { recursive: true });
+  await footer.screenshot({ path: `${dir}/webkit-390-footer.png` });
+  await loggedOut.setViewportSize({ width: 1280, height: 800 });
+  await loggedOut.goto("/login");
+  const wide = await loggedOut.getByTestId("site-footer").boundingBox();
+  expect(wide).not.toBeNull();
+  expect(wide!.y + wide!.height).toBeLessThanOrEqual(800 + 1);
+  await loggedOut.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await loggedOut.getByTestId("site-footer").screenshot({ path: `${dir}/desktop-1280-footer.png` });
+  await context.close();
 });
