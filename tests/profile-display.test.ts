@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { profileInitials, safeAvatarUrl } from "@/lib/profile-display";
+import { AVATAR_REFERRER_POLICY, profileInitials, safeAvatarUrl } from "@/lib/profile-display";
 
 describe("profileInitials", () => {
   it("uses the first and last word of a display name", () => {
@@ -12,6 +12,12 @@ describe("profileInitials", () => {
 
   it("falls back to the username when the display name is blank", () => {
     expect(profileInitials("   ", "bob_u")).toBe("BO");
+  });
+});
+
+describe("avatar referrer policy", () => {
+  it("does not send the profile URL to the image host", () => {
+    expect(AVATAR_REFERRER_POLICY).toBe("no-referrer");
   });
 });
 

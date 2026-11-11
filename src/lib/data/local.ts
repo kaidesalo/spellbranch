@@ -711,8 +711,12 @@ export const localRepository: Repository = {
     return {
       profile: {
         ...toPublicProfile(user),
-        // Logged-out visitors match anon: no grant on profiles.bio.
-        bio: viewerId ? (user.bio ?? "") : null,
+        // Owner and accepted friends only (012 / profile_bio). Pending,
+        // declined, public-deck viewers, and logged-out visitors get null.
+        bio:
+          viewerId && (viewerId === user.id || areFriends(store.friendships, viewerId, user.id))
+            ? (user.bio ?? "")
+            : null,
       },
       decks,
     };

@@ -143,16 +143,18 @@ describe("getUserProfile visibility", () => {
 
   it("lets another friend of the forker see public and friends-only decks, not the private fork", async () => {
     const view = await repo.getUserProfile(CAROL, "bob_u");
+    expect(view?.profile.bio).toBe("bob secret bio");
     expect(names(view!.decks)).toEqual(["Bob friends", "Bob public"]);
     expect(JSON.stringify(view)).not.toContain("BOB FORK NOTES");
     expect(JSON.stringify(view)).not.toContain("BOB SECRET NOTES");
   });
 
-  it("lets a signed-in non-friend see only public decks, and the bio because the profile row is visible", async () => {
+  it("lets a signed-in non-friend see only public decks, and not the bio", async () => {
     const view = await repo.getUserProfile(DAVE, "bob_u");
-    expect(view?.profile.bio).toBe("bob secret bio");
+    expect(view?.profile.bio).toBeNull();
     expect(names(view!.decks)).toEqual(["Bob public"]);
     const json = JSON.stringify(view);
+    expect(json).not.toContain("bob secret bio");
     expect(json).not.toContain("BOB FRIENDS NOTES");
     expect(json).not.toContain("BOB SECRET NOTES");
     expect(json).not.toContain("BOB FORK NOTES");
@@ -172,13 +174,24 @@ describe("getUserProfile visibility", () => {
     expect(await repo.getUserProfile(null, "frank_u")).toBeNull();
   });
 
-  it("lets a pending friend read the profile and bio, but not friends-only decks", async () => {
+  it("lets a pending friend read the profile, but not the bio or friends-only decks", async () => {
     db.friendships.push(friends(ALICE, FRANK, "pending"));
     const view = await repo.getUserProfile(ALICE, "frank_u");
-    expect(view?.profile.bio).toBe("frank bio");
+    expect(view?.profile.username).toBe("frank_u");
+    expect(view?.profile.bio).toBeNull();
     expect(view?.decks).toEqual([]);
-    expect(JSON.stringify(view)).not.toContain("FRANK FRIENDS NOTES");
-    expect(JSON.stringify(view)).not.toContain("FRANK SECRET NOTES");
+    const json = JSON.stringify(view);
+    expect(json).not.toContain("frank bio");
+    expect(json).not.toContain("FRANK FRIENDS NOTES");
+    expect(json).not.toContain("FRANK SECRET NOTES");
+  });
+
+  it("lets a declined friend read the profile, but not the bio", async () => {
+    db.friendships.push(friends(ALICE, FRANK, "declined"));
+    const view = await repo.getUserProfile(ALICE, "frank_u");
+    expect(view?.profile.username).toBe("frank_u");
+    expect(view?.profile.bio).toBeNull();
+    expect(JSON.stringify(view)).not.toContain("frank bio");
   });
 
   it("shows the owner every deck they have, including private", async () => {
@@ -188,10 +201,11 @@ describe("getUserProfile visibility", () => {
     expect(names(view!.decks)).toContain("Alice public");
   });
 
-  it("lets someone who can see a comment read that author's profile", async () => {
+  it("lets someone who can see a comment read that author's profile, without the bio", async () => {
     const signedIn = await repo.getUserProfile(DAVE, "gina_u");
-    expect(signedIn?.profile.bio).toBe("gina bio");
+    expect(signedIn?.profile.bio).toBeNull();
     expect(signedIn?.decks).toEqual([]);
+    expect(JSON.stringify(signedIn)).not.toContain("gina bio");
 
     const anon = await repo.getUserProfile(null, "gina_u");
     expect(anon?.profile.bio).toBeNull();

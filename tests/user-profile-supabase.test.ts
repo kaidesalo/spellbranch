@@ -37,8 +37,8 @@ function profilePage(extra?: (c: Call) => ReturnType<typeof ok> | undefined) {
   return repoWith((c) => {
     const custom = extra?.(c);
     if (custom) return custom;
+    if (c.fn === "profile_bio") return ok("hello bio");
     if (isTable(c, "public_profiles") && c.single) return ok(bobProfile);
-    if (isTable(c, "profiles")) return ok({ bio: "hello bio" });
     if (isTable(c, "decks") && eqValue(c, "owner_id") === BOB) return ok([deckRow]);
     if (isTable(c, "deck_cards")) return ok([{ deck_id: DECK, quantity: 3 }]);
     if (isTable(c, "decks")) return ok([]);
@@ -78,12 +78,9 @@ describe("supabase getUserProfile", () => {
     // "_" stays literal. ilike would treat it as a wildcard.
     expect(lookup.filters).toEqual([["filter", "username", "imatch", "^Bob_U$"]]);
 
-    const bio = calls.find((c) => c.table === "profiles");
-    expect(bio).toMatchObject({
-      columns: "bio",
-      single: "maybeSingle",
-      filters: [["eq", "id", BOB]],
-    });
+    const bio = calls.find((c) => c.fn === "profile_bio");
+    expect(bio).toMatchObject({ fn: "profile_bio", args: { user_id: BOB } });
+    expect(calls.some((c) => c.table === "profiles")).toBe(false);
 
     const list = calls.find((c) => isTable(c, "decks") && eqValue(c, "owner_id") === BOB);
     expect(list?.columns).toBe(DECK_COLS);
@@ -92,15 +89,15 @@ describe("supabase getUserProfile", () => {
     // No visibility predicate: RLS / can_view_deck is the whole rule.
     expect(list?.filters).toEqual([["eq", "owner_id", BOB]]);
     expect(list?.order).toEqual(["updated_at", { ascending: false }]);
-    expect(calls.some((c) => c.op === "rpc")).toBe(false);
+    expect(calls.filter((c) => c.op === "rpc").map((c) => c.fn)).toEqual(["profile_bio"]);
   });
 
-  it("does not read profiles.bio for a logged-out viewer", async () => {
+  it("does not read a bio for a logged-out viewer", async () => {
     const { repo, calls } = profilePage();
     const view = await repo.getUserProfile(null, "bob_u");
     expect(view?.profile.bio).toBeNull();
     expect(view?.decks).toHaveLength(1);
-    expect(calls.some((c) => c.table === "profiles")).toBe(false);
+    expect(calls.some((c) => c.table === "profiles" || c.fn === "profile_bio")).toBe(false);
   });
 
   it("does not list decks when public_profiles returns nothing", async () => {
@@ -119,19 +116,19 @@ describe("supabase getUserProfile", () => {
   });
 
   it("hides bio on 42501 and still returns the profile and decks", async () => {
-    const { repo } = profilePage((c) => (isTable(c, "profiles") ? pgError("42501") : undefined));
+    const { repo } = profilePage((c) => (c.fn === "profile_bio" ? pgError("42501") : undefined));
     const view = await repo.getUserProfile(ME, "bob_u");
     expect(view?.profile.bio).toBeNull();
     expect(view?.profile.username).toBe("bob_u");
     expect(view?.decks).toHaveLength(1);
   });
 
-  it("treats a missing bio row as hidden, and other profile errors as failures before decks load", async () => {
-    const missing = profilePage((c) => (isTable(c, "profiles") ? ok(null) : undefined));
+  it("treats a null bio as hidden, and other profile_bio errors as failures before decks load", async () => {
+    const missing = profilePage((c) => (c.fn === "profile_bio" ? ok(null) : undefined));
     expect((await missing.repo.getUserProfile(ME, "bob_u"))?.profile.bio).toBeNull();
 
-    const { repo, calls } = profilePage((c) => (isTable(c, "profiles") ? pgError("XX000") : undefined));
-    await expect(repo.getUserProfile(ME, "bob_u")).rejects.toThrow(/profiles bio/);
+    const { repo, calls } = profilePage((c) => (c.fn === "profile_bio" ? pgError("XX000") : undefined));
+    await expect(repo.getUserProfile(ME, "bob_u")).rejects.toThrow(/profile_bio/);
     expect(calls.some((c) => c.table === "decks")).toBe(false);
   });
 });

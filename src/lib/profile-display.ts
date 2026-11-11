@@ -22,6 +22,12 @@ export function profileInitials(displayName: string, username: string): string {
   return letters || "?";
 }
 
+/**
+ * The profile image must not send the page URL to the image host.
+ * CSP img-src is unchanged: this only sets the request's Referer policy.
+ */
+export const AVATAR_REFERRER_POLICY = "no-referrer" as const;
+
 /** https only, no embedded credentials. Anything else is treated as no avatar. */
 export function safeAvatarUrl(url: string | null | undefined): string | null {
   if (!url) return null;

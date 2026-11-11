@@ -1154,17 +1154,24 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
 
     async getOwnProfile(userId) {
       const client = await getClient();
+      // bio is not selectable (012). profile_bio() returns it for the owner.
       const row = check(
         "profiles own",
         await client
           .from("profiles")
-          .select("id, username, display_name, bio")
+          .select("id, username, display_name")
           .eq("id", userId)
           .maybeSingle(),
-      ) as { id: string; username: string; display_name: string; bio: string | null } | null;
-      return row
-        ? { id: row.id, username: row.username, displayName: row.display_name, bio: row.bio ?? "" }
-        : null;
+      ) as { id: string; username: string; display_name: string } | null;
+      if (!row) return null;
+      const bioRes = await client.rpc("profile_bio", { user_id: userId });
+      if (bioRes.error) throw new SupabaseDataError("profile_bio", bioRes.error.code);
+      return {
+        id: row.id,
+        username: row.username,
+        displayName: row.display_name,
+        bio: typeof bioRes.data === "string" ? bioRes.data : "",
+      };
     },
 
     async getUserProfile(viewerId, username) {
@@ -1187,19 +1194,18 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       ) as ProfileRow | null;
       if (!row) return null;
 
-      // Bio is not a public_profiles column. Anon has no grant on it (42501).
-      // Signed-in viewers already allowed to read this row may read the one
-      // column. The id comes from the RLS-filtered lookup above; this query
-      // is still the caller's JWT, not a service role.
+      // Bio is friends-only (012): profile_bio() returns text for the owner
+      // and accepted friends, and null otherwise. Logged-out viewers are not
+      // offered the call. 42501 (anon, or execute revoked) hides the bio.
       let bio: string | null = null;
       if (viewerId) {
-        const bioRes = await client.from("profiles").select("bio").eq("id", row.id).maybeSingle();
+        const bioRes = await client.rpc("profile_bio", { user_id: row.id });
         if (bioRes.error) {
           if (bioRes.error.code !== "42501") {
-            throw new SupabaseDataError("profiles bio", bioRes.error.code);
+            throw new SupabaseDataError("profile_bio", bioRes.error.code);
           }
-        } else if (bioRes.data) {
-          bio = (bioRes.data as { bio: string | null }).bio ?? "";
+        } else if (typeof bioRes.data === "string") {
+          bio = bioRes.data;
         }
       }
 

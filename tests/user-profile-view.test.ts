@@ -96,6 +96,7 @@ describe("UserProfile", () => {
     expect(document.body.textContent).not.toContain("No bio yet");
     const img = document.querySelector("img");
     expect(img?.getAttribute("src")).toBe("https://cdn.example/bob.png");
+    expect(img?.getAttribute("referrerpolicy")).toBe("no-referrer");
     expect(screen.getByText("No decks to show.")).toBeTruthy();
   });
 

@@ -704,12 +704,22 @@ describe("supabase adapter: friends (P2)", () => {
 });
 
 describe("supabase adapter: own profile", () => {
-  it("reads only the caller's own row", async () => {
-    const { repo, calls } = repoWith(() =>
-      ok({ id: ME, username: "me_u_1a2b", display_name: "Me", bio: null }),
+  it("reads the caller's row without the bio column, then profile_bio()", async () => {
+    const { repo, calls } = repoWith((c) =>
+      c.fn === "profile_bio" ? ok("own bio") : ok({ id: ME, username: "me_u_1a2b", display_name: "Me" }),
     );
-    expect(await repo.getOwnProfile(ME)).toEqual({ id: ME, username: "me_u_1a2b", displayName: "Me", bio: "" });
-    expect(calls[0]).toMatchObject({ table: "profiles", filters: [["eq", "id", ME]] });
-    expect(calls[0].columns).not.toMatch(/email/);
+    expect(await repo.getOwnProfile(ME)).toEqual({
+      id: ME,
+      username: "me_u_1a2b",
+      displayName: "Me",
+      bio: "own bio",
+    });
+    expect(calls[0]).toMatchObject({
+      table: "profiles",
+      columns: "id, username, display_name",
+      filters: [["eq", "id", ME]],
+    });
+    expect(calls[0].columns).not.toMatch(/bio|email/);
+    expect(calls[1]).toMatchObject({ fn: "profile_bio", args: { user_id: ME } });
   });
 });

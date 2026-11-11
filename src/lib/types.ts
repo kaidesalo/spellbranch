@@ -25,9 +25,9 @@ export interface PublicProfile {
 }
 
 /**
- * A profile page (`/u/[username]`). `bio` is null when this viewer cannot
- * read `profiles.bio` (logged out: anon has no grant on that column). A
- * string, possibly empty, when they can. Still no email.
+ * A profile page (`/u/[username]`). `bio` is null unless this viewer is the
+ * owner or an accepted friend (profile_bio). A string, possibly empty, when
+ * they are. Still no email.
  */
 export interface VisibleProfile extends PublicProfile {
   bio: string | null;

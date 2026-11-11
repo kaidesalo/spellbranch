@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { DeckWithMeta, VisibleProfile } from "@/lib/types";
-import { profileInitials, safeAvatarUrl } from "@/lib/profile-display";
+import { AVATAR_REFERRER_POLICY, profileInitials, safeAvatarUrl } from "@/lib/profile-display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DeckCardSummary } from "@/components/decks/deck-card-summary";
@@ -21,7 +21,14 @@ export function UserProfile({
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <header className="flex items-start gap-4 sm:gap-5">
         <Avatar data-testid="profile-avatar" className="size-16 sm:size-20">
-          {avatarUrl ? <AvatarImage src={avatarUrl} alt="" keepMounted /> : null}
+          {avatarUrl ? (
+            <AvatarImage
+              src={avatarUrl}
+              alt=""
+              keepMounted
+              referrerPolicy={AVATAR_REFERRER_POLICY}
+            />
+          ) : null}
           <AvatarFallback className="bg-secondary text-base font-medium text-primary sm:text-lg">
             {initials}
           </AvatarFallback>
