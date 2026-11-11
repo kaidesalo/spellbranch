@@ -24,6 +24,15 @@ export interface PublicProfile {
   avatarUrl: string | null;
 }
 
+/**
+ * A profile page (`/u/[username]`). `bio` is null when this viewer cannot
+ * read `profiles.bio` (logged out: anon has no grant on that column). A
+ * string, possibly empty, when they can. Still no email.
+ */
+export interface VisibleProfile extends PublicProfile {
+  bio: string | null;
+}
+
 /** The signed-in user's own editable profile (profile page). */
 export interface OwnProfile {
   id: string;

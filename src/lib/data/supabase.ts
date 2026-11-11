@@ -74,7 +74,8 @@ type PgError = { code?: string; message?: string; hint?: string } | null;
 // deck_cards.color_identity from 008: apply them before deploying this
 // version (PostgREST rejects a select of unknown columns).
 // (One string literal: supabase-js types the result from it.)
-const DECK_COLS =
+/** Every deck SELECT. Explicit columns only: never `*`, never copied_from_id. */
+export const DECK_COLS =
   "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, colors, created_at, updated_at";
 const CARD_COLS =
   "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, created_at";
@@ -1164,6 +1165,61 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       return row
         ? { id: row.id, username: row.username, displayName: row.display_name, bio: row.bio ?? "" }
         : null;
+    },
+
+    async getUserProfile(viewerId, username) {
+      const q = username.trim();
+      // Same format as find_profile(). Invalid input never becomes a filter.
+      if (!USERNAME_RE.test(q)) return null;
+      const client = await getClient();
+      // Case-insensitive exact match. ilike is wrong here: "_" is a LIKE
+      // wildcard and usernames may contain it. imatch is ~*, and the pattern
+      // is anchored. public_profiles is security invoker, so RLS applies.
+      // Do not call find_profile(): that function is security definer and
+      // returns a row even when this caller's RLS would hide the profile.
+      const row = check(
+        "public_profiles username",
+        await client
+          .from("public_profiles")
+          .select(PROFILE_COLS)
+          .filter("username", "imatch", `^${q}$`)
+          .maybeSingle(),
+      ) as ProfileRow | null;
+      if (!row) return null;
+
+      // Bio is not a public_profiles column. Anon has no grant on it (42501).
+      // Signed-in viewers already allowed to read this row may read the one
+      // column. The id comes from the RLS-filtered lookup above; this query
+      // is still the caller's JWT, not a service role.
+      let bio: string | null = null;
+      if (viewerId) {
+        const bioRes = await client.from("profiles").select("bio").eq("id", row.id).maybeSingle();
+        if (bioRes.error) {
+          if (bioRes.error.code !== "42501") {
+            throw new SupabaseDataError("profiles bio", bioRes.error.code);
+          }
+        } else if (bioRes.data) {
+          bio = (bioRes.data as { bio: string | null }).bio ?? "";
+        }
+      }
+
+      // No visibility predicate here. can_view_deck (RLS) decides: friends
+      // see public and friends-only decks, and a private fork of a deck they
+      // own (009); everyone else sees public decks; the owner sees all of
+      // theirs. An app-side "not private" filter would hide that 009 case.
+      const deckRows = check(
+        "profile decks",
+        await client
+          .from("decks")
+          .select(DECK_COLS)
+          .eq("owner_id", row.id)
+          .order("updated_at", { ascending: false }),
+      ) as DeckRow[] | null;
+      const decks = await decorate(client, (deckRows ?? []).map(toDeck), false);
+      return {
+        profile: { ...toProfile(row), bio },
+        decks: decks.sort(byUpdatedDesc),
+      };
     },
   };
 }
