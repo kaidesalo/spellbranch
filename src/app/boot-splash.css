@@ -1,8 +1,8 @@
 /* First-load splash. Timings live in boot-splash-timing.ts.
    The scene is a small gold-edged card on a wood table. The mark is the
-   370×449 crop of public/spellbranch-logo.png. Color is masked to that
-   ink: the three tips are green, cream, and red, and those colors grow
-   down the branches to a yellow bottom stem. */
+   370×449 crop of public/spellbranch-logo.png. The three tips are colored
+   and that color grows down the branches, then the paint leaves. A single
+   gold dot stays at the bottom stem. */
 
 .boot-splash {
   position: fixed;
@@ -141,6 +141,29 @@
   mask-position: left top;
   -webkit-mask-size: auto 100%;
   mask-size: auto 100%;
+  animation-name: boot-splash-vanish;
+  animation-duration: var(--vanish, 140ms);
+  animation-delay: var(--vanish-delay, 1440ms);
+  animation-timing-function: ease;
+  animation-fill-mode: forwards;
+}
+
+.boot-splash-dot-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.boot-splash-dot {
+  opacity: 0;
+  animation-name: boot-splash-dot-in;
+  animation-duration: var(--vanish, 140ms);
+  animation-delay: var(--vanish-delay, 1440ms);
+  animation-timing-function: ease;
+  animation-fill-mode: forwards;
 }
 
 .boot-splash-flow {
@@ -155,15 +178,6 @@
   animation-delay: var(--delay, 0ms);
   animation-timing-function: linear;
   animation-fill-mode: both;
-}
-
-.boot-splash-stem {
-  opacity: 0;
-  animation-name: boot-splash-stem;
-  animation-duration: var(--stem-in, 340ms);
-  animation-delay: var(--stem-delay, 1100ms);
-  animation-timing-function: ease;
-  animation-fill-mode: forwards;
 }
 
 .boot-splash-sr {
@@ -187,7 +201,13 @@
   }
 }
 
-@keyframes boot-splash-stem {
+@keyframes boot-splash-vanish {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes boot-splash-dot-in {
   to {
     opacity: 1;
   }
@@ -212,11 +232,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .boot-splash-flow {
+  .boot-splash-ink {
     display: none;
   }
 
-  .boot-splash-stem {
+  .boot-splash-dot {
     animation: none;
     opacity: 1;
   }
@@ -228,11 +248,11 @@
   }
 }
 
-.boot-splash[data-motion="reduced"] .boot-splash-flow {
+.boot-splash[data-motion="reduced"] .boot-splash-ink {
   display: none;
 }
 
-.boot-splash[data-motion="reduced"] .boot-splash-stem {
+.boot-splash[data-motion="reduced"] .boot-splash-dot {
   animation: none;
   opacity: 1;
 }

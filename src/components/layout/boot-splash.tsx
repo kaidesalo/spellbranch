@@ -3,15 +3,16 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import Image from "next/image";
 import {
+  SPLASH_ARRIVE_MS,
+  SPLASH_DOT_COLOR,
+  SPLASH_DOT_R,
   SPLASH_FADE_MS,
   SPLASH_FLOWS,
-  SPLASH_STEM_COLOR,
-  SPLASH_STEM_IN_DELAY_MS,
-  SPLASH_STEM_IN_MS,
   SPLASH_STEM_PX,
   SPLASH_TIMEOUT_MS,
   SPLASH_TIPS,
   SPLASH_TRAVEL_MS,
+  SPLASH_VANISH_MS,
   isBootSplashDismissed,
   markBootSplashDismissed,
   splashDecision,
@@ -158,8 +159,8 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
           "--splash-timeout": `${SPLASH_TIMEOUT_MS}ms`,
           "--splash-fade": `${SPLASH_FADE_MS}ms`,
           "--splash-travel": `${SPLASH_TRAVEL_MS}ms`,
-          "--stem-delay": `${SPLASH_STEM_IN_DELAY_MS}ms`,
-          "--stem-in": `${SPLASH_STEM_IN_MS}ms`,
+          "--vanish-delay": `${SPLASH_ARRIVE_MS}ms`,
+          "--vanish": `${SPLASH_VANISH_MS}ms`,
         } as React.CSSProperties
       }
     >
@@ -206,13 +207,17 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
                     fill={tip.color}
                   />
                 ))}
+              </svg>
+              <svg className="boot-splash-dot-layer" viewBox="0 0 370 449" aria-hidden>
                 <circle
-                  data-stem="bottom"
-                  className="boot-splash-stem"
+                  data-dot="bottom"
+                  className="boot-splash-dot"
                   cx={SPLASH_STEM_PX.x}
                   cy={SPLASH_STEM_PX.y}
-                  r={34}
-                  fill={SPLASH_STEM_COLOR}
+                  r={SPLASH_DOT_R}
+                  fill={SPLASH_DOT_COLOR}
+                  stroke="#A87432"
+                  strokeWidth={2.5}
                 />
               </svg>
             </div>

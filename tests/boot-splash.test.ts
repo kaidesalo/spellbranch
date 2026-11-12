@@ -7,6 +7,9 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BootReady, BootSplashGate } from "@/components/layout/boot-splash";
 import {
+  SPLASH_ARRIVE_MS,
+  SPLASH_DOT_COLOR,
+  SPLASH_DOT_R,
   SPLASH_FADE_MS,
   SPLASH_FLOWS,
   SPLASH_HOLD_MS,
@@ -16,13 +19,11 @@ import {
   SPLASH_MIN_MS,
   SPLASH_REDUCED_MIN_MS,
   SPLASH_START_SCRIPT,
-  SPLASH_STEM_COLOR,
-  SPLASH_STEM_IN_DELAY_MS,
-  SPLASH_STEM_IN_MS,
   SPLASH_STEM_PX,
   SPLASH_TIMEOUT_MS,
   SPLASH_TIPS,
   SPLASH_TRAVEL_MS,
+  SPLASH_VANISH_MS,
   resetBootSplashForTests,
   splashDecision,
   splashMinMs,
@@ -56,7 +57,8 @@ describe("splash timing", () => {
   it("keeps the overlay up until the animation can finish, then the route, then the cap", () => {
     expect(SPLASH_MIN_MS).toBe(SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS + SPLASH_HOLD_MS);
     expect(Math.max(...SPLASH_FLOWS.map((flow) => flow.delayMs))).toBe(SPLASH_LAST_DELAY_MS);
-    expect(SPLASH_STEM_IN_DELAY_MS + SPLASH_STEM_IN_MS).toBe(SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS);
+    expect(SPLASH_ARRIVE_MS).toBe(SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS);
+    expect(SPLASH_VANISH_MS).toBeLessThan(SPLASH_HOLD_MS);
     expect(splashMinMs(false)).toBe(SPLASH_MIN_MS);
     expect(splashMinMs(true)).toBe(SPLASH_REDUCED_MIN_MS);
 
@@ -95,7 +97,7 @@ describe("splash timing", () => {
     ).toBe("wait");
   });
 
-  it("colors the three logo tips and sends them down to the yellow stem", () => {
+  it("sends the three tip colors down to the stem, then leaves a gold dot", () => {
     expect(SPLASH_LOGO_PX).toEqual({ width: 1958, height: 449 });
     expect(SPLASH_MARK_CROP_PX.width).toBeGreaterThan(342);
     expect(SPLASH_MARK_CROP_PX.width).toBeLessThan(399);
@@ -105,10 +107,11 @@ describe("splash timing", () => {
     expect(SPLASH_TIPS.map((tip) => tip.color)).toEqual(["#F7F3E3", "#2BD67B", "#FF5A4F"]);
     expect(SPLASH_FLOWS.map((flow) => flow.id)).toEqual(["top", "left", "right"]);
     expect(SPLASH_STEM_PX.y).toBeGreaterThan(300);
-    expect(SPLASH_STEM_COLOR).toBe("#F6D21A");
-    // The stem is the bottom bulb, below every tip.
+    expect(SPLASH_DOT_COLOR).toBe("#E8B76A");
+    expect(SPLASH_DOT_R).toBeLessThan(20);
     for (const tip of SPLASH_TIPS) {
       expect(tip.cy).toBeLessThan(SPLASH_STEM_PX.y);
+      expect(tip.r).toBeGreaterThan(SPLASH_DOT_R);
     }
     expect(splashPercent(SPLASH_STEM_PX.x, SPLASH_MARK_CROP_PX.width)).toBeGreaterThan(40);
     expect(splashPercent(SPLASH_STEM_PX.y, SPLASH_MARK_CROP_PX.height)).toBeGreaterThan(70);
@@ -156,9 +159,11 @@ describe("boot splash overlay", () => {
       expect(node?.getAttribute("d")).toBe(flow.d);
       expect(node?.getAttribute("style")).toContain(`--delay: ${flow.delayMs}ms`);
     }
-    const stem = splash.querySelector("[data-stem='bottom']");
-    expect(stem?.getAttribute("fill")).toBe(SPLASH_STEM_COLOR);
-    expect(stem?.getAttribute("cy")).toBe(String(SPLASH_STEM_PX.y));
+    const dot = splash.querySelector("[data-dot='bottom']");
+    expect(dot?.getAttribute("fill")).toBe(SPLASH_DOT_COLOR);
+    expect(dot?.getAttribute("cy")).toBe(String(SPLASH_STEM_PX.y));
+    expect(dot?.getAttribute("r")).toBe(String(SPLASH_DOT_R));
+    expect(splash.querySelector("[data-stem='bottom']")).toBeNull();
 
     await act(async () => {
       vi.advanceTimersByTime(SPLASH_MIN_MS - 1);
@@ -210,7 +215,8 @@ describe("boot splash overlay", () => {
     expect(splash.getAttribute("data-motion")).toBe("reduced");
     expect(splash.querySelectorAll("[data-tip]").length).toBe(SPLASH_TIPS.length);
     expect(splash.querySelectorAll(".boot-splash-flow").length).toBe(SPLASH_FLOWS.length);
-    expect(splash.querySelector("[data-stem='bottom']")).toBeTruthy();
+    expect(splash.querySelector("[data-dot='bottom']")).toBeTruthy();
+    expect(splash.querySelector("[data-stem='bottom']")).toBeNull();
 
     await act(async () => {
       vi.advanceTimersByTime(SPLASH_REDUCED_MIN_MS - 1);
@@ -224,9 +230,10 @@ describe("boot splash overlay", () => {
 
     const css = readFileSync(path.join(process.cwd(), "src/app/boot-splash.css"), "utf8");
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
-    expect(css).toMatch(/\.boot-splash-flow\s*\{\s*display:\s*none/);
-    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-flow');
-    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-stem');
+    expect(css).toMatch(/\.boot-splash-ink\s*\{\s*display:\s*none/);
+    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-ink');
+    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-dot');
+    expect(css).not.toContain("boot-splash-stem");
     expect(css).not.toContain("boot-splash-wordmark");
     expect(css).not.toContain("boot-splash-ball");
   });
