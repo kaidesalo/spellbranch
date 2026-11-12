@@ -217,7 +217,7 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
                   r={SPLASH_DOT_R}
                   fill={SPLASH_DOT_COLOR}
                   stroke="#A87432"
-                  strokeWidth={2.5}
+                  strokeWidth={3}
                 />
               </svg>
             </div>

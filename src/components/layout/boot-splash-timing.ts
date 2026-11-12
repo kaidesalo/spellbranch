@@ -62,7 +62,7 @@ export const SPLASH_STEM_PX = { x: 178, y: 354 } as const;
 /** Logo gold, the mark's own color. A darker gold edge keeps the bead visible on the stem. */
 export const SPLASH_DOT_COLOR = "#E8B76A";
 /** Small standing dot. The stem bulb itself is about 30px in radius. */
-export const SPLASH_DOT_R = 11;
+export const SPLASH_DOT_R = 16;
 /** When the last color reaches the stem, then how long the paints take to leave. */
 export const SPLASH_ARRIVE_MS = SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS;
 export const SPLASH_VANISH_MS = 140;
