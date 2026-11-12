@@ -106,22 +106,20 @@ describe("splash timing", () => {
     });
     expect(splashPointOnMark(SPLASH_BRANCH_TIPS_PX.left).x).toBe(splashPercent(90, 370));
     expect(splashPointOnMark(SPLASH_BRANCH_TIPS_PX.right).x).toBe(splashPercent(267, 370));
-    expect(splashPointOnMark(SPLASH_BRANCH_TIPS_PX.bottom).y).toBe(splashPercent(357, 449));
     expect(splashPointOnMark(SPLASH_CENTER_PX)).toEqual({
       x: splashPercent(178, 370),
       y: splashPercent(236, 449),
     });
-    // Tips sit away from the junction, one per direction.
+    // Only the three upper tips. No stem ball.
     const center = splashPointOnMark(SPLASH_CENTER_PX);
     const top = splashPointOnMark(SPLASH_BRANCH_TIPS_PX.top);
     const left = splashPointOnMark(SPLASH_BRANCH_TIPS_PX.left);
     const right = splashPointOnMark(SPLASH_BRANCH_TIPS_PX.right);
-    const bottom = splashPointOnMark(SPLASH_BRANCH_TIPS_PX.bottom);
     expect(top.y).toBeLessThan(center.y);
-    expect(bottom.y).toBeGreaterThan(center.y);
     expect(left.x).toBeLessThan(center.x);
     expect(right.x).toBeGreaterThan(center.x);
-    expect(SPLASH_BALLS.map((ball) => ball.id)).toEqual(["top", "left", "right", "bottom"]);
+    expect(SPLASH_BALLS.map((ball) => ball.id)).toEqual(["top", "left", "right"]);
+    expect(SPLASH_BALLS.map((ball) => ball.color)).toEqual(["#F7F3E3", "#2BD67B", "#FF5A4F"]);
   });
 });
 
@@ -145,10 +143,13 @@ describe("boot splash overlay", () => {
     expect(splash.getAttribute("data-state")).toBe("show");
     expect(splash.getAttribute("data-motion")).toBe("full");
     expect(screen.getByText("Loading Spellbranch")).toBeTruthy();
-    expect(splash.querySelectorAll("img").length).toBe(2);
-    for (const img of splash.querySelectorAll("img")) {
-      expect(img.getAttribute("src")).toBe("/spellbranch-logo.png");
-    }
+    expect(splash.querySelector(".boot-splash-card")).toBeTruthy();
+    expect(splash.querySelector(".boot-splash-wordmark")).toBeNull();
+    expect(splash.querySelector("[data-branch='bottom']")).toBeNull();
+    const images = splash.querySelectorAll("img");
+    expect(images.length).toBe(1);
+    expect(images[0]?.getAttribute("src")).toBe("/spellbranch-logo.png");
+    expect(images[0]?.getAttribute("alt")).toBe("");
 
     const center = splashPointOnMark(SPLASH_CENTER_PX);
     for (const ball of SPLASH_BALLS) {
@@ -229,6 +230,7 @@ describe("boot splash overlay", () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
     expect(css).toMatch(/\.boot-splash-ball\s*\{\s*display:\s*none/);
     expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-ball');
+    expect(css).not.toContain("boot-splash-wordmark");
   });
 
   it("does not come back on a client navigation or a remount in the same session", async () => {

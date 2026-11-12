@@ -107,6 +107,39 @@ export function BootReady() {
   return null;
 }
 
+function Corner({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 80 80" className={className} aria-hidden>
+      <path
+        d="M10 58c14-4 24-16 30-32 4-10 12-16 24-18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 68c16-6 28-18 34-36"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 40c10-1 16-8 18-18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <path d="M22 30c8-7 16-8 22-3-8 1-16 5-22 3z" fill="currentColor" />
+      <path d="M16 42c7-5 14-5 18-1-7 1-14 4-18 1z" fill="currentColor" />
+      <path d="M32 18c7-4 14-3 17 2-7 0-14 2-17-2z" fill="currentColor" />
+      <path d="M40 26c5-5 12-5 15-1-6 1-12 3-15 1z" fill="currentColor" />
+      <circle cx="18" cy="22" r="2.2" fill="currentColor" />
+    </svg>
+  );
+}
+
 function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotion: boolean }) {
   const center = splashPointOnMark(SPLASH_CENTER_PX);
 
@@ -121,7 +154,7 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
       aria-busy={phase === "show"}
       style={
         {
-          backgroundColor: "#10141F",
+          backgroundColor: "#2c1b10",
           "--splash-timeout": `${SPLASH_TIMEOUT_MS}ms`,
           "--splash-fade": `${SPLASH_FADE_MS}ms`,
           "--splash-travel": `${SPLASH_TRAVEL_MS}ms`,
@@ -129,52 +162,52 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
       }
     >
       <span className="boot-splash-sr">Loading Spellbranch</span>
-      <div className="boot-splash-stage">
-        <div className="boot-splash-mark">
-          {/* Same file as the header lockup. The stage crops to the branch frame. */}
-          <Image
-            src="/spellbranch-logo.png"
-            alt=""
-            width={1958}
-            height={449}
-            priority
-            unoptimized
-            className="boot-splash-mark-image"
-          />
-          {SPLASH_BALLS.map((ball) => {
-            const from = splashPointOnMark(ball.tip);
-            const toX = splashShift(center.x, ball.gather.x);
-            const toY = splashShift(center.y, ball.gather.y);
-            return (
-              <span
-                key={ball.id}
-                data-branch={ball.id}
-                className="boot-splash-ball"
-                style={
-                  {
-                    "--from-x": `${from.x}%`,
-                    "--from-y": `${from.y}%`,
-                    "--to-x": `${toX}%`,
-                    "--to-y": `${toY}%`,
-                    "--delay": `${ball.delayMs}ms`,
-                    "--ball": ball.color,
-                    backgroundColor: ball.color,
-                    color: ball.color,
-                  } as React.CSSProperties
-                }
+      <div className="boot-splash-scene">
+        <div className="boot-splash-card">
+          <div className="boot-splash-card-face">
+            <Corner className="boot-splash-corner boot-splash-corner-nw" />
+            <Corner className="boot-splash-corner boot-splash-corner-ne" />
+            <Corner className="boot-splash-corner boot-splash-corner-sw" />
+            <Corner className="boot-splash-corner boot-splash-corner-se" />
+            <div className="boot-splash-mark">
+              {/* Existing lockup, cropped to the branch frame. The card's tilt is a
+                  parent transform, so these tip positions stay on the mark. */}
+              <Image
+                src="/spellbranch-logo.png"
+                alt=""
+                width={1958}
+                height={449}
+                priority
+                unoptimized
+                className="boot-splash-mark-image"
               />
-            );
-          })}
+              {SPLASH_BALLS.map((ball) => {
+                const from = splashPointOnMark(ball.tip);
+                const toX = splashShift(center.x, ball.gather.x);
+                const toY = splashShift(center.y, ball.gather.y);
+                return (
+                  <span
+                    key={ball.id}
+                    data-branch={ball.id}
+                    className="boot-splash-ball"
+                    style={
+                      {
+                        "--from-x": `${from.x}%`,
+                        "--from-y": `${from.y}%`,
+                        "--to-x": `${toX}%`,
+                        "--to-y": `${toY}%`,
+                        "--delay": `${ball.delayMs}ms`,
+                        "--ball": ball.color,
+                        backgroundColor: ball.color,
+                        color: ball.color,
+                      } as React.CSSProperties
+                    }
+                  />
+                );
+              })}
+            </div>
+          </div>
         </div>
-        <Image
-          src="/spellbranch-logo.png"
-          alt="Spellbranch"
-          width={1958}
-          height={449}
-          priority
-          unoptimized
-          className="boot-splash-wordmark"
-        />
       </div>
     </div>
   );
