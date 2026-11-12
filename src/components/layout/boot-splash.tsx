@@ -3,16 +3,18 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import Image from "next/image";
 import {
-  SPLASH_BALLS,
-  SPLASH_CENTER_PX,
   SPLASH_FADE_MS,
+  SPLASH_FLOWS,
+  SPLASH_STEM_COLOR,
+  SPLASH_STEM_IN_DELAY_MS,
+  SPLASH_STEM_IN_MS,
+  SPLASH_STEM_PX,
   SPLASH_TIMEOUT_MS,
+  SPLASH_TIPS,
   SPLASH_TRAVEL_MS,
   isBootSplashDismissed,
   markBootSplashDismissed,
   splashDecision,
-  splashPointOnMark,
-  splashShift,
   splashWaitMs,
   type SplashClock,
 } from "@/components/layout/boot-splash-timing";
@@ -141,8 +143,6 @@ function Corner({ className }: { className: string }) {
 }
 
 function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotion: boolean }) {
-  const center = splashPointOnMark(SPLASH_CENTER_PX);
-
   return (
     <div
       className={phase === "leaving" ? "boot-splash boot-splash-leaving" : "boot-splash"}
@@ -158,6 +158,8 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
           "--splash-timeout": `${SPLASH_TIMEOUT_MS}ms`,
           "--splash-fade": `${SPLASH_FADE_MS}ms`,
           "--splash-travel": `${SPLASH_TRAVEL_MS}ms`,
+          "--stem-delay": `${SPLASH_STEM_IN_DELAY_MS}ms`,
+          "--stem-in": `${SPLASH_STEM_IN_MS}ms`,
         } as React.CSSProperties
       }
     >
@@ -170,8 +172,8 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
             <Corner className="boot-splash-corner boot-splash-corner-sw" />
             <Corner className="boot-splash-corner boot-splash-corner-se" />
             <div className="boot-splash-mark">
-              {/* Existing lockup, cropped to the branch frame. The card's tilt is a
-                  parent transform, so these tip positions stay on the mark. */}
+              {/* Existing lockup, cropped to the branch frame. Color is masked
+                  to that ink, so the tips themselves change color. */}
               <Image
                 src="/spellbranch-logo.png"
                 alt=""
@@ -181,30 +183,38 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
                 unoptimized
                 className="boot-splash-mark-image"
               />
-              {SPLASH_BALLS.map((ball) => {
-                const from = splashPointOnMark(ball.tip);
-                const toX = splashShift(center.x, ball.gather.x);
-                const toY = splashShift(center.y, ball.gather.y);
-                return (
-                  <span
-                    key={ball.id}
-                    data-branch={ball.id}
-                    className="boot-splash-ball"
-                    style={
-                      {
-                        "--from-x": `${from.x}%`,
-                        "--from-y": `${from.y}%`,
-                        "--to-x": `${toX}%`,
-                        "--to-y": `${toY}%`,
-                        "--delay": `${ball.delayMs}ms`,
-                        "--ball": ball.color,
-                        backgroundColor: ball.color,
-                        color: ball.color,
-                      } as React.CSSProperties
-                    }
+              <svg className="boot-splash-ink" viewBox="0 0 370 449" aria-hidden>
+                {SPLASH_FLOWS.map((flow) => (
+                  <path
+                    key={flow.id}
+                    data-flow={flow.id}
+                    className="boot-splash-flow"
+                    d={flow.d}
+                    stroke={flow.color}
+                    pathLength={100}
+                    style={{ "--delay": `${flow.delayMs}ms` } as React.CSSProperties}
                   />
-                );
-              })}
+                ))}
+                {SPLASH_TIPS.map((tip) => (
+                  <circle
+                    key={tip.id}
+                    data-tip={tip.id}
+                    className="boot-splash-tip"
+                    cx={tip.cx}
+                    cy={tip.cy}
+                    r={tip.r}
+                    fill={tip.color}
+                  />
+                ))}
+                <circle
+                  data-stem="bottom"
+                  className="boot-splash-stem"
+                  cx={SPLASH_STEM_PX.x}
+                  cy={SPLASH_STEM_PX.y}
+                  r={34}
+                  fill={SPLASH_STEM_COLOR}
+                />
+              </svg>
             </div>
           </div>
         </div>
