@@ -45,12 +45,13 @@ export const SPLASH_MARK_CROP_PX = { width: 370, height: 449 } as const;
 /**
  * Endpoints of a Zhang-Suen skeleton of the interior branch component
  * (bbox x 60–297, y 68–386; the outer frame is a separate component).
+ * The stem tip is intentionally unused: the splash only animates the
+ * three upper tips (left, top, right).
  */
 export const SPLASH_BRANCH_TIPS_PX = {
   top: { x: 178, y: 97 },
   left: { x: 90, y: 167 },
   right: { x: 267, y: 166 },
-  bottom: { x: 178, y: 357 },
 } as const;
 
 /**
@@ -60,15 +61,14 @@ export const SPLASH_BRANCH_TIPS_PX = {
 export const SPLASH_CENTER_PX = { x: 178, y: 236 } as const;
 
 export const SPLASH_BALLS = [
-  { id: "top", tip: SPLASH_BRANCH_TIPS_PX.top, color: "#F7F3E3", delayMs: 0, gather: { x: 0, y: -1.6 } },
-  { id: "left", tip: SPLASH_BRANCH_TIPS_PX.left, color: "#2BD67B", delayMs: 80, gather: { x: -1.7, y: 0.5 } },
-  { id: "right", tip: SPLASH_BRANCH_TIPS_PX.right, color: "#FF5A4F", delayMs: 160, gather: { x: 1.7, y: 0.5 } },
+  { id: "top", tip: SPLASH_BRANCH_TIPS_PX.top, color: "#F7F3E3", delayMs: 0, gather: { x: 0, y: -1.5 } },
+  { id: "left", tip: SPLASH_BRANCH_TIPS_PX.left, color: "#2BD67B", delayMs: 120, gather: { x: -1.5, y: 0.9 } },
   {
-    id: "bottom",
-    tip: SPLASH_BRANCH_TIPS_PX.bottom,
-    color: "#5BA4F0",
+    id: "right",
+    tip: SPLASH_BRANCH_TIPS_PX.right,
+    color: "#FF5A4F",
     delayMs: SPLASH_LAST_DELAY_MS,
-    gather: { x: 0, y: 1.8 },
+    gather: { x: 1.5, y: 0.9 },
   },
 ] as const;
 
