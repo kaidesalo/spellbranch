@@ -1,8 +1,7 @@
 /* First-load splash. Timings live in boot-splash-timing.ts.
-   The scene is a small gold-edged card on a wood table. The mark is the
-   370×449 crop of public/spellbranch-logo.png. The three tips are colored
-   and that color grows down the branches, then the paint leaves. A single
-   gold dot stays at the bottom stem. */
+   The card stays put. The mark on it is the 370×449 crop of
+   public/spellbranch-logo.png. Three circles travel inward to the
+   junction while the mark shrinks away, leaving one gold circle. */
 
 .boot-splash {
   position: fixed;
@@ -108,12 +107,23 @@
   transform: scale(-1);
 }
 
-.boot-splash-mark {
+.boot-splash-slot {
   position: relative;
-  container-type: size;
   width: 64%;
   aspect-ratio: 370 / 449;
+}
+
+.boot-splash-mark {
+  position: absolute;
+  inset: 0;
+  container-type: size;
   overflow: hidden;
+  transform-origin: var(--origin-x) var(--origin-y);
+  animation-name: boot-splash-shrink;
+  animation-duration: var(--splash-shrink, 540ms);
+  animation-delay: var(--splash-travel, 900ms);
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
 }
 
 .boot-splash-mark-image {
@@ -126,58 +136,42 @@
   max-width: none;
 }
 
-.boot-splash-ink {
+.boot-splash-circle {
   position: absolute;
-  inset: 0;
   z-index: 2;
-  width: 100%;
-  height: 100%;
+  left: var(--from-x);
+  top: var(--from-y);
+  width: 11px;
+  height: 11px;
+  width: clamp(10px, 8cqi, 16px);
+  height: clamp(10px, 8cqi, 16px);
+  border-radius: 999px;
   pointer-events: none;
-  -webkit-mask-image: url("/spellbranch-logo.png");
-  mask-image: url("/spellbranch-logo.png");
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: left top;
-  mask-position: left top;
-  -webkit-mask-size: auto 100%;
-  mask-size: auto 100%;
-  animation-name: boot-splash-vanish;
-  animation-duration: var(--vanish, 140ms);
-  animation-delay: var(--vanish-delay, 1440ms);
-  animation-timing-function: ease;
-  animation-fill-mode: forwards;
-}
-
-.boot-splash-dot-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.boot-splash-dot {
-  opacity: 0;
-  animation-name: boot-splash-dot-in;
-  animation-duration: var(--vanish, 140ms);
-  animation-delay: var(--vanish-delay, 1440ms);
-  animation-timing-function: ease;
-  animation-fill-mode: forwards;
-}
-
-.boot-splash-flow {
-  fill: none;
-  stroke-width: 70;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation-name: boot-splash-flow;
-  animation-duration: var(--splash-travel, 1200ms);
-  animation-delay: var(--delay, 0ms);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1.5px rgba(16, 20, 31, 0.45);
+  animation-name: boot-splash-inward;
+  animation-duration: calc(var(--splash-travel, 900ms) + var(--splash-shrink, 540ms));
   animation-timing-function: linear;
   animation-fill-mode: both;
+}
+
+.boot-splash-final {
+  position: absolute;
+  z-index: 3;
+  left: var(--origin-x);
+  top: var(--origin-y);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px #a87432;
+  animation-name: boot-splash-final;
+  animation-duration: var(--splash-hold, 260ms);
+  animation-delay: calc(var(--splash-travel, 900ms) + var(--splash-shrink, 540ms));
+  animation-timing-function: ease;
+  animation-fill-mode: forwards;
 }
 
 .boot-splash-sr {
@@ -192,24 +186,36 @@
   border: 0;
 }
 
-@keyframes boot-splash-flow {
+@keyframes boot-splash-inward {
   from {
-    stroke-dashoffset: 100;
+    left: var(--from-x);
+    top: var(--from-y);
   }
   to {
-    stroke-dashoffset: 0;
+    left: var(--to-x);
+    top: var(--to-y);
   }
 }
 
-@keyframes boot-splash-vanish {
+@keyframes boot-splash-shrink {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
   to {
+    transform: scale(0.12);
     opacity: 0;
   }
 }
 
-@keyframes boot-splash-dot-in {
+@keyframes boot-splash-final {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
   to {
     opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
@@ -232,13 +238,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .boot-splash-ink {
+  .boot-splash-mark {
     display: none;
   }
 
-  .boot-splash-dot {
+  .boot-splash-final {
     animation: none;
     opacity: 1;
+    transform: translate(-50%, -50%);
   }
 
   .boot-splash-leaving {
@@ -248,11 +255,13 @@
   }
 }
 
-.boot-splash[data-motion="reduced"] .boot-splash-ink {
+.boot-splash[data-motion="reduced"] .boot-splash-mark {
   display: none;
 }
 
-.boot-splash[data-motion="reduced"] .boot-splash-dot {
+.boot-splash[data-motion="reduced"] .boot-splash-final {
   animation: none;
   opacity: 1;
+  transform: translate(-50%, -50%);
 }
+

@@ -7,27 +7,24 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BootReady, BootSplashGate } from "@/components/layout/boot-splash";
 import {
-  SPLASH_ARRIVE_MS,
+  SPLASH_CIRCLES,
   SPLASH_DOT_COLOR,
-  SPLASH_DOT_R,
   SPLASH_FADE_MS,
-  SPLASH_FLOWS,
   SPLASH_HOLD_MS,
-  SPLASH_LAST_DELAY_MS,
+  SPLASH_JUNCTION_PX,
   SPLASH_LOGO_PX,
   SPLASH_MARK_CROP_PX,
   SPLASH_MIN_MS,
   SPLASH_REDUCED_MIN_MS,
+  SPLASH_SHRINK_MS,
   SPLASH_START_SCRIPT,
-  SPLASH_STEM_PX,
   SPLASH_TIMEOUT_MS,
-  SPLASH_TIPS,
   SPLASH_TRAVEL_MS,
-  SPLASH_VANISH_MS,
   resetBootSplashForTests,
   splashDecision,
   splashMinMs,
   splashPercent,
+  splashPointOnMark,
   splashWaitMs,
 } from "@/components/layout/boot-splash-timing";
 
@@ -55,10 +52,8 @@ function Harness({ label, ready }: { label: string; ready: boolean }) {
 
 describe("splash timing", () => {
   it("keeps the overlay up until the animation can finish, then the route, then the cap", () => {
-    expect(SPLASH_MIN_MS).toBe(SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS + SPLASH_HOLD_MS);
-    expect(Math.max(...SPLASH_FLOWS.map((flow) => flow.delayMs))).toBe(SPLASH_LAST_DELAY_MS);
-    expect(SPLASH_ARRIVE_MS).toBe(SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS);
-    expect(SPLASH_VANISH_MS).toBeLessThan(SPLASH_HOLD_MS);
+    expect(SPLASH_MIN_MS).toBe(SPLASH_TRAVEL_MS + SPLASH_SHRINK_MS + SPLASH_HOLD_MS);
+    expect(SPLASH_MIN_MS).toBe(1700);
     expect(splashMinMs(false)).toBe(SPLASH_MIN_MS);
     expect(splashMinMs(true)).toBe(SPLASH_REDUCED_MIN_MS);
 
@@ -97,24 +92,24 @@ describe("splash timing", () => {
     ).toBe("wait");
   });
 
-  it("sends the three tip colors down to the stem, then leaves a gold dot", () => {
+  it("moves three circles inward to the junction, then leaves one gold circle", () => {
     expect(SPLASH_LOGO_PX).toEqual({ width: 1958, height: 449 });
     expect(SPLASH_MARK_CROP_PX.width).toBeGreaterThan(342);
     expect(SPLASH_MARK_CROP_PX.width).toBeLessThan(399);
     expect(SPLASH_MARK_CROP_PX.height).toBe(SPLASH_LOGO_PX.height);
 
-    expect(SPLASH_TIPS.map((tip) => tip.id)).toEqual(["top", "left", "right"]);
-    expect(SPLASH_TIPS.map((tip) => tip.color)).toEqual(["#F7F3E3", "#2BD67B", "#FF5A4F"]);
-    expect(SPLASH_FLOWS.map((flow) => flow.id)).toEqual(["top", "left", "right"]);
-    expect(SPLASH_STEM_PX.y).toBeGreaterThan(300);
+    expect(SPLASH_CIRCLES.map((circle) => circle.id)).toEqual(["top", "left", "right"]);
+    expect(SPLASH_CIRCLES.map((circle) => circle.color)).toEqual(["#F7F3E3", "#2BD67B", "#FF5A4F"]);
     expect(SPLASH_DOT_COLOR).toBe("#E8B76A");
-    expect(SPLASH_DOT_R).toBeLessThan(20);
-    for (const tip of SPLASH_TIPS) {
-      expect(tip.cy).toBeLessThan(SPLASH_STEM_PX.y);
-      expect(tip.r).toBeGreaterThan(SPLASH_DOT_R);
+    const meet = splashPointOnMark(SPLASH_JUNCTION_PX);
+    for (const circle of SPLASH_CIRCLES) {
+      const from = splashPointOnMark(circle.tip);
+      const distance = Math.hypot(from.x - meet.x, from.y - meet.y);
+      expect(distance).toBeGreaterThan(10);
     }
-    expect(splashPercent(SPLASH_STEM_PX.x, SPLASH_MARK_CROP_PX.width)).toBeGreaterThan(40);
-    expect(splashPercent(SPLASH_STEM_PX.y, SPLASH_MARK_CROP_PX.height)).toBeGreaterThan(70);
+    expect(meet.y).toBeLessThan(splashPercent(300, SPLASH_MARK_CROP_PX.height));
+    expect(meet.x).toBeGreaterThan(40);
+    expect(meet.x).toBeLessThan(60);
   });
 });
 
@@ -142,27 +137,26 @@ describe("boot splash overlay", () => {
     expect(splash.querySelector(".boot-splash-wordmark")).toBeNull();
     expect(splash.querySelector(".boot-splash-ball")).toBeNull();
     expect(splash.querySelector("[data-branch='bottom']")).toBeNull();
+    expect(splash.querySelector(".boot-splash-ink")).toBeNull();
+    expect(splash.querySelector("[data-flow]")).toBeNull();
     const images = splash.querySelectorAll("img");
     expect(images.length).toBe(1);
     expect(images[0]?.getAttribute("src")).toBe("/spellbranch-logo.png");
     expect(images[0]?.getAttribute("alt")).toBe("");
 
-    for (const tip of SPLASH_TIPS) {
-      const node = splash.querySelector(`[data-tip="${tip.id}"]`);
-      expect(node?.getAttribute("fill")).toBe(tip.color);
-      expect(node?.getAttribute("cx")).toBe(String(tip.cx));
-      expect(node?.getAttribute("cy")).toBe(String(tip.cy));
+    const meet = splashPointOnMark(SPLASH_JUNCTION_PX);
+    for (const circle of SPLASH_CIRCLES) {
+      const node = splash.querySelector(`[data-circle="${circle.id}"]`);
+      const from = splashPointOnMark(circle.tip);
+      const style = node?.getAttribute("style") ?? "";
+      expect(style).toContain(`--from-x: ${from.x}%`);
+      expect(style).toContain(`--from-y: ${from.y}%`);
+      expect(style).toContain(`--to-x: ${meet.x}%`);
+      expect(style).toContain(`--to-y: ${meet.y}%`);
+      expect(style).toContain(circle.color);
     }
-    for (const flow of SPLASH_FLOWS) {
-      const node = splash.querySelector(`[data-flow="${flow.id}"]`);
-      expect(node?.getAttribute("stroke")).toBe(flow.color);
-      expect(node?.getAttribute("d")).toBe(flow.d);
-      expect(node?.getAttribute("style")).toContain(`--delay: ${flow.delayMs}ms`);
-    }
-    const dot = splash.querySelector("[data-dot='bottom']");
-    expect(dot?.getAttribute("fill")).toBe(SPLASH_DOT_COLOR);
-    expect(dot?.getAttribute("cy")).toBe(String(SPLASH_STEM_PX.y));
-    expect(dot?.getAttribute("r")).toBe(String(SPLASH_DOT_R));
+    const finalDot = splash.querySelector("[data-final='gold']");
+    expect(finalDot?.getAttribute("style")).toContain(SPLASH_DOT_COLOR);
     expect(splash.querySelector("[data-stem='bottom']")).toBeNull();
 
     await act(async () => {
@@ -213,10 +207,9 @@ describe("boot splash overlay", () => {
     render(createElement(Harness, { label: "home", ready: true }));
     const splash = screen.getByTestId("boot-splash");
     expect(splash.getAttribute("data-motion")).toBe("reduced");
-    expect(splash.querySelectorAll("[data-tip]").length).toBe(SPLASH_TIPS.length);
-    expect(splash.querySelectorAll(".boot-splash-flow").length).toBe(SPLASH_FLOWS.length);
-    expect(splash.querySelector("[data-dot='bottom']")).toBeTruthy();
-    expect(splash.querySelector("[data-stem='bottom']")).toBeNull();
+    expect(splash.querySelectorAll("[data-circle]").length).toBe(SPLASH_CIRCLES.length);
+    expect(splash.querySelector("[data-final='gold']")).toBeTruthy();
+    expect(splash.querySelector(".boot-splash-flow")).toBeNull();
 
     await act(async () => {
       vi.advanceTimersByTime(SPLASH_REDUCED_MIN_MS - 1);
@@ -230,10 +223,11 @@ describe("boot splash overlay", () => {
 
     const css = readFileSync(path.join(process.cwd(), "src/app/boot-splash.css"), "utf8");
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
-    expect(css).toMatch(/\.boot-splash-ink\s*\{\s*display:\s*none/);
-    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-ink');
-    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-dot');
-    expect(css).not.toContain("boot-splash-stem");
+    expect(css).toMatch(/\.boot-splash-mark\s*\{\s*display:\s*none/);
+    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-mark');
+    expect(css).toContain('.boot-splash[data-motion="reduced"] .boot-splash-final');
+    expect(css).not.toContain("boot-splash-ink");
+    expect(css).not.toContain("boot-splash-flow");
     expect(css).not.toContain("boot-splash-wordmark");
     expect(css).not.toContain("boot-splash-ball");
   });
