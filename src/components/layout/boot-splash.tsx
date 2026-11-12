@@ -3,19 +3,18 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import Image from "next/image";
 import {
-  SPLASH_ARRIVE_MS,
+  SPLASH_CIRCLES,
   SPLASH_DOT_COLOR,
-  SPLASH_DOT_R,
   SPLASH_FADE_MS,
-  SPLASH_FLOWS,
-  SPLASH_STEM_PX,
+  SPLASH_HOLD_MS,
+  SPLASH_JUNCTION_PX,
+  SPLASH_SHRINK_MS,
   SPLASH_TIMEOUT_MS,
-  SPLASH_TIPS,
   SPLASH_TRAVEL_MS,
-  SPLASH_VANISH_MS,
   isBootSplashDismissed,
   markBootSplashDismissed,
   splashDecision,
+  splashPointOnMark,
   splashWaitMs,
   type SplashClock,
 } from "@/components/layout/boot-splash-timing";
@@ -144,6 +143,8 @@ function Corner({ className }: { className: string }) {
 }
 
 function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotion: boolean }) {
+  const meet = splashPointOnMark(SPLASH_JUNCTION_PX);
+
   return (
     <div
       className={phase === "leaving" ? "boot-splash boot-splash-leaving" : "boot-splash"}
@@ -159,8 +160,10 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
           "--splash-timeout": `${SPLASH_TIMEOUT_MS}ms`,
           "--splash-fade": `${SPLASH_FADE_MS}ms`,
           "--splash-travel": `${SPLASH_TRAVEL_MS}ms`,
-          "--vanish-delay": `${SPLASH_ARRIVE_MS}ms`,
-          "--vanish": `${SPLASH_VANISH_MS}ms`,
+          "--splash-shrink": `${SPLASH_SHRINK_MS}ms`,
+          "--splash-hold": `${SPLASH_HOLD_MS}ms`,
+          "--origin-x": `${meet.x}%`,
+          "--origin-y": `${meet.y}%`,
         } as React.CSSProperties
       }
     >
@@ -172,54 +175,39 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
             <Corner className="boot-splash-corner boot-splash-corner-ne" />
             <Corner className="boot-splash-corner boot-splash-corner-sw" />
             <Corner className="boot-splash-corner boot-splash-corner-se" />
-            <div className="boot-splash-mark">
-              {/* Existing lockup, cropped to the branch frame. Color is masked
-                  to that ink, so the tips themselves change color. */}
-              <Image
-                src="/spellbranch-logo.png"
-                alt=""
-                width={1958}
-                height={449}
-                priority
-                unoptimized
-                className="boot-splash-mark-image"
-              />
-              <svg className="boot-splash-ink" viewBox="0 0 370 449" aria-hidden>
-                {SPLASH_FLOWS.map((flow) => (
-                  <path
-                    key={flow.id}
-                    data-flow={flow.id}
-                    className="boot-splash-flow"
-                    d={flow.d}
-                    stroke={flow.color}
-                    pathLength={100}
-                    style={{ "--delay": `${flow.delayMs}ms` } as React.CSSProperties}
-                  />
-                ))}
-                {SPLASH_TIPS.map((tip) => (
-                  <circle
-                    key={tip.id}
-                    data-tip={tip.id}
-                    className="boot-splash-tip"
-                    cx={tip.cx}
-                    cy={tip.cy}
-                    r={tip.r}
-                    fill={tip.color}
-                  />
-                ))}
-              </svg>
-              <svg className="boot-splash-dot-layer" viewBox="0 0 370 449" aria-hidden>
-                <circle
-                  data-dot="bottom"
-                  className="boot-splash-dot"
-                  cx={SPLASH_STEM_PX.x}
-                  cy={SPLASH_STEM_PX.y}
-                  r={SPLASH_DOT_R}
-                  fill={SPLASH_DOT_COLOR}
-                  stroke="#A87432"
-                  strokeWidth={3}
+            <div className="boot-splash-slot">
+              <div className="boot-splash-mark">
+                <Image
+                  src="/spellbranch-logo.png"
+                  alt=""
+                  width={1958}
+                  height={449}
+                  priority
+                  unoptimized
+                  className="boot-splash-mark-image"
                 />
-              </svg>
+                {SPLASH_CIRCLES.map((circle) => {
+                  const from = splashPointOnMark(circle.tip);
+                  return (
+                    <span
+                      key={circle.id}
+                      data-circle={circle.id}
+                      className="boot-splash-circle"
+                      style={
+                        {
+                          "--from-x": `${from.x}%`,
+                          "--from-y": `${from.y}%`,
+                          "--to-x": `${meet.x}%`,
+                          "--to-y": `${meet.y}%`,
+                          "--circle": circle.color,
+                          backgroundColor: circle.color,
+                        } as React.CSSProperties
+                      }
+                    />
+                  );
+                })}
+              </div>
+              <span data-final="gold" className="boot-splash-final" style={{ backgroundColor: SPLASH_DOT_COLOR }} />
             </div>
           </div>
         </div>

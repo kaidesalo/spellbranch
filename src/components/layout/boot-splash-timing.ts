@@ -5,21 +5,21 @@
  * (HTML parse, before first paint). Hydration falls back to Date.now() if
  * that script did not run. Dismiss rules:
  *
- * - Motion: stay at least SPLASH_MIN_MS so the branch colors can finish one
- *   trip down to the stem, and only after the initial route has signaled ready.
+ * - Motion: stay at least SPLASH_MIN_MS so the circles can travel in and the
+ *   mark can shrink away, and only after the initial route has signaled ready.
  * - Reduced motion: same ready check, but the minimum is a short static hold
  *   (there is no trip to wait for).
  * - Either way, dismiss at SPLASH_TIMEOUT_MS even if the route never becomes
  *   ready, so a slow or failed route cannot leave the overlay up.
  */
 
-export const SPLASH_TRAVEL_MS = 1200;
-/** Stagger of the last color. Must match the largest `delayMs` in SPLASH_FLOWS. */
-export const SPLASH_LAST_DELAY_MS = 240;
-/** How long the standing dot sits after the colors arrive and vanish. */
+export const SPLASH_TRAVEL_MS = 900;
+/** The mark shrinks and fades while the circles finish meeting. */
+export const SPLASH_SHRINK_MS = 540;
+/** How long the single gold circle sits after the mark is gone. */
 export const SPLASH_HOLD_MS = 260;
 /** Minimum overlay time when motion is allowed. */
-export const SPLASH_MIN_MS = SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS + SPLASH_HOLD_MS;
+export const SPLASH_MIN_MS = SPLASH_TRAVEL_MS + SPLASH_SHRINK_MS + SPLASH_HOLD_MS;
 /** Static-logo hold when `prefers-reduced-motion: reduce` matches. */
 export const SPLASH_REDUCED_MIN_MS = 400;
 /** Opacity fade after the dismiss decision. Pointer events end when it starts. */
@@ -53,35 +53,19 @@ export const SPLASH_BRANCH_TIPS_PX = {
 } as const;
 
 /**
- * Center of the bottom stem bulb (widest row y=354, x 148–208).
- * The traveling colors arrive here and then disappear. A single gold dot,
- * the logo's own gold, stays at this point.
+ * Where the three arms meet (first single span at y=236, trunk center x=178).
+ * The circles travel inward to this point. The leftover gold circle stays here.
  */
-export const SPLASH_STEM_PX = { x: 178, y: 354 } as const;
+export const SPLASH_JUNCTION_PX = { x: 178, y: 236 } as const;
 
-/** Logo gold, the mark's own color. A darker gold edge keeps the bead visible on the stem. */
+/** Logo gold. A darker edge is applied in CSS so the last circle reads on the card. */
 export const SPLASH_DOT_COLOR = "#E8B76A";
-/** Small standing dot. The stem bulb itself is about 30px in radius. */
-export const SPLASH_DOT_R = 16;
-/** When the last color reaches the stem, then how long the paints take to leave. */
-export const SPLASH_ARRIVE_MS = SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS;
-export const SPLASH_VANISH_MS = 140;
 
-/** Tip bulbs in crop pixels. A masked fill this size covers the gold tip. */
-export const SPLASH_TIPS = [
-  { id: "top", cx: 178, cy: 102, r: 36, color: "#F7F3E3", delayMs: 0 },
-  { id: "left", cx: 93, cy: 172, r: 36, color: "#2BD67B", delayMs: 120 },
-  { id: "right", cx: 265, cy: 172, r: 36, color: "#FF5A4F", delayMs: SPLASH_LAST_DELAY_MS },
-] as const;
-
-/**
- * Centerlines from each tip down its arm, through the fork (around y=245),
- * and along the trunk to just above the stem bulb. Crop-pixel viewBox 370×449.
- */
-export const SPLASH_FLOWS = [
-  { id: "top", color: "#F7F3E3", delayMs: 0, d: "M178 118 L178 328" },
-  { id: "left", color: "#2BD67B", delayMs: 120, d: "M100 176 C96 200 128 224 178 252 L178 328" },
-  { id: "right", color: "#FF5A4F", delayMs: SPLASH_LAST_DELAY_MS, d: "M258 176 C262 200 230 224 178 252 L178 328" },
+/** Discrete circles. They sit on the tips, then move to the junction. */
+export const SPLASH_CIRCLES = [
+  { id: "top", tip: SPLASH_BRANCH_TIPS_PX.top, color: "#F7F3E3" },
+  { id: "left", tip: SPLASH_BRANCH_TIPS_PX.left, color: "#2BD67B" },
+  { id: "right", tip: SPLASH_BRANCH_TIPS_PX.right, color: "#FF5A4F" },
 ] as const;
 
 /** Runs at parse time. Does not move an existing stamp (client navigations re-send the layout). */
