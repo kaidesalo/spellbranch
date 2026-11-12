@@ -5,8 +5,8 @@
  * (HTML parse, before first paint). Hydration falls back to Date.now() if
  * that script did not run. Dismiss rules:
  *
- * - Motion: stay at least SPLASH_MIN_MS so the balls can finish one trip,
- *   and only after the initial route has signaled ready.
+ * - Motion: stay at least SPLASH_MIN_MS so the branch colors can finish one
+ *   trip down to the stem, and only after the initial route has signaled ready.
  * - Reduced motion: same ready check, but the minimum is a short static hold
  *   (there is no trip to wait for).
  * - Either way, dismiss at SPLASH_TIMEOUT_MS even if the route never becomes
@@ -14,9 +14,9 @@
  */
 
 export const SPLASH_TRAVEL_MS = 1200;
-/** Stagger of the last ball. Must match the largest `delayMs` in SPLASH_BALLS. */
+/** Stagger of the last color. Must match the largest `delayMs` in SPLASH_FLOWS. */
 export const SPLASH_LAST_DELAY_MS = 240;
-/** How long the gathered balls sit before the overlay may leave. */
+/** How long the yellow stem sits after the last color arrives. */
 export const SPLASH_HOLD_MS = 260;
 /** Minimum overlay time when motion is allowed. */
 export const SPLASH_MIN_MS = SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS + SPLASH_HOLD_MS;
@@ -45,8 +45,6 @@ export const SPLASH_MARK_CROP_PX = { width: 370, height: 449 } as const;
 /**
  * Endpoints of a Zhang-Suen skeleton of the interior branch component
  * (bbox x 60–297, y 68–386; the outer frame is a separate component).
- * The stem tip is intentionally unused: the splash only animates the
- * three upper tips (left, top, right).
  */
 export const SPLASH_BRANCH_TIPS_PX = {
   top: { x: 178, y: 97 },
@@ -55,27 +53,32 @@ export const SPLASH_BRANCH_TIPS_PX = {
 } as const;
 
 /**
- * First row where the three arms become one horizontal span (y=236), on the
- * trunk's center column (x=178). Balls gather here.
+ * Equator of the bottom stem bulb (widest row y=354, x 148–208).
+ * The three colors meet here, and this circle is filled yellow.
  */
-export const SPLASH_CENTER_PX = { x: 178, y: 236 } as const;
+export const SPLASH_STEM_PX = { x: 178, y: 354 } as const;
 
-export const SPLASH_BALLS = [
-  { id: "top", tip: SPLASH_BRANCH_TIPS_PX.top, color: "#F7F3E3", delayMs: 0, gather: { x: 0, y: -1.5 } },
-  { id: "left", tip: SPLASH_BRANCH_TIPS_PX.left, color: "#2BD67B", delayMs: 120, gather: { x: -1.5, y: 0.9 } },
-  {
-    id: "right",
-    tip: SPLASH_BRANCH_TIPS_PX.right,
-    color: "#FF5A4F",
-    delayMs: SPLASH_LAST_DELAY_MS,
-    gather: { x: 1.5, y: 0.9 },
-  },
+export const SPLASH_STEM_COLOR = "#F6D21A";
+/** Yellow stem fades in across the last color's arrival (finishes at travel + last stagger). */
+export const SPLASH_STEM_IN_DELAY_MS = SPLASH_TRAVEL_MS - 100;
+export const SPLASH_STEM_IN_MS = SPLASH_LAST_DELAY_MS + 100;
+
+/** Tip bulbs in crop pixels. A masked fill this size covers the gold tip. */
+export const SPLASH_TIPS = [
+  { id: "top", cx: 178, cy: 102, r: 36, color: "#F7F3E3", delayMs: 0 },
+  { id: "left", cx: 93, cy: 172, r: 36, color: "#2BD67B", delayMs: 120 },
+  { id: "right", cx: 265, cy: 172, r: 36, color: "#FF5A4F", delayMs: SPLASH_LAST_DELAY_MS },
 ] as const;
 
-/** Percent rounded so a tip position plus a cluster offset stays stable in CSS. */
-export function splashShift(percent: number, delta: number): number {
-  return Math.round((percent + delta) * 1000) / 1000;
-}
+/**
+ * Centerlines from each tip down its arm, through the fork (around y=245),
+ * and along the trunk to just above the stem bulb. Crop-pixel viewBox 370×449.
+ */
+export const SPLASH_FLOWS = [
+  { id: "top", color: "#F7F3E3", delayMs: 0, d: "M178 118 L178 328" },
+  { id: "left", color: "#2BD67B", delayMs: 120, d: "M100 176 C96 200 128 224 178 252 L178 328" },
+  { id: "right", color: "#FF5A4F", delayMs: SPLASH_LAST_DELAY_MS, d: "M258 176 C262 200 230 224 178 252 L178 328" },
+] as const;
 
 /** Runs at parse time. Does not move an existing stamp (client navigations re-send the layout). */
 export const SPLASH_START_SCRIPT =
