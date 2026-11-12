@@ -16,7 +16,7 @@
 export const SPLASH_TRAVEL_MS = 1200;
 /** Stagger of the last color. Must match the largest `delayMs` in SPLASH_FLOWS. */
 export const SPLASH_LAST_DELAY_MS = 240;
-/** How long the yellow stem sits after the last color arrives. */
+/** How long the standing dot sits after the colors arrive and vanish. */
 export const SPLASH_HOLD_MS = 260;
 /** Minimum overlay time when motion is allowed. */
 export const SPLASH_MIN_MS = SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS + SPLASH_HOLD_MS;
@@ -53,15 +53,19 @@ export const SPLASH_BRANCH_TIPS_PX = {
 } as const;
 
 /**
- * Equator of the bottom stem bulb (widest row y=354, x 148–208).
- * The three colors meet here, and this circle is filled yellow.
+ * Center of the bottom stem bulb (widest row y=354, x 148–208).
+ * The traveling colors arrive here and then disappear. A single gold dot,
+ * the logo's own gold, stays at this point.
  */
 export const SPLASH_STEM_PX = { x: 178, y: 354 } as const;
 
-export const SPLASH_STEM_COLOR = "#F6D21A";
-/** Yellow stem fades in across the last color's arrival (finishes at travel + last stagger). */
-export const SPLASH_STEM_IN_DELAY_MS = SPLASH_TRAVEL_MS - 100;
-export const SPLASH_STEM_IN_MS = SPLASH_LAST_DELAY_MS + 100;
+/** Logo gold, the mark's own color. A darker gold edge keeps the bead visible on the stem. */
+export const SPLASH_DOT_COLOR = "#E8B76A";
+/** Small standing dot. The stem bulb itself is about 30px in radius. */
+export const SPLASH_DOT_R = 16;
+/** When the last color reaches the stem, then how long the paints take to leave. */
+export const SPLASH_ARRIVE_MS = SPLASH_TRAVEL_MS + SPLASH_LAST_DELAY_MS;
+export const SPLASH_VANISH_MS = 140;
 
 /** Tip bulbs in crop pixels. A masked fill this size covers the gold tip. */
 export const SPLASH_TIPS = [
