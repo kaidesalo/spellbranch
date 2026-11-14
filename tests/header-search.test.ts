@@ -10,6 +10,7 @@ import {
   type CatalogSet,
 } from "@/lib/header-search";
 import { searchScryfallCatalog } from "@/lib/scryfall/client";
+import { exactCardQuery, searchPageHref } from "@/lib/search-results";
 import type { SessionUser } from "@/lib/types";
 
 const navState = vi.hoisted(() => ({ pathname: "/dashboard", search: "" }));
@@ -29,6 +30,7 @@ vi.mock("next/link", () => ({
     id,
     role,
     "aria-selected": ariaSelected,
+    "aria-label": ariaLabel,
   }: {
     href: string;
     children: ReactNode;
@@ -37,10 +39,19 @@ vi.mock("next/link", () => ({
     id?: string;
     role?: string;
     "aria-selected"?: boolean;
+    "aria-label"?: string;
   }) =>
     createElement(
       "a",
-      { href, className, onClick, id, role, "aria-selected": ariaSelected ? "true" : undefined },
+      {
+        href,
+        className,
+        onClick,
+        id,
+        role,
+        "aria-selected": ariaSelected ? "true" : undefined,
+        "aria-label": ariaLabel,
+      },
       children,
     ),
 }));
@@ -196,18 +207,8 @@ describe("search dialog", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("debounces, switches scope, and links each result type", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
-      const scope = new URL(url, "http://localhost").searchParams.get("scope");
-      if (scope === "precons") return Response.json({ sets: [sets[0]] });
-      if (scope === "sets") return Response.json({ sets: [sets[1]] });
-      return Response.json({
-        cards: [
-          { id: "card-sol", name: "Sol Ring", type_line: "Artifact", set_name: "Commander Masters" },
-          { id: "card-bolt", name: "Lightning Bolt", type_line: "Instant", set_name: "Magic 2010" },
-        ],
-      });
-    });
+  it("suggests scopes first, then card names, and routes Enter to the highlighted line", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ names: ["Sol Ring", "Lightning Bolt"] }));
     render(createElement(SiteHeader, { user }));
     fireEvent.click(mobileSearchButton());
     const input = await screen.findByRole("combobox");
@@ -215,40 +216,33 @@ describe("search dialog", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     fireEvent.change(input, { target: { value: "so" } });
+    const cardsLine = screen.getByRole("option", { name: "so in Cards" });
+    expect(cardsLine.getAttribute("aria-selected")).toBe("true");
+    expect(cardsLine.getAttribute("href")).toBe(searchPageHref({ q: "so", type: "cards" }));
+    expect(screen.getByRole("option", { name: "so in Precons" }).getAttribute("href")).toBe(
+      searchPageHref({ q: "so", type: "precons" }),
+    );
+    expect(screen.getByRole("option", { name: "so in Sets" }).getAttribute("href")).toBe(
+      searchPageHref({ q: "so", type: "sets" }),
+    );
+    expect(screen.getByRole("link", { name: "Search cards" }).getAttribute("href")).toBe(
+      searchPageHref({ q: "so", type: "cards" }),
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(299);
+      await vi.advanceTimersByTimeAsync(300);
     });
-    expect(fetchMock).not.toHaveBeenCalled();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("scope=cards");
-
-    const card = screen.getByRole("option", { name: /Sol Ring/ });
-    expect(card.getAttribute("href")).toBe("/my-cards?section=collection&q=Sol+Ring");
-    expect(card.getAttribute("aria-selected")).toBe("true");
+    expect(String((fetchMock.mock.calls as unknown as unknown[][])[0]?.[0])).toContain("scope=autocomplete");
 
     fireEvent.keyDown(input, { key: "ArrowDown" });
-    const bolt = screen.getByRole("option", { name: /Lightning Bolt/ });
-    expect(bolt.getAttribute("aria-selected")).toBe("true");
-    expect(card.getAttribute("aria-selected")).toBeNull();
-
-    fireEvent.click(screen.getByRole("radio", { name: "Precons" }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300);
-    });
-    const precon = screen.getByRole("option", { name: /MKC/ });
-    expect(precon.getAttribute("href")).toBe("/my-cards?section=collection&q=e%3Amkc&kind=precon");
-
-    fireEvent.click(screen.getByRole("radio", { name: "Sets" }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300);
-    });
-    const set = screen.getByRole("option", { name: /MKM/ });
-    expect(set.getAttribute("href")).toBe("/my-cards?section=collection&q=e%3Amkm&kind=set");
-    expect(screen.queryByRole("option", { name: /MKC/ })).toBeNull();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const name = screen.getByRole("option", { name: "Sol Ring" });
+    expect(name.getAttribute("aria-selected")).toBe("true");
+    expect(name.getAttribute("href")).toBe(searchPageHref({ q: exactCardQuery("Sol Ring"), type: "cards" }));
+    expect(exactCardQuery("Sol Ring")).toBe('!"Sol Ring"');
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows an error and an empty result", async () => {
@@ -266,12 +260,14 @@ describe("search dialog", () => {
       await vi.advanceTimersByTimeAsync(300);
     });
     expect(screen.getByText("Could not reach Scryfall")).toBeTruthy();
+    expect(screen.getByRole("option", { name: "sol in Cards" })).toBeTruthy();
 
     fireEvent.change(input, { target: { value: "sola" } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
-    expect(screen.getByText("No matches.")).toBeTruthy();
+    expect(screen.getByRole("option", { name: "sola in Sets" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Sol Ring" })).toBeNull();
   });
 
   it("builds a card query from the advanced filters and still links to collection", async () => {
@@ -292,13 +288,8 @@ describe("search dialog", () => {
     fireEvent.click(screen.getAllByText("Colors")[0]!);
     fireEvent.click(screen.getByRole("button", { name: "White" }));
     expect(screen.getByText("f:modern c=w")).toBeTruthy();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300);
-    });
-    const called = fetchMock.mock.calls as unknown as unknown[][];
-    expect(String(called[0]?.[0])).toContain("q=f%3Amodern+c%3Dw");
-    const card = screen.getByRole("option", { name: /Lightning Bolt/ });
-    expect(card.getAttribute("href")).toBe("/my-cards?section=collection&q=Lightning+Bolt");
+    expect(screen.getByRole("link", { name: "Search with these filters" }).getAttribute("href")).toBe(
+      searchPageHref({ q: "f:modern c=w", type: "cards" }),
+    );
   });
 });

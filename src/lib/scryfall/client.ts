@@ -107,7 +107,7 @@ export async function searchScryfallCards(
   kind: SearchKind = "card",
   keep?: CardFilter,
   extra: { unique?: "cards" | "prints"; order?: string; dir?: string } = {},
-): Promise<{ cards: ScryfallCard[]; total: number; error?: string }> {
+): Promise<{ cards: ScryfallCard[]; total: number; hasMore?: boolean; error?: string }> {
   const q = query.trim();
   if (!q) return { cards: [], total: 0 };
 
@@ -167,7 +167,51 @@ export async function searchScryfallCards(
   return {
     cards,
     total: keep ? cards.length : (data.total_cards ?? cards.length),
+    hasMore: keep ? false : data.has_more === true,
   };
+}
+
+/** Card-name suggestions. The query is only a parameter value, never a URL. */
+export async function searchScryfallAutocomplete(
+  query: string,
+): Promise<{ names: string[]; error?: string }> {
+  const q = query.trim();
+  if ([...q].length < 2) return { names: [] };
+  const url = pinnedScryfallUrl("/cards/autocomplete");
+  url.searchParams.set("q", q);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: SCRYFALL_HEADERS,
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
+      signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
+    });
+  } catch {
+    return { names: [], error: "Could not reach Scryfall" };
+  }
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    return { names: [], error: "Scryfall search failed" };
+  }
+  let body: { data?: unknown };
+  try {
+    body = JSON.parse(await readCapped(res, SCRYFALL_CARD_MAX_BYTES)) as { data?: unknown };
+  } catch {
+    return { names: [], error: "Could not reach Scryfall" };
+  }
+  const names: string[] = [];
+  if (Array.isArray(body.data)) {
+    for (const row of body.data) {
+      if (typeof row !== "string") continue;
+      const name = row.trim();
+      if (!name || [...name].length > 200 || /[\u0000-\u001f\u007f]/.test(name)) continue;
+      names.push(name);
+      if (names.length >= 8) break;
+    }
+  }
+  return { names };
 }
 
 const SETS_MAX_BYTES = 2_000_000;
@@ -253,7 +297,7 @@ export async function searchScryfallCatalog(
 ): Promise<{ sets: CatalogSet[]; error?: string }> {
   const loaded = await loadScryfallSetList();
   if (loaded.error) return { sets: [], error: loaded.error };
-  return { sets: filterCatalog(loaded.sets, query, mode) };
+  return { sets: filterCatalog(loaded.sets, query, mode, 100) };
 }
 
 function rankCardsByQuery(cards: ScryfallCard[], query: string) {
