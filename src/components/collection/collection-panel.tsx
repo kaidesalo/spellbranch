@@ -31,9 +31,11 @@ import type { ScryfallCard } from "@/lib/scryfall/client";
 export function CollectionPanel({
   cards,
   visibility,
+  initialQuery = "",
 }: {
   cards: CollectionCard[];
   visibility: Visibility;
+  initialQuery?: string;
 }) {
   const totals = collectionTotals(cards);
   const [query, setQuery] = useState("");
@@ -63,7 +65,7 @@ export function CollectionPanel({
         </label>
       </div>
 
-      <AddCard />
+      <AddCard initialQuery={initialQuery} />
 
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
         <Input
@@ -124,8 +126,8 @@ function VisibilitySelect({ visibility }: { visibility: Visibility }) {
   );
 }
 
-function AddCard() {
-  const [query, setQuery] = useState("");
+function AddCard({ initialQuery }: { initialQuery: string }) {
+  const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState<ScryfallCard | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [finish, setFinish] = useState<CollectionFinish>("nonfoil");
