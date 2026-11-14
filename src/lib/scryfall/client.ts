@@ -1,5 +1,6 @@
 import { cardLookupKey } from "@/lib/decklist/names";
 import { isUuid } from "@/lib/data/validation";
+import { filterCatalog, isSetCode, type CatalogSet } from "@/lib/header-search";
 import { offeredFinishes } from "@/lib/printing";
 import type { CollectionFinish } from "@/lib/collection";
 
@@ -163,6 +164,71 @@ export async function searchScryfallCards(
     cards,
     total: keep ? cards.length : (data.total_cards ?? cards.length),
   };
+}
+
+const SETS_MAX_BYTES = 2_000_000;
+
+function catalogSet(row: unknown): CatalogSet | null {
+  if (!row || typeof row !== "object") return null;
+  const record = row as Record<string, unknown>;
+  if (typeof record.id !== "string" || record.id.length > 80) return null;
+  if (typeof record.code !== "string" || !isSetCode(record.code)) return null;
+  if (typeof record.name !== "string") return null;
+  const name = record.name.trim();
+  if (!name || name.length > 160) return null;
+  if (typeof record.set_type !== "string" || record.set_type.length > 40) return null;
+  return {
+    id: record.id,
+    code: record.code.toLowerCase(),
+    name,
+    setType: record.set_type,
+    releasedAt: typeof record.released_at === "string" ? record.released_at : "",
+    cardCount: typeof record.card_count === "number" && record.card_count >= 0 ? record.card_count : 0,
+  };
+}
+
+/**
+ * The full Scryfall set list, cached for a day. Set and precon searches
+ * filter this list in memory so typing does not send a request per keystroke.
+ * Same sandbox as the card helpers: User-Agent, Accept, no cookies, no redirects.
+ */
+export async function searchScryfallCatalog(
+  query: string,
+  mode: "sets" | "precons",
+): Promise<{ sets: CatalogSet[]; error?: string }> {
+  const url = pinnedScryfallUrl("/sets");
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: SCRYFALL_HEADERS,
+      redirect: "error",
+      credentials: "omit",
+      next: { revalidate: 86_400 },
+      signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
+    });
+  } catch {
+    return { sets: [], error: "Could not reach Scryfall" };
+  }
+
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    return { sets: [], error: "Scryfall search failed" };
+  }
+
+  let body: { data?: unknown };
+  try {
+    body = JSON.parse(await readCapped(res, SETS_MAX_BYTES)) as { data?: unknown };
+  } catch {
+    return { sets: [], error: "Could not reach Scryfall" };
+  }
+
+  const rows = Array.isArray(body.data) ? body.data : [];
+  const sets: CatalogSet[] = [];
+  for (const row of rows) {
+    const set = catalogSet(row);
+    if (set) sets.push(set);
+  }
+  return { sets: filterCatalog(sets, query, mode) };
 }
 
 function rankCardsByQuery(cards: ScryfallCard[], query: string) {
