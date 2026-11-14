@@ -14,6 +14,9 @@ export const MAIN_NAV = [
   { href: "/friends", label: "Social" },
 ] as const;
 
+/** Hamburger list. Search lives in the mobile header icon instead. */
+export const MOBILE_MENU_NAV = MAIN_NAV.filter((item) => item.href !== "/browse");
+
 export type MainNavHref = (typeof MAIN_NAV)[number]["href"];
 
 /** True when this primary item should show as the current section. */

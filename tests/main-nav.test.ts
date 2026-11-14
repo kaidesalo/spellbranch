@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
 
 import { createElement, type ReactNode } from "react";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MAIN_NAV, mainNavActive } from "@/components/layout/main-nav";
+import { MAIN_NAV, MOBILE_MENU_NAV, mainNavActive } from "@/components/layout/main-nav";
 import type { SessionUser } from "@/lib/types";
 
 const navState = vi.hoisted(() => ({ pathname: "/dashboard", search: "" }));
@@ -22,13 +20,20 @@ vi.mock("next/link", () => ({
     className,
     onClick,
     "aria-current": ariaCurrent,
+    "aria-label": ariaLabel,
   }: {
     href: string;
     children: ReactNode;
     className?: string;
     onClick?: () => void;
     "aria-current"?: "page";
-  }) => createElement("a", { href, className, onClick, "aria-current": ariaCurrent }, children),
+    "aria-label"?: string;
+  }) =>
+    createElement(
+      "a",
+      { href, className, onClick, "aria-current": ariaCurrent, "aria-label": ariaLabel },
+      children,
+    ),
 }));
 
 vi.mock("next/image", () => ({
@@ -63,6 +68,16 @@ describe("main nav model", () => {
     expect(MAIN_NAV.map((item) => item.href)).toEqual(hrefs);
   });
 
+  it("drops Search from the mobile menu and keeps the other four in order", () => {
+    expect(MOBILE_MENU_NAV.map((item) => item.label)).toEqual([
+      "Home",
+      "Collection",
+      "Decks",
+      "Social",
+    ]);
+    expect(MOBILE_MENU_NAV.map((item) => item.href)).not.toContain("/browse");
+  });
+
   it("highlights the section for nested routes and leaves the others off", () => {
     expect(mainNavActive("/decks/deck-1", "/decks")).toBe(true);
     expect(mainNavActive("/decks/deck-1/edit", "/decks")).toBe(true);
@@ -83,34 +98,71 @@ describe("main nav model", () => {
   });
 });
 
+function searchIcon() {
+  return screen.getAllByRole("link", { name: "Search" }).find((link) => link.getAttribute("aria-label") === "Search");
+}
+
 describe("SiteHeader nav", () => {
-  it("renders the five items in both menus and marks the active route", () => {
+  it("keeps five desktop items and four mobile items, with Search only in the header icon", () => {
     navState.pathname = "/decks/deck-1/compare";
     render(createElement(SiteHeader, { user }));
-    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
 
-    const navs = screen.getAllByRole("navigation", { name: "Main" });
-    expect(navs.length).toBeGreaterThanOrEqual(1);
-    for (const nav of navs) {
-      const links = within(nav).getAllByRole("link");
-      expect(links.map((link) => link.textContent)).toEqual(labels);
-      expect(links.map((link) => link.getAttribute("href"))).toEqual(hrefs);
-      expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([
-        null,
-        null,
-        null,
-        "page",
-        null,
-      ]);
-    }
-    const headerSource = readFileSync(
-      path.join(process.cwd(), "src/components/layout/site-header.tsx"),
-      "utf8",
-    );
-    expect(headerSource.match(/aria-label="Main"/g)).toHaveLength(2);
-    expect(headerSource.match(/<NavLinks/g)).toHaveLength(2);
+    const desktop = screen.getByRole("navigation", { name: "Main" });
+    expect(desktop.className).toContain("md:flex");
+    const desktopLinks = within(desktop).getAllByRole("link");
+    expect(desktopLinks.map((link) => link.textContent)).toEqual(labels);
+    expect(desktopLinks.map((link) => link.getAttribute("href"))).toEqual(hrefs);
+    expect(desktopLinks.map((link) => link.getAttribute("aria-current"))).toEqual([
+      null,
+      null,
+      null,
+      "page",
+      null,
+    ]);
+
+    const icon = searchIcon();
+    expect(icon?.getAttribute("href")).toBe("/browse");
+    expect(icon?.getAttribute("aria-current")).toBeNull();
+    expect(icon?.className).toContain("size-11");
+    expect(icon?.className).toContain("focus-visible:ring-2");
+    expect(icon?.parentElement?.className).toContain("md:hidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const mobile = [...document.querySelectorAll("nav")].find((nav) => !nav.className.includes("md:flex"));
+    expect(mobile).toBeTruthy();
+    const mobileLinks = within(mobile!).getAllByRole("link");
+    expect(mobileLinks.map((link) => link.textContent)).toEqual([
+      "Home",
+      "Collection",
+      "Decks",
+      "Social",
+    ]);
+    expect(mobileLinks.map((link) => link.getAttribute("href"))).toEqual([
+      "/dashboard",
+      "/my-cards?section=collection",
+      "/decks",
+      "/friends",
+    ]);
+    expect(within(mobile!).queryByRole("link", { name: "Search" })).toBeNull();
+
     expect(screen.getByRole("link", { name: "Ada" }).getAttribute("href")).toBe("/profile");
     expect(screen.getAllByRole("link", { name: "Favorites" }).length).toBeGreaterThan(0);
+  });
+
+  it("marks the header search link current only on /browse", () => {
+    navState.pathname = "/browse";
+    render(createElement(SiteHeader, { user }));
+    const active = searchIcon();
+    expect(active?.getAttribute("href")).toBe("/browse");
+    expect(active?.getAttribute("aria-label")).toBe("Search");
+    expect(active?.getAttribute("aria-current")).toBe("page");
+    expect(active?.className).toContain("bg-primary");
+
+    cleanup();
+    navState.pathname = "/friends";
+    render(createElement(SiteHeader, { user }));
+    expect(searchIcon()?.getAttribute("aria-current")).toBeNull();
+    expect(searchIcon()?.className).not.toContain("bg-primary");
   });
 
   it("marks Collection on the collection tab", () => {
@@ -134,5 +186,6 @@ describe("SiteHeader nav", () => {
     expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/login");
     expect(screen.getByRole("link", { name: "Join free" }).getAttribute("href")).toBe("/signup");
     expect(screen.queryByRole("link", { name: "Social" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Search" })).toBeNull();
   });
 });
