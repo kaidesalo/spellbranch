@@ -106,6 +106,7 @@ export async function searchScryfallCards(
   page = 1,
   kind: SearchKind = "card",
   keep?: CardFilter,
+  extra: { unique?: "cards" | "prints"; order?: string; dir?: string } = {},
 ): Promise<{ cards: ScryfallCard[]; total: number; error?: string }> {
   const q = query.trim();
   if (!q) return { cards: [], total: 0 };
@@ -113,7 +114,9 @@ export async function searchScryfallCards(
   const url = new URL("https://api.scryfall.com/cards/search");
   url.searchParams.set("q", buildSearchQuery(q, kind));
   url.searchParams.set("page", String(page));
-  url.searchParams.set("unique", "cards");
+  url.searchParams.set("unique", extra.unique === "prints" ? "prints" : "cards");
+  if (extra.order) url.searchParams.set("order", extra.order);
+  if (extra.dir) url.searchParams.set("dir", extra.dir);
 
   let res: Response;
   try {
@@ -150,10 +153,11 @@ export async function searchScryfallCards(
     return { cards: [], total: 0, error: "Could not reach Scryfall" };
   }
   if (!res.ok) {
+    // Scryfall's details text stays on the server. Callers get a fixed message.
     return {
       cards: [],
       total: 0,
-      error: data.details || "Scryfall search failed",
+      error: "Scryfall search failed",
     };
   }
 
@@ -187,15 +191,26 @@ function catalogSet(row: unknown): CatalogSet | null {
   };
 }
 
+const SET_CACHE_MS = 86_400_000;
+let setListCache: { at: number; sets: CatalogSet[] } | null = null;
+
+/** Tests need a cold catalog. A failed fetch is never stored. */
+export function clearScryfallSetCacheForTests() {
+  setListCache = null;
+}
+
 /**
- * The full Scryfall set list, cached for a day. Set and precon searches
- * filter this list in memory so typing does not send a request per keystroke.
- * Same sandbox as the card helpers: User-Agent, Accept, no cookies, no redirects.
+ * The full Scryfall set list. A validated 200 is kept in memory for a day.
+ * Failures use cache: "no-store" and are not remembered, so a 5xx cannot
+ * stick in Next's fetch cache. Set and precon searches filter this list
+ * in memory. Same sandbox as the card helpers.
  */
-export async function searchScryfallCatalog(
-  query: string,
-  mode: "sets" | "precons",
-): Promise<{ sets: CatalogSet[]; error?: string }> {
+async function loadScryfallSetList(): Promise<{ sets: CatalogSet[]; error?: string }> {
+  const now = Date.now();
+  if (setListCache && now - setListCache.at < SET_CACHE_MS) {
+    return { sets: setListCache.sets };
+  }
+
   const url = pinnedScryfallUrl("/sets");
   let res: Response;
   try {
@@ -203,7 +218,7 @@ export async function searchScryfallCatalog(
       headers: SCRYFALL_HEADERS,
       redirect: "error",
       credentials: "omit",
-      next: { revalidate: 86_400 },
+      cache: "no-store",
       signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
     });
   } catch {
@@ -228,7 +243,17 @@ export async function searchScryfallCatalog(
     const set = catalogSet(row);
     if (set) sets.push(set);
   }
-  return { sets: filterCatalog(sets, query, mode) };
+  setListCache = { at: now, sets };
+  return { sets };
+}
+
+export async function searchScryfallCatalog(
+  query: string,
+  mode: "sets" | "precons",
+): Promise<{ sets: CatalogSet[]; error?: string }> {
+  const loaded = await loadScryfallSetList();
+  if (loaded.error) return { sets: [], error: loaded.error };
+  return { sets: filterCatalog(loaded.sets, query, mode) };
 }
 
 function rankCardsByQuery(cards: ScryfallCard[], query: string) {
