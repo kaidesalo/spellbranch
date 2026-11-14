@@ -741,6 +741,9 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const deck = await fetchDeck(client, deckId);
       if (!deck) return null;
+      // RLS (can_view_deck) already hides non-public rows from anon. Repeat
+      // it here: with no viewer, only an explicit public deck is returned.
+      if (!viewerId && deck.visibility !== "public") return null;
       const [decorated] = await decorate(client, [deck], true, true);
       if (viewerId) {
         const copyLinks = await copyLinksForDeck(client, deck.id);

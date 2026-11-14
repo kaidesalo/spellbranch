@@ -1,11 +1,8 @@
-import { requireUser } from "@/lib/auth/require-user";
+import { getSessionUser } from "@/lib/auth/session";
 import { SearchResults } from "@/components/search/search-results";
 import { parseSearchPageQuery } from "@/lib/search-results";
 
-/**
- * Signed-in, same as Browse, Collection, and the header search dialog.
- * The search API itself stays public and rate-limited.
- */
+/** Public card, precon, and set search. Adding a card still requires sign-in. */
 export default async function SearchPage({
   searchParams,
 }: {
@@ -18,7 +15,7 @@ export default async function SearchPage({
     view?: string | string[];
   }>;
 }) {
-  await requireUser();
+  const user = await getSessionUser();
   const query = parseSearchPageQuery(await searchParams);
-  return <SearchResults query={query} />;
+  return <SearchResults query={query} signedIn={Boolean(user)} />;
 }

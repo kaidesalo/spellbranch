@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth/require-user";
+import { getSessionUser } from "@/lib/auth/session";
 import { listFriendBranchesOnMyDecks, listVisibleDecks } from "@/lib/queries/decks";
 import { browseScope } from "@/lib/collection";
 import { DeckEmpty, DeckGrid, FriendBranchBadge } from "@/components/decks/deck-grid";
@@ -10,14 +10,15 @@ export default async function BrowseDecksPage({
 }: {
   searchParams: Promise<{ scope?: string | string[] }>;
 }) {
-  await requireUser();
+  const user = await getSessionUser();
   const { scope: scopeParam } = await searchParams;
-  const scope = browseScope(Array.isArray(scopeParam) ? scopeParam[0] : scopeParam);
-  const [friends, pub, onMine] = await Promise.all([
-    listVisibleDecks("friends"),
-    listVisibleDecks("public"),
-    listFriendBranchesOnMyDecks(),
-  ]);
+  const requested = browseScope(Array.isArray(scopeParam) ? scopeParam[0] : scopeParam);
+  // Signed-out visitors only get the public list. Friends and "on your decks"
+  // stay behind a session so those queries are never run for anon.
+  const scope = user ? requested : "public";
+  const pub = await listVisibleDecks("public");
+  const friends = user && scope === "friends" ? await listVisibleDecks("friends") : [];
+  const onMine = user && scope === "on-mine" ? await listFriendBranchesOnMyDecks() : [];
 
   const tabs = [
     { id: "friends" as const, label: "Friends", count: friends.length, href: "/browse" },
@@ -30,9 +31,12 @@ export default async function BrowseDecksPage({
       <div className="min-w-0">
         <h1 className="text-3xl font-semibold">Browse decks</h1>
         <p className="mt-1 text-muted-foreground">
-          Decks friends shared, public decks, and branches friends made of decks you own.
+          {user
+            ? "Decks friends shared, public decks, and branches friends made of decks you own."
+            : "Public decks anyone can open. Sign in to see decks friends shared."}
         </p>
       </div>
+      {user && (
       <nav
         aria-label="Browse decks"
         className="mt-6 grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
@@ -59,6 +63,7 @@ export default async function BrowseDecksPage({
           </Link>
         ))}
       </nav>
+      )}
       <div className="mt-6 min-w-0">
         {scope === "friends" &&
           (friends.length === 0 ? (

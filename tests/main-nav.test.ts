@@ -201,6 +201,6 @@ describe("SiteHeader nav", () => {
     expect(screen.getByRole("link", { name: "Join free" }).getAttribute("href")).toBe("/signup");
     expect(screen.queryByRole("link", { name: "Social" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Search" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Search" }).length).toBeGreaterThan(0);
   });
 });

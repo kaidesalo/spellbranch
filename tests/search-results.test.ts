@@ -95,7 +95,7 @@ describe("SearchResults", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    render(createElement(SearchResults, { query: base }));
+    render(createElement(SearchResults, { query: base, signedIn: true }));
     expect(await screen.findByText(/returned 2 results/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Clear" }).getAttribute("href")).toBe("/search");
     const image = screen.getByRole("img", { name: "Lightning Bolt" });
@@ -148,7 +148,7 @@ describe("SearchResults", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { unmount } = render(
-      createElement(SearchResults, { query: { ...base, q: "karlov", type: "precons" } }),
+      createElement(SearchResults, { query: { ...base, q: "karlov", type: "precons" }, signedIn: false }),
     );
     expect(await screen.findByText("Murders at Karlov Manor Commander")).toBeTruthy();
     expect(screen.getByTestId("search-set-list")).toBeTruthy();
@@ -157,7 +157,7 @@ describe("SearchResults", () => {
     );
     unmount();
 
-    render(createElement(SearchResults, { query: { ...base, q: "angel" } }));
+    render(createElement(SearchResults, { query: { ...base, q: "angel" }, signedIn: true }));
     await screen.findByRole("button", { name: "Load more" });
     for (let i = 0; i < 9; i++) {
       fireEvent.click(screen.getByRole("button", { name: "Load more" }));
