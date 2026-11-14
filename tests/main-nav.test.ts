@@ -98,8 +98,10 @@ describe("main nav model", () => {
   });
 });
 
-function searchIcon() {
-  return screen.getAllByRole("link", { name: "Search" }).find((link) => link.getAttribute("aria-label") === "Search");
+function searchButton() {
+  return screen
+    .getAllByRole("button", { name: "Search" })
+    .find((button) => button.getAttribute("aria-label") === "Search");
 }
 
 describe("SiteHeader nav", () => {
@@ -109,19 +111,32 @@ describe("SiteHeader nav", () => {
 
     const desktop = screen.getByRole("navigation", { name: "Main" });
     expect(desktop.className).toContain("md:flex");
+    const desktopItems = [...desktop.querySelectorAll("a, button")];
+    expect(desktopItems.map((item) => item.textContent)).toEqual(labels);
     const desktopLinks = within(desktop).getAllByRole("link");
-    expect(desktopLinks.map((link) => link.textContent)).toEqual(labels);
-    expect(desktopLinks.map((link) => link.getAttribute("href"))).toEqual(hrefs);
+    expect(desktopLinks.map((link) => link.textContent)).toEqual([
+      "Home",
+      "Collection",
+      "Decks",
+      "Social",
+    ]);
+    expect(desktopLinks.map((link) => link.getAttribute("href"))).toEqual([
+      "/dashboard",
+      "/my-cards?section=collection",
+      "/decks",
+      "/friends",
+    ]);
     expect(desktopLinks.map((link) => link.getAttribute("aria-current"))).toEqual([
-      null,
       null,
       null,
       "page",
       null,
     ]);
+    expect(within(desktop).getByRole("button", { name: "Search" }).getAttribute("aria-current")).toBeNull();
 
-    const icon = searchIcon();
-    expect(icon?.getAttribute("href")).toBe("/browse");
+    const icon = searchButton();
+    expect(icon?.tagName).toBe("BUTTON");
+    expect(icon?.getAttribute("aria-label")).toBe("Search");
     expect(icon?.getAttribute("aria-current")).toBeNull();
     expect(icon?.className).toContain("size-11");
     expect(icon?.className).toContain("focus-visible:ring-2");
@@ -149,11 +164,10 @@ describe("SiteHeader nav", () => {
     expect(screen.getAllByRole("link", { name: "Favorites" }).length).toBeGreaterThan(0);
   });
 
-  it("marks the header search link current only on /browse", () => {
+  it("marks the header search button current only on /browse", () => {
     navState.pathname = "/browse";
     render(createElement(SiteHeader, { user }));
-    const active = searchIcon();
-    expect(active?.getAttribute("href")).toBe("/browse");
+    const active = searchButton();
     expect(active?.getAttribute("aria-label")).toBe("Search");
     expect(active?.getAttribute("aria-current")).toBe("page");
     expect(active?.className).toContain("bg-primary");
@@ -161,8 +175,8 @@ describe("SiteHeader nav", () => {
     cleanup();
     navState.pathname = "/friends";
     render(createElement(SiteHeader, { user }));
-    expect(searchIcon()?.getAttribute("aria-current")).toBeNull();
-    expect(searchIcon()?.className).not.toContain("bg-primary");
+    expect(searchButton()?.getAttribute("aria-current")).toBeNull();
+    expect(searchButton()?.className.split(" ")).not.toContain("bg-primary");
   });
 
   it("marks Collection on the collection tab", () => {
@@ -171,8 +185,8 @@ describe("SiteHeader nav", () => {
     render(createElement(SiteHeader, { user }));
     const nav = screen.getByRole("navigation", { name: "Main" });
     const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["Home", "Collection", "Decks", "Social"]);
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([
-      null,
       null,
       "page",
       null,
@@ -187,5 +201,6 @@ describe("SiteHeader nav", () => {
     expect(screen.getByRole("link", { name: "Join free" }).getAttribute("href")).toBe("/signup");
     expect(screen.queryByRole("link", { name: "Social" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Search" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Search" }).length).toBeGreaterThan(0);
   });
 });

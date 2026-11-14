@@ -1,5 +1,6 @@
 import { cardLookupKey } from "@/lib/decklist/names";
 import { isUuid } from "@/lib/data/validation";
+import { filterCatalog, isSetCode, type CatalogSet } from "@/lib/header-search";
 import { offeredFinishes } from "@/lib/printing";
 import type { CollectionFinish } from "@/lib/collection";
 
@@ -105,14 +106,17 @@ export async function searchScryfallCards(
   page = 1,
   kind: SearchKind = "card",
   keep?: CardFilter,
-): Promise<{ cards: ScryfallCard[]; total: number; error?: string }> {
+  extra: { unique?: "cards" | "prints"; order?: string; dir?: string } = {},
+): Promise<{ cards: ScryfallCard[]; total: number; hasMore?: boolean; error?: string }> {
   const q = query.trim();
   if (!q) return { cards: [], total: 0 };
 
   const url = new URL("https://api.scryfall.com/cards/search");
   url.searchParams.set("q", buildSearchQuery(q, kind));
   url.searchParams.set("page", String(page));
-  url.searchParams.set("unique", "cards");
+  url.searchParams.set("unique", extra.unique === "prints" ? "prints" : "cards");
+  if (extra.order) url.searchParams.set("order", extra.order);
+  if (extra.dir) url.searchParams.set("dir", extra.dir);
 
   let res: Response;
   try {
@@ -149,10 +153,11 @@ export async function searchScryfallCards(
     return { cards: [], total: 0, error: "Could not reach Scryfall" };
   }
   if (!res.ok) {
+    // Scryfall's details text stays on the server. Callers get a fixed message.
     return {
       cards: [],
       total: 0,
-      error: data.details || "Scryfall search failed",
+      error: "Scryfall search failed",
     };
   }
 
@@ -162,7 +167,137 @@ export async function searchScryfallCards(
   return {
     cards,
     total: keep ? cards.length : (data.total_cards ?? cards.length),
+    hasMore: keep ? false : data.has_more === true,
   };
+}
+
+/** Card-name suggestions. The query is only a parameter value, never a URL. */
+export async function searchScryfallAutocomplete(
+  query: string,
+): Promise<{ names: string[]; error?: string }> {
+  const q = query.trim();
+  if ([...q].length < 2) return { names: [] };
+  const url = pinnedScryfallUrl("/cards/autocomplete");
+  url.searchParams.set("q", q);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: SCRYFALL_HEADERS,
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
+      signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
+    });
+  } catch {
+    return { names: [], error: "Could not reach Scryfall" };
+  }
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    return { names: [], error: "Scryfall search failed" };
+  }
+  let body: { data?: unknown };
+  try {
+    body = JSON.parse(await readCapped(res, SCRYFALL_CARD_MAX_BYTES)) as { data?: unknown };
+  } catch {
+    return { names: [], error: "Could not reach Scryfall" };
+  }
+  const names: string[] = [];
+  if (Array.isArray(body.data)) {
+    for (const row of body.data) {
+      if (typeof row !== "string") continue;
+      const name = row.trim();
+      if (!name || [...name].length > 200 || /[\u0000-\u001f\u007f]/.test(name)) continue;
+      names.push(name);
+      if (names.length >= 8) break;
+    }
+  }
+  return { names };
+}
+
+const SETS_MAX_BYTES = 2_000_000;
+
+function catalogSet(row: unknown): CatalogSet | null {
+  if (!row || typeof row !== "object") return null;
+  const record = row as Record<string, unknown>;
+  if (typeof record.id !== "string" || record.id.length > 80) return null;
+  if (typeof record.code !== "string" || !isSetCode(record.code)) return null;
+  if (typeof record.name !== "string") return null;
+  const name = record.name.trim();
+  if (!name || name.length > 160) return null;
+  if (typeof record.set_type !== "string" || record.set_type.length > 40) return null;
+  return {
+    id: record.id,
+    code: record.code.toLowerCase(),
+    name,
+    setType: record.set_type,
+    releasedAt: typeof record.released_at === "string" ? record.released_at : "",
+    cardCount: typeof record.card_count === "number" && record.card_count >= 0 ? record.card_count : 0,
+  };
+}
+
+const SET_CACHE_MS = 86_400_000;
+let setListCache: { at: number; sets: CatalogSet[] } | null = null;
+
+/** Tests need a cold catalog. A failed fetch is never stored. */
+export function clearScryfallSetCacheForTests() {
+  setListCache = null;
+}
+
+/**
+ * The full Scryfall set list. A validated 200 is kept in memory for a day.
+ * Failures use cache: "no-store" and are not remembered, so a 5xx cannot
+ * stick in Next's fetch cache. Set and precon searches filter this list
+ * in memory. Same sandbox as the card helpers.
+ */
+async function loadScryfallSetList(): Promise<{ sets: CatalogSet[]; error?: string }> {
+  const now = Date.now();
+  if (setListCache && now - setListCache.at < SET_CACHE_MS) {
+    return { sets: setListCache.sets };
+  }
+
+  const url = pinnedScryfallUrl("/sets");
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: SCRYFALL_HEADERS,
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
+      signal: AbortSignal.timeout(SCRYFALL_CARD_TIMEOUT_MS),
+    });
+  } catch {
+    return { sets: [], error: "Could not reach Scryfall" };
+  }
+
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    return { sets: [], error: "Scryfall search failed" };
+  }
+
+  let body: { data?: unknown };
+  try {
+    body = JSON.parse(await readCapped(res, SETS_MAX_BYTES)) as { data?: unknown };
+  } catch {
+    return { sets: [], error: "Could not reach Scryfall" };
+  }
+
+  const rows = Array.isArray(body.data) ? body.data : [];
+  const sets: CatalogSet[] = [];
+  for (const row of rows) {
+    const set = catalogSet(row);
+    if (set) sets.push(set);
+  }
+  setListCache = { at: now, sets };
+  return { sets };
+}
+
+export async function searchScryfallCatalog(
+  query: string,
+  mode: "sets" | "precons",
+): Promise<{ sets: CatalogSet[]; error?: string }> {
+  const loaded = await loadScryfallSetList();
+  if (loaded.error) return { sets: [], error: loaded.error };
+  return { sets: filterCatalog(loaded.sets, query, mode, 100) };
 }
 
 function rankCardsByQuery(cards: ScryfallCard[], query: string) {

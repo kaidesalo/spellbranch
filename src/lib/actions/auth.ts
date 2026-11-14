@@ -5,6 +5,7 @@ import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireUser } from "@/lib/auth/require-user";
+import { safeNextPath } from "@/lib/auth/redirect";
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
 import { LIMITS } from "@/lib/data/limits";
@@ -89,9 +90,10 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
       username,
       displayName: displayName || username,
       ip,
+      next: nextFrom(formData),
     });
     if (result !== "signed-in") return result;
-    redirect("/dashboard");
+    redirect(safeNextPath(nextFrom(formData)));
   }
 
   const signUpLimit = await limit("sign-up", { ip, email });
@@ -137,7 +139,12 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
     };
   }
 
-  redirect("/dashboard");
+  redirect(safeNextPath(nextFrom(formData)));
+}
+
+function nextFrom(formData: FormData): string | null {
+  const value = formData.get("next");
+  return typeof value === "string" ? value : null;
 }
 
 export async function signInAction(formData: FormData): Promise<AuthResult> {
@@ -175,7 +182,7 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
       }
       return { error: "Invalid email or password" };
     }
-    redirect("/dashboard");
+    redirect(safeNextPath(nextFrom(formData)));
   }
 
   try {
@@ -201,7 +208,7 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
     };
   }
 
-  redirect("/dashboard");
+  redirect(safeNextPath(nextFrom(formData)));
 }
 
 export async function signOutAction() {
@@ -270,6 +277,7 @@ async function supabaseSignUp(input: {
   username: string;
   displayName: string;
   ip: string;
+  next?: string | null;
 }): Promise<AuthResult | "signed-in"> {
   const supabase = await createSupabaseServerClient();
 
@@ -295,7 +303,11 @@ async function supabaseSignUp(input: {
     password: input.password,
     options: {
       data: { username: input.username, display_name: input.displayName },
-      ...(siteUrl ? { emailRedirectTo: `${siteUrl}/auth/confirm?next=/dashboard` } : {}),
+      ...(siteUrl
+        ? {
+            emailRedirectTo: `${siteUrl}/auth/confirm?next=${encodeURIComponent(safeNextPath(input.next))}`,
+          }
+        : {}),
     },
   });
 
