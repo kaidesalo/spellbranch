@@ -4,12 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { signOutAction } from "@/lib/actions/auth";
 import type { SessionUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MAIN_NAV, mainNavActive } from "@/components/layout/main-nav";
+import { MAIN_NAV, MOBILE_MENU_NAV, mainNavActive, type MainNavHref } from "@/components/layout/main-nav";
 import {
   Sheet,
   SheetContent,
@@ -22,11 +22,13 @@ const navLinkClass =
   "rounded-lg px-3 py-2 label-caps transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 function NavLinks({
+  items,
   pathname,
   section,
   onNavigate,
   className,
 }: {
+  items: readonly { href: MainNavHref; label: string }[];
   pathname: string;
   section: string | null;
   onNavigate?: () => void;
@@ -34,7 +36,7 @@ function NavLinks({
 }) {
   return (
     <>
-      {MAIN_NAV.map((link) => {
+      {items.map((link) => {
         const active = mainNavActive(pathname, link.href, section);
         return (
           <Link
@@ -59,6 +61,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
   // without a setState effect.
   const [openPath, setOpenPath] = useState<string | null>(null);
   const menuOpen = openPath === pathname;
+  const searchActive = mainNavActive(pathname, "/browse", section);
 
   return (
     <header className="sticky top-0 z-40 min-w-0 border-b border-border/70 bg-background/90 backdrop-blur-md">
@@ -79,6 +82,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
           <>
             <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
               <NavLinks
+                items={MAIN_NAV}
                 pathname={pathname}
                 section={section}
                 className={cn(
@@ -105,10 +109,25 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                 </Button>
               </form>
             </div>
-            <Sheet
-              open={menuOpen}
-              onOpenChange={(open) => setOpenPath(open ? pathname : null)}
-            >
+            <div className="flex shrink-0 items-center gap-1 md:hidden">
+              <Link
+                href="/browse"
+                aria-label="Search"
+                aria-current={searchActive ? "page" : undefined}
+                className={cn(
+                  "inline-flex size-11 shrink-0 items-center justify-center rounded-lg",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  searchActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                <Search className="size-5" aria-hidden />
+              </Link>
+              <Sheet
+                open={menuOpen}
+                onOpenChange={(open) => setOpenPath(open ? pathname : null)}
+              >
               <SheetTrigger
                 render={
                   <Button variant="outline" size="icon" className="shrink-0 md:hidden" />
@@ -123,6 +142,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                 </SheetHeader>
                 <nav aria-label="Main" className="mt-6 flex flex-col gap-2 px-2">
                   <NavLinks
+                    items={MOBILE_MENU_NAV}
                     pathname={pathname}
                     section={section}
                     onNavigate={() => setOpenPath(null)}
@@ -151,7 +171,8 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                   </form>
                 </div>
               </SheetContent>
-            </Sheet>
+              </Sheet>
+            </div>
           </>
         ) : (
           <div className="flex shrink-0 items-center gap-2">
