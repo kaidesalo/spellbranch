@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Menu } from "lucide-react";
 import { signOutAction } from "@/lib/actions/auth";
 import type { SessionUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MAIN_NAV, mainNavActive } from "@/components/layout/main-nav";
 import {
   Sheet,
   SheetContent,
@@ -17,23 +18,43 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const links = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/my-cards", label: "My cards" },
-  { href: "/friends", label: "Friends" },
-  { href: "/favorites", label: "Favorites" },
-  { href: "/profile", label: "Profile" },
-];
+const navLinkClass =
+  "rounded-lg px-3 py-2 label-caps transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-function linkActive(pathname: string, href: string) {
-  if (href === "/my-cards") {
-    return pathname.startsWith("/my-cards") || pathname.startsWith("/decks") || pathname.startsWith("/browse");
-  }
-  return pathname.startsWith(href);
+function NavLinks({
+  pathname,
+  section,
+  onNavigate,
+  className,
+}: {
+  pathname: string;
+  section: string | null;
+  onNavigate?: () => void;
+  className: string;
+}) {
+  return (
+    <>
+      {MAIN_NAV.map((link) => {
+        const active = mainNavActive(pathname, link.href, section);
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            aria-current={active ? "page" : undefined}
+            onClick={onNavigate}
+            className={cn(navLinkClass, className, active && "bg-primary text-primary-foreground")}
+          >
+            {link.label}
+          </Link>
+        );
+      })}
+    </>
+  );
 }
 
 export function SiteHeader({ user }: { user: SessionUser | null }) {
   const pathname = usePathname();
+  const section = useSearchParams().get("section");
   // Open only for the path it was opened on, so a navigation closes it
   // without a setState effect.
   const [openPath, setOpenPath] = useState<string | null>(null);
@@ -56,26 +77,28 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
 
         {user ? (
           <>
-            <nav className="hidden items-center gap-1 md:flex">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "rounded-lg px-3 py-2 label-caps transition-colors",
-                    linkActive(pathname, link.href)
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  )}
-                >
-                  {link.label}
-                </Link>
-              ))}
+            <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
+              <NavLinks
+                pathname={pathname}
+                section={section}
+                className={cn(
+                  "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              />
             </nav>
             <div className="hidden items-center gap-3 md:flex">
-              <span className="text-sm text-muted-foreground">
+              <Link
+                href="/profile"
+                className="rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 {user.displayName}
-              </span>
+              </Link>
+              <Link
+                href="/favorites"
+                className="rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Favorites
+              </Link>
               <form action={signOutAction}>
                 <Button type="submit" variant="outline" size="sm">
                   Sign out
@@ -98,23 +121,30 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                 <SheetHeader>
                   <SheetTitle className="font-display font-semibold">Spellbranch</SheetTitle>
                 </SheetHeader>
-                <div className="mt-6 flex flex-col gap-2 px-2">
-                  {links.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setOpenPath(null)}
-                      className={cn(
-                        "rounded-lg px-3 py-3 text-sm font-medium",
-                        linkActive(pathname, link.href)
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground",
-                      )}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                  <form action={signOutAction} className="mt-4">
+                <nav aria-label="Main" className="mt-6 flex flex-col gap-2 px-2">
+                  <NavLinks
+                    pathname={pathname}
+                    section={section}
+                    onNavigate={() => setOpenPath(null)}
+                    className="py-3 text-sm font-medium text-foreground"
+                  />
+                </nav>
+                <div className="mt-4 flex flex-col gap-2 px-2">
+                  <Link
+                    href="/profile"
+                    onClick={() => setOpenPath(null)}
+                    className="rounded-lg px-3 py-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {user.displayName}
+                  </Link>
+                  <Link
+                    href="/favorites"
+                    onClick={() => setOpenPath(null)}
+                    className="rounded-lg px-3 py-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Favorites
+                  </Link>
+                  <form action={signOutAction} className="mt-2">
                     <Button type="submit" variant="outline" className="w-full">
                       Sign out
                     </Button>
