@@ -259,6 +259,17 @@ describe("boot splash overlay", () => {
   });
 });
 
+describe("splash wood background", () => {
+  it("tiles a stitched grain instead of a hard-edged 640px repeat", () => {
+    const css = readFileSync(path.join(process.cwd(), "src/app/boot-splash.css"), "utf8");
+    const splash = css.slice(css.indexOf(".boot-splash {"), css.indexOf(".boot-splash-leaving"));
+    expect(splash).toContain("stitchTiles='stitch'");
+    expect(splash).toContain("x='0' y='0' width='100%25' height='100%25'");
+    expect(splash).toContain("background-repeat: no-repeat, no-repeat, no-repeat, repeat");
+    expect(splash).toContain("background-size: auto, auto, auto, 640px 640px");
+  });
+});
+
 describe("splash start script", () => {
   it("stamps the clock once and leaves a later navigation's stamp alone", () => {
     expect(SPLASH_START_SCRIPT).toContain("__spellbranchSplashStart");

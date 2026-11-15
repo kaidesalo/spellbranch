@@ -12,11 +12,14 @@
   justify-content: center;
   padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.25rem, env(safe-area-inset-bottom));
   background-color: #2c1b10;
+  /* The grain is a 640px tile. stitchTiles and a filter region that
+     matches the tile keep that repeat seamless past one tile. */
   background-image:
     radial-gradient(ellipse 70% 55% at 12% 0%, rgba(255, 198, 120, 0.42), transparent 42%),
     radial-gradient(ellipse 90% 80% at 100% 110%, rgba(0, 0, 0, 0.55), transparent 50%),
     radial-gradient(ellipse 80% 70% at 0% 100%, rgba(0, 0, 0, 0.35), transparent 46%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01 0.36' numOctaves='5' seed='8'/%3E%3CfeColorMatrix type='matrix' values='0.42 0.18 0.06 0 0.1 0.24 0.12 0.04 0 0.05 0.08 0.04 0.015 0 0.02 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01 0.36' numOctaves='5' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.42 0.18 0.06 0 0.1 0.24 0.12 0.04 0 0.05 0.08 0.04 0.015 0 0.02 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
   background-size: auto, auto, auto, 640px 640px;
   animation-name: boot-splash-failsafe;
   animation-duration: 1ms;
