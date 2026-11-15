@@ -260,13 +260,18 @@ describe("boot splash overlay", () => {
 });
 
 describe("splash wood background", () => {
-  it("tiles a stitched grain instead of a hard-edged 640px repeat", () => {
+  it("tiles a stitched grain at 60% opacity over the solid navy base", () => {
     const css = readFileSync(path.join(process.cwd(), "src/app/boot-splash.css"), "utf8");
-    const splash = css.slice(css.indexOf(".boot-splash {"), css.indexOf(".boot-splash-leaving"));
-    expect(splash).toContain("stitchTiles='stitch'");
-    expect(splash).toContain("x='0' y='0' width='100%25' height='100%25'");
-    expect(splash).toContain("background-repeat: no-repeat, no-repeat, no-repeat, repeat");
-    expect(splash).toContain("background-size: auto, auto, auto, 640px 640px");
+    const splash = css.slice(css.indexOf(".boot-splash {"), css.indexOf(".boot-splash::before"));
+    const wood = css.slice(css.indexOf(".boot-splash::before"), css.indexOf(".boot-splash-leaving"));
+    expect(splash).toContain("background-color: #10141f");
+    expect(splash).not.toMatch(/opacity:\s*0\.6/);
+    expect(wood).toContain("opacity: 0.6");
+    expect(wood).toContain("background-color: #2c1b10");
+    expect(wood).toContain("stitchTiles='stitch'");
+    expect(wood).toContain("x='0' y='0' width='100%25' height='100%25'");
+    expect(wood).toContain("background-repeat: no-repeat, no-repeat, no-repeat, repeat");
+    expect(wood).toContain("background-size: auto, auto, auto, 640px 640px");
   });
 });
 
