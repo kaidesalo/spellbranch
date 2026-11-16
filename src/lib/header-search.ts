@@ -76,6 +76,7 @@ export function filterCatalog(
   sets: CatalogSet[],
   query: string,
   mode: "sets" | "precons",
+  limit = HEADER_SEARCH_LIMIT,
 ): CatalogSet[] {
   const q = query.trim().toLowerCase();
   if (q.length < HEADER_SEARCH_MIN_QUERY) return [];
@@ -95,7 +96,7 @@ export function filterCatalog(
     if (byScore !== 0) return byScore;
     return b.releasedAt.localeCompare(a.releasedAt) || a.name.localeCompare(b.name);
   });
-  return matched.slice(0, HEADER_SEARCH_LIMIT);
+  return matched.slice(0, limit);
 }
 
 export function cardSearchHits(

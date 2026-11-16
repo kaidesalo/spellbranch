@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isLegendaryCreatureCard } from "@/lib/commander";
 import { SORT_DIRECTIONS, SORT_ORDERS, validateSearchInput } from "@/lib/advanced-search";
 import { limit, limitError, requestIp } from "@/lib/rate-limit";
-import { searchScryfallCards, searchScryfallCatalog } from "@/lib/scryfall/client";
+import { searchScryfallAutocomplete, searchScryfallCards, searchScryfallCatalog } from "@/lib/scryfall/client";
 
 const ORDERS = new Set<string>(SORT_ORDERS);
 const DIRS = new Set<string>(SORT_DIRECTIONS);
@@ -42,6 +42,19 @@ export async function GET(request: Request) {
   const commander = searchParams.get("kind") === "commander";
   const scope = searchParams.get("scope");
   const catalog = scope === "sets" || scope === "precons" ? scope : null;
+
+  if (scope === "autocomplete") {
+    if (q.trim().length < 2) return NextResponse.json({ names: [] });
+    try {
+      const result = await searchScryfallAutocomplete(q);
+      if (result.error) {
+        return NextResponse.json({ error: publicSearchError(result.error) }, { status: 502 });
+      }
+      return NextResponse.json({ names: result.names });
+    } catch {
+      return NextResponse.json({ error: "Could not reach Scryfall" }, { status: 502 });
+    }
+  }
 
   if (q.trim().length < 2) {
     return NextResponse.json(catalog ? { sets: [] } : { cards: [], total: 0 });

@@ -118,6 +118,31 @@ describe("GET /api/scryfall/search", () => {
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).cache).toBe("no-store");
   });
 
+  it("validates autocomplete the same way and does not forward upstream details", async () => {
+    requestHeaders = new Headers({ "x-real-ip": "203.0.113.99" });
+    const long = await GET(
+      new Request(`http://localhost/api/scryfall/search?scope=autocomplete&q=${"a".repeat(201)}`),
+    );
+    expect(long.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(Response.json({ data: ["Lightning Bolt", 12, ""] }));
+    const ok = await GET(
+      new Request("http://localhost/api/scryfall/search?scope=autocomplete&q=light&page=2"),
+    );
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ names: ["Lightning Bolt"] });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/cards/autocomplete");
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).redirect).toBe("error");
+
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ details: "Expected 'or' but found 'evil.example'" }, { status: 400 }),
+    );
+    const failed = await GET(new Request("http://localhost/api/scryfall/search?scope=autocomplete&q=light"));
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({ error: "Scryfall search failed" });
+  });
+
   it("passes a timeout signal to Scryfall and reports a timeout as 502", async () => {
     await search();
     expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ signal: expect.any(AbortSignal) });
