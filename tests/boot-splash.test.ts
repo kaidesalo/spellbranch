@@ -275,6 +275,21 @@ describe("splash wood background", () => {
   });
 });
 
+describe("splash card size", () => {
+  it("grows the desktop card past 232px and leaves the phone width formula alone", () => {
+    const css = readFileSync(path.join(process.cwd(), "src/app/boot-splash.css"), "utf8");
+    const card = css.slice(css.indexOf(".boot-splash-card {"), css.indexOf(".boot-splash-card-face"));
+    const dot = css.slice(css.indexOf(".boot-splash-final {"), css.indexOf(".boot-splash-sr"));
+    expect(card).toContain("--splash-card-cap: clamp(232px, calc(232px + (100vw - 1024px) * 0.1875), 280px)");
+    expect(card).toContain("--splash-card-size: min(54vw, 42dvh, var(--splash-card-cap))");
+    expect(card).toContain("width: var(--splash-card-size)");
+    expect(card).toContain("aspect-ratio: 5 / 7");
+    expect(card).toContain("rotateX(12deg) rotateZ(-7deg)");
+    expect(card).not.toContain("scale(");
+    expect(dot).toContain("max(22px, calc(var(--splash-card-size) * 22 / 232))");
+  });
+});
+
 describe("splash start script", () => {
   it("stamps the clock once and leaves a later navigation's stamp alone", () => {
     expect(SPLASH_START_SCRIPT).toContain("__spellbranchSplashStart");

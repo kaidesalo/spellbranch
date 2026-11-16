@@ -61,15 +61,22 @@
 
 .boot-splash-card {
   position: relative;
-  width: min(54vw, 42dvh, 232px);
+  /* 232px through 1024px wide, then up to 280px (about 21%) by 1280px.
+     Below that, 54vw still wins, so a 390px phone stays the same size. */
+  --splash-card-cap: clamp(232px, calc(232px + (100vw - 1024px) * 0.1875), 280px);
+  --splash-card-size: min(54vw, 42dvh, var(--splash-card-cap));
+  width: var(--splash-card-size);
   aspect-ratio: 5 / 7;
-  padding: 8px;
-  border-radius: 14px;
+  padding: max(8px, calc(var(--splash-card-size) * 8 / 232));
+  border-radius: max(14px, calc(var(--splash-card-size) * 14 / 232));
   background:
     linear-gradient(128deg, #f6e7bf 0%, #d7b36a 16%, #8d5e2c 38%, #f0d7a0 58%, #6a431c 78%, #c6a15a 100%);
   box-shadow:
     0 1px 0 rgba(255, 236, 196, 0.45) inset,
-    16px 28px 22px rgba(28, 12, 2, 0.48);
+    max(16px, calc(var(--splash-card-size) * 16 / 232))
+    max(28px, calc(var(--splash-card-size) * 28 / 232))
+    max(22px, calc(var(--splash-card-size) * 22 / 232))
+    rgba(28, 12, 2, 0.48);
   transform: rotateX(12deg) rotateZ(-7deg);
   transform-style: preserve-3d;
 }
@@ -81,7 +88,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 9px;
+  border-radius: max(9px, calc(var(--splash-card-size) * 9 / 232));
   background-color: #141c2e;
   background-image:
     radial-gradient(ellipse at 18% 8%, rgba(255, 214, 150, 0.2), transparent 42%),
@@ -177,8 +184,8 @@
   z-index: 3;
   left: var(--origin-x);
   top: var(--origin-y);
-  width: 22px;
-  height: 22px;
+  width: max(22px, calc(var(--splash-card-size) * 22 / 232));
+  height: max(22px, calc(var(--splash-card-size) * 22 / 232));
   border-radius: 999px;
   pointer-events: none;
   opacity: 0;
