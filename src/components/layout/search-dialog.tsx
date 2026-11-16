@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
+  EMPTY_ADVANCED_FILTERS,
+  advancedFiltersActive,
+  compileAdvancedQuery,
+  type AdvancedFilters,
+} from "@/lib/advanced-search";
+import { AdvancedFiltersPanel } from "@/components/layout/advanced-filters";
+import {
   HEADER_SEARCH_DEBOUNCE_MS,
   HEADER_SEARCH_MIN_QUERY,
   HEADER_SEARCH_SCOPES,
@@ -30,7 +37,12 @@ const SCOPE_LABEL: Record<HeaderSearchScope, string> = {
   sets: "Sets",
 };
 
-function useHeaderSearch(query: string, scope: HeaderSearchScope, enabled: boolean) {
+function useHeaderSearch(
+  query: string,
+  scope: HeaderSearchScope,
+  enabled: boolean,
+  extras: { order?: string; dir?: string; unique?: string },
+) {
   const trimmed = query.trim();
   const active = enabled && trimmed.length >= HEADER_SEARCH_MIN_QUERY;
   const requestKey = `${scope}\0${trimmed}`;
@@ -48,6 +60,9 @@ function useHeaderSearch(query: string, scope: HeaderSearchScope, enabled: boole
       setSnapshot({ key: requestKey, results: [], error: null, loading: true });
       try {
         const params = new URLSearchParams({ q: trimmed, scope });
+        if (extras.order) params.set("order", extras.order);
+        if (extras.dir) params.set("dir", extras.dir);
+        if (extras.unique) params.set("unique", extras.unique);
         const res = await fetch(`/api/scryfall/search?${params}`, { signal: controller.signal });
         const data = (await res.json()) as {
           cards?: ScryfallCard[];
@@ -77,7 +92,7 @@ function useHeaderSearch(query: string, scope: HeaderSearchScope, enabled: boole
       clearTimeout(timer);
       controller.abort();
     };
-  }, [active, requestKey, scope, trimmed]);
+  }, [active, extras.dir, extras.order, extras.unique, requestKey, scope, trimmed]);
 
   const fresh = snapshot.key === requestKey;
   const results = active && fresh ? snapshot.results : [];
@@ -102,8 +117,16 @@ function SearchDialogBody() {
   const listId = useId();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<HeaderSearchScope>("cards");
+  const [filters, setFilters] = useState<AdvancedFilters>(EMPTY_ADVANCED_FILTERS);
   const [active, setActive] = useState(0);
-  const { results, loading, error, empty, short } = useHeaderSearch(query, scope, true);
+  const usingFilters = scope === "cards" && advancedFiltersActive(filters);
+  const compiled = compileAdvancedQuery(query, filters);
+  const requestQuery = usingFilters ? compiled.q : query;
+  const { results, loading, error, empty, short } = useHeaderSearch(requestQuery, scope, true, {
+    order: usingFilters ? compiled.order : undefined,
+    dir: usingFilters ? compiled.dir : undefined,
+    unique: usingFilters ? compiled.unique : undefined,
+  });
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
@@ -219,6 +242,17 @@ function SearchDialogBody() {
         >
           Browse decks
         </Link>
+
+        {scope === "cards" && (
+          <AdvancedFiltersPanel
+            name={query}
+            filters={filters}
+            onChange={(next) => {
+              setFilters(next);
+              setActive(0);
+            }}
+          />
+        )}
 
         {short && <p className="text-sm text-muted-foreground">Type at least 2 characters.</p>}
         {loading && <p className="text-sm text-muted-foreground">Searching…</p>}

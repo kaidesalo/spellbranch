@@ -273,4 +273,32 @@ describe("search dialog", () => {
     });
     expect(screen.getByText("No matches.")).toBeTruthy();
   });
+
+  it("builds a card query from the advanced filters and still links to collection", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        cards: [{ id: "card-bolt", name: "Lightning Bolt", type_line: "Instant", set_name: "Magic 2010" }],
+      }),
+    );
+    render(createElement(SiteHeader, { user }));
+    fireEvent.click(mobileSearchButton());
+    await screen.findByRole("dialog");
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", fetchMock);
+
+    fireEvent.click(screen.getByRole("button", { name: /Advanced filters/ }));
+    expect(screen.getByText("Add filters to build a query.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Modern" }));
+    fireEvent.click(screen.getAllByText("Colors")[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "White" }));
+    expect(screen.getByText("f:modern c=w")).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    const called = fetchMock.mock.calls as unknown as unknown[][];
+    expect(String(called[0]?.[0])).toContain("q=f%3Amodern+c%3Dw");
+    const card = screen.getByRole("option", { name: /Lightning Bolt/ });
+    expect(card.getAttribute("href")).toBe("/my-cards?section=collection&q=Lightning+Bolt");
+  });
 });
