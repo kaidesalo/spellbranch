@@ -15,6 +15,9 @@ import type { DeckCard, DeckCommander } from "@/lib/types";
 // tests check the triggers: a real <button>, and never wrapping the row's
 // -/+, quantity or trash controls.
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => undefined }),
+}));
 vi.mock("@/lib/actions/decks", () => ({
   updateCardQuantityAction: vi.fn(async () => ({ success: true })),
   setCommanderAction: vi.fn(async () => ({ success: true })),

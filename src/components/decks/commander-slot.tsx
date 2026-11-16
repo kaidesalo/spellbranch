@@ -2,9 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import { Crown, Loader2, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Crown, Images, Loader2, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  PrintingPickerSheet,
+  type PrintingChoice,
+} from "@/components/cards/printing-picker-sheet";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -13,7 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { setCommanderAction } from "@/lib/actions/decks";
+import {
+  changeCommanderPrintingAction,
+  lookupCommanderOracleAction,
+  setCommanderAction,
+} from "@/lib/actions/decks";
 import { scryfallFrontTypeLine } from "@/lib/commander";
 import {
   getCardImage,
@@ -62,7 +71,8 @@ function ColorIdentity({ colors }: { colors: string[] }) {
 
 /**
  * The commander slot on a Commander deck's page. Everyone who can see the
- * deck sees the commander; only the owner gets Choose / Change / Clear.
+ * deck sees the commander; only the owner gets Choose / Change / Clear and
+ * Change printing. The deck stores one commander (no partner slot).
  */
 export function CommanderSlot({
   deckId,
@@ -135,11 +145,12 @@ export function CommanderSlot({
               </p>
             )}
             {canEdit && (
-              <div className="flex flex-wrap gap-2 border-t border-border/70 px-4 py-3">
-                <Button size="sm" onClick={() => setOpen(true)} disabled={pending}>
+              <div className="flex min-w-0 flex-wrap gap-2 border-t border-border/70 px-4 py-3">
+                <Button size="sm" className="h-11 min-h-11 px-3" onClick={() => setOpen(true)} disabled={pending}>
                   Change commander
                 </Button>
-                <Button size="sm" variant="outline" onClick={clear} disabled={pending}>
+                <ChangeCommanderPrinting deckId={deckId} commander={commander} disabled={pending} />
+                <Button size="sm" variant="outline" className="h-11 min-h-11 px-3" onClick={clear} disabled={pending}>
                   <X data-icon="inline-start" />
                   Clear
                 </Button>
@@ -194,6 +205,79 @@ export function CommanderSlot({
         />
       )}
     </section>
+  );
+}
+
+function ChangeCommanderPrinting({
+  deckId,
+  commander,
+  disabled,
+}: {
+  deckId: string;
+  commander: DeckCommander;
+  disabled: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [oracleId, setOracleId] = useState<string | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const label = `Change printing of ${commander.cardName}`;
+
+  async function openPicker() {
+    setLookingUp(true);
+    try {
+      const result = await lookupCommanderOracleAction(deckId);
+      if (result.error || !result.oracleId) {
+        toast.error(result.error ?? "Could not look up printings");
+        return;
+      }
+      setOracleId(result.oracleId);
+      setOpen(true);
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
+  function pick(printing: PrintingChoice) {
+    startTransition(async () => {
+      const result = await changeCommanderPrintingAction(deckId, printing.id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Commander printing updated");
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="commander-change-printing"
+        aria-label={label}
+        aria-haspopup="dialog"
+        disabled={disabled || lookingUp || pending}
+        className="inline-flex h-11 min-h-11 max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        onClick={() => void openPicker()}
+      >
+        <Images className="size-4 shrink-0" aria-hidden />
+        <span className="truncate">Change printing</span>
+      </button>
+      <PrintingPickerSheet
+        open={open}
+        onOpenChange={setOpen}
+        oracleId={oracleId}
+        currentId={commander.scryfallId}
+        cardName={commander.cardName}
+        onPick={pick}
+        busy={pending}
+        closeOnPick={false}
+        testId="commander-printing-sheet"
+      />
+    </>
   );
 }
 
