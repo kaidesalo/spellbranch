@@ -9,14 +9,21 @@ import { BranchBadge, DeckEmpty, DeckGrid } from "@/components/decks/deck-grid";
 import { CollectionPanel } from "@/components/collection/collection-panel";
 import { cn } from "@/lib/utils";
 
+function oneParam(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const trimmed = raw?.trim() ?? "";
+  return trimmed.length > 80 ? "" : trimmed;
+}
+
 export default async function MyCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ section?: string | string[] }>;
+  searchParams: Promise<{ section?: string | string[]; q?: string | string[] }>;
 }) {
   const user = await requireUser();
-  const { section: sectionParam } = await searchParams;
+  const { section: sectionParam, q: queryParam } = await searchParams;
   const section = myCardsSection(Array.isArray(sectionParam) ? sectionParam[0] : sectionParam);
+  const initialQuery = section === "collection" ? oneParam(queryParam) : "";
   const repo = getRepository();
   const [decks, branches, cards, visibility] = await Promise.all([
     listVisibleDecks("mine"),
@@ -110,7 +117,9 @@ export default async function MyCardsPage({
           ) : (
             <DeckGrid decks={branches} badge={<BranchBadge />} showSource />
           ))}
-        {section === "collection" && <CollectionPanel cards={cards} visibility={visibility} />}
+        {section === "collection" && (
+          <CollectionPanel cards={cards} visibility={visibility} initialQuery={initialQuery} />
+        )}
       </div>
     </div>
   );
