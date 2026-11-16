@@ -124,8 +124,10 @@ describe("SiteHeader nav", () => {
     expect(icon?.getAttribute("href")).toBe("/browse");
     expect(icon?.getAttribute("aria-current")).toBeNull();
     expect(icon?.className).toContain("size-11");
+    expect(icon?.className).toContain("md:hidden");
     expect(icon?.className).toContain("focus-visible:ring-2");
-    expect(icon?.parentElement?.className).toContain("md:hidden");
+    expect(screen.getByRole("button", { name: "Account menu for ada" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const mobile = [...document.querySelectorAll("nav")].find((nav) => !nav.className.includes("md:flex"));
@@ -144,9 +146,8 @@ describe("SiteHeader nav", () => {
       "/friends",
     ]);
     expect(within(mobile!).queryByRole("link", { name: "Search" })).toBeNull();
-
-    expect(screen.getByRole("link", { name: "Ada" }).getAttribute("href")).toBe("/profile");
-    expect(screen.getAllByRole("link", { name: "Favorites" }).length).toBeGreaterThan(0);
+    expect(within(mobile!).queryByRole("link", { name: "Favorites" })).toBeNull();
+    expect(within(mobile!).queryByRole("button", { name: "Sign out" })).toBeNull();
   });
 
   it("marks the header search link current only on /browse", () => {
