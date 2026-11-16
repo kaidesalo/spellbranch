@@ -56,7 +56,13 @@ function cardHit(card: ScryfallCard): CardHit | null {
   };
 }
 
-export function SearchResults({ query }: { query: SearchResultsQuery }) {
+export function SearchResults({
+  query,
+  signedIn,
+}: {
+  query: SearchResultsQuery;
+  signedIn: boolean;
+}) {
   const router = useRouter();
   const [draft, setDraft] = useState(query.q);
   const [seenQuery, setSeenQuery] = useState(query.q);
@@ -349,7 +355,25 @@ export function SearchResults({ query }: { query: SearchResultsQuery }) {
                 <p className="truncate text-xs text-muted-foreground">
                   {[card.setName, card.typeLine].filter(Boolean).join(" · ")}
                 </p>
-                <AddToCollection id={card.id} />
+                {signedIn ? (
+                  <AddToCollection id={card.id} />
+                ) : (
+                  <Link
+                    href={`/login?next=${encodeURIComponent(
+                      searchPageHref({
+                        q: query.q,
+                        type: query.type,
+                        order: query.order || undefined,
+                        dir: query.dir || undefined,
+                        unique: query.unique || undefined,
+                        view: query.view,
+                      }),
+                    )}`}
+                    className="mt-2 inline-flex h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    Sign in to add
+                  </Link>
+                )}
               </div>
             </li>
           ))}

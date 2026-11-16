@@ -90,7 +90,10 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
   // without a setState effect.
   const [openPath, setOpenPath] = useState<string | null>(null);
   const menuOpen = openPath === pathname;
-  const searchActive = mainNavActive(pathname, "/browse", section);
+  const searchActive =
+    mainNavActive(pathname, "/browse", section) ||
+    pathname === "/search" ||
+    pathname.startsWith("/search/");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchOpener = useRef<HTMLElement | null>(null);
 
@@ -226,18 +229,58 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
             <SearchDialog open={searchOpen} />
           </Dialog>
         ) : (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              className="max-sm:px-2! max-sm:tracking-normal!"
-              render={<Link href="/login" />}
+          <Dialog open={searchOpen} onOpenChange={onSearchOpenChange}>
+            <DialogTrigger
+              render={
+                <button
+                  type="button"
+                  aria-current={searchActive ? "page" : undefined}
+                  onClick={rememberSearchOpener}
+                  className={cn(
+                    navLinkClass,
+                    "hidden text-muted-foreground hover:bg-secondary hover:text-foreground md:inline-flex",
+                    "aria-expanded:bg-primary aria-expanded:text-primary-foreground",
+                    searchActive && "bg-primary text-primary-foreground",
+                  )}
+                />
+              }
             >
-              Sign in
-            </Button>
-            <Button className="max-sm:px-2! max-sm:tracking-normal!" render={<Link href="/signup" />}>
-              Join free
-            </Button>
-          </div>
+              Search
+            </DialogTrigger>
+            <DialogTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Search"
+                  aria-current={searchActive ? "page" : undefined}
+                  onClick={rememberSearchOpener}
+                  className={cn(
+                    "inline-flex size-11 shrink-0 items-center justify-center rounded-lg md:hidden",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    "aria-expanded:bg-primary aria-expanded:text-primary-foreground",
+                    searchActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
+                />
+              }
+            >
+              <Search className="size-5" aria-hidden />
+            </DialogTrigger>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="ghost"
+                className="max-sm:px-2! max-sm:tracking-normal!"
+                render={<Link href="/login" />}
+              >
+                Sign in
+              </Button>
+              <Button className="max-sm:px-2! max-sm:tracking-normal!" render={<Link href="/signup" />}>
+                Join free
+              </Button>
+            </div>
+            <SearchDialog open={searchOpen} />
+          </Dialog>
         )}
       </div>
     </header>

@@ -1,11 +1,18 @@
 import { AuthForm } from "@/components/auth/auth-form";
 import { signUpAction } from "@/lib/actions/auth";
+import { safeNextPath } from "@/lib/auth/redirect";
 import { getSessionUser } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 
-export default async function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const next = safeNextPath(typeof params.next === "string" ? params.next : null);
   const user = await getSessionUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect(next);
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
@@ -15,7 +22,7 @@ export default async function SignupPage() {
           Create an account to build decks, add friends, and fork branches.
         </p>
         <div className="mt-6">
-          <AuthForm mode="signup" action={signUpAction} />
+          <AuthForm mode="signup" action={signUpAction} next={next} />
         </div>
       </div>
     </div>

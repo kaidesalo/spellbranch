@@ -327,6 +327,9 @@ export const localRepository: Repository = {
     const store = await readStore();
     const deck = store.decks.find((d) => d.id === deckId);
     if (!deck || !canViewDeck(store, deck, viewerId)) return null;
+    // Signed-out visitors only see public decks. Friends-only and private
+    // rows stay hidden even if a caller forgot the visibility check.
+    if (!viewerId && deck.visibility !== "public") return null;
     return decorateDeck(store, deck, viewerId, true);
   },
 
