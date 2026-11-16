@@ -11,18 +11,33 @@
   align-items: center;
   justify-content: center;
   padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.25rem, env(safe-area-inset-bottom));
-  background-color: #2c1b10;
-  background-image:
-    radial-gradient(ellipse 70% 55% at 12% 0%, rgba(255, 198, 120, 0.42), transparent 42%),
-    radial-gradient(ellipse 90% 80% at 100% 110%, rgba(0, 0, 0, 0.55), transparent 50%),
-    radial-gradient(ellipse 80% 70% at 0% 100%, rgba(0, 0, 0, 0.35), transparent 46%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01 0.36' numOctaves='5' seed='8'/%3E%3CfeColorMatrix type='matrix' values='0.42 0.18 0.06 0 0.1 0.24 0.12 0.04 0 0.05 0.08 0.04 0.015 0 0.02 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-  background-size: auto, auto, auto, 640px 640px;
+  /* Solid app navy. The wood sits above this at 60%, so the table
+     fades into this color instead of the page or a white flash. */
+  background-color: #10141f;
   animation-name: boot-splash-failsafe;
   animation-duration: 1ms;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
   animation-delay: var(--splash-timeout, 4000ms);
+}
+
+.boot-splash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background-color: #2c1b10;
+  /* The grain is a 640px tile. stitchTiles and a filter region that
+     matches the tile keep that repeat seamless past one tile. */
+  background-image:
+    radial-gradient(ellipse 70% 55% at 12% 0%, rgba(255, 198, 120, 0.42), transparent 42%),
+    radial-gradient(ellipse 90% 80% at 100% 110%, rgba(0, 0, 0, 0.55), transparent 50%),
+    radial-gradient(ellipse 80% 70% at 0% 100%, rgba(0, 0, 0, 0.35), transparent 46%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01 0.36' numOctaves='5' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.42 0.18 0.06 0 0.1 0.24 0.12 0.04 0 0.05 0.08 0.04 0.015 0 0.02 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+  background-size: auto, auto, auto, 640px 640px;
 }
 
 .boot-splash-leaving {
@@ -35,6 +50,8 @@
 }
 
 .boot-splash-scene {
+  position: relative;
+  z-index: 1;
   perspective: 1100px;
   display: flex;
   align-items: center;
@@ -44,15 +61,22 @@
 
 .boot-splash-card {
   position: relative;
-  width: min(54vw, 42dvh, 232px);
+  /* 232px through 1024px wide, then up to 280px (about 21%) by 1280px.
+     Below that, 54vw still wins, so a 390px phone stays the same size. */
+  --splash-card-cap: clamp(232px, calc(232px + (100vw - 1024px) * 0.1875), 280px);
+  --splash-card-size: min(54vw, 42dvh, var(--splash-card-cap));
+  width: var(--splash-card-size);
   aspect-ratio: 5 / 7;
-  padding: 8px;
-  border-radius: 14px;
+  padding: max(8px, calc(var(--splash-card-size) * 8 / 232));
+  border-radius: max(14px, calc(var(--splash-card-size) * 14 / 232));
   background:
     linear-gradient(128deg, #f6e7bf 0%, #d7b36a 16%, #8d5e2c 38%, #f0d7a0 58%, #6a431c 78%, #c6a15a 100%);
   box-shadow:
     0 1px 0 rgba(255, 236, 196, 0.45) inset,
-    16px 28px 22px rgba(28, 12, 2, 0.48);
+    max(16px, calc(var(--splash-card-size) * 16 / 232))
+    max(28px, calc(var(--splash-card-size) * 28 / 232))
+    max(22px, calc(var(--splash-card-size) * 22 / 232))
+    rgba(28, 12, 2, 0.48);
   transform: rotateX(12deg) rotateZ(-7deg);
   transform-style: preserve-3d;
 }
@@ -64,7 +88,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 9px;
+  border-radius: max(9px, calc(var(--splash-card-size) * 9 / 232));
   background-color: #141c2e;
   background-image:
     radial-gradient(ellipse at 18% 8%, rgba(255, 214, 150, 0.2), transparent 42%),
@@ -160,8 +184,8 @@
   z-index: 3;
   left: var(--origin-x);
   top: var(--origin-y);
-  width: 22px;
-  height: 22px;
+  width: max(22px, calc(var(--splash-card-size) * 22 / 232));
+  height: max(22px, calc(var(--splash-card-size) * 22 / 232));
   border-radius: 999px;
   pointer-events: none;
   opacity: 0;
