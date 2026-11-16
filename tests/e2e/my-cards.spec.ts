@@ -121,8 +121,8 @@ async function overflowReport(page: Page) {
 test("my cards has no horizontal overflow on a phone", async ({ page }) => {
   for (const width of [320, 375, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
-    await page.goto("/my-cards");
-    await expect(page.getByRole("heading", { name: "My cards" })).toBeVisible();
+    await page.goto("/decks");
+    await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Live and Burn" })).toBeVisible();
     let report = await overflowReport(page);
     expect(report.scroll, `decks ${width}px via ${report.past.join(" | ")}`).toBe(report.client);
@@ -142,8 +142,9 @@ test("my cards has no horizontal overflow on a phone", async ({ page }) => {
 
 test("old decks list redirects and browse stays reachable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/decks");
-  await expect(page).toHaveURL(/\/my-cards$/);
+  await page.goto("/my-cards");
+  await expect(page).toHaveURL(/\/decks$/);
+  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
   await page.goto("/browse");
   await expect(page.getByRole("heading", { name: "Browse decks" })).toBeVisible();
   const report = await overflowReport(page);
@@ -152,8 +153,8 @@ test("old decks list redirects and browse stays reachable", async ({ page }) => 
 
 test("desktop my cards does not scroll horizontally", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/my-cards");
-  await expect(page.getByRole("heading", { name: "My cards" })).toBeVisible();
+  await page.goto("/decks");
+  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
   const report = await overflowReport(page);
   expect(report.scroll, `desktop via ${report.past.join(" | ")}`).toBe(report.client);
 });
@@ -163,9 +164,9 @@ test("webkit screenshots of my cards sections", async ({ page }) => {
   const dir = existsSync("/opt/cursor/artifacts") ? "/opt/cursor/artifacts" : "test-results/my-cards";
   mkdirSync(dir, { recursive: true });
   const hideDev = () => page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-  await page.goto("/my-cards");
+  await page.goto("/decks");
   await hideDev();
-  await expect(page.getByRole("heading", { name: "My cards" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
   await page.screenshot({ path: `${dir}/webkit-390-my-cards-decks.png`, fullPage: true });
   await page.goto("/my-cards?section=branches");
   await hideDev();

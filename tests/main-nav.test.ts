@@ -84,9 +84,11 @@ describe("main nav model", () => {
     expect(mainNavActive("/decks/deck-1/compare", "/decks")).toBe(true);
     expect(mainNavActive("/decks/new", "/decks")).toBe(true);
     expect(mainNavActive("/decks/import", "/decks")).toBe(true);
-    expect(mainNavActive("/my-cards", "/decks", null)).toBe(true);
-    expect(mainNavActive("/my-cards", "/decks", "branches")).toBe(true);
+    expect(mainNavActive("/decks", "/decks")).toBe(true);
+    expect(mainNavActive("/my-cards", "/decks", null)).toBe(false);
+    expect(mainNavActive("/my-cards", "/decks", "branches")).toBe(false);
     expect(mainNavActive("/my-cards", "/decks", "collection")).toBe(false);
+    expect(mainNavActive("/decks", "/my-cards?section=collection")).toBe(false);
     expect(mainNavActive("/my-cards", "/my-cards?section=collection", "collection")).toBe(true);
     expect(mainNavActive("/my-cards", "/my-cards?section=collection", "decks")).toBe(false);
     expect(mainNavActive("/browse?scope=public", "/browse")).toBe(true);

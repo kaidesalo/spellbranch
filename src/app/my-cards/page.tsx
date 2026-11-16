@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Compass, Import, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository } from "@/lib/data";
@@ -20,9 +21,11 @@ export default async function MyCardsPage({
 }: {
   searchParams: Promise<{ section?: string | string[]; q?: string | string[] }>;
 }) {
-  const user = await requireUser();
   const { section: sectionParam, q: queryParam } = await searchParams;
   const section = myCardsSection(Array.isArray(sectionParam) ? sectionParam[0] : sectionParam);
+  // The decks list moved to /decks. Collection and branches stay here.
+  if (section === "decks") redirect("/decks");
+  const user = await requireUser();
   const initialQuery = section === "collection" ? oneParam(queryParam) : "";
   const repo = getRepository();
   const [decks, branches, cards, visibility] = await Promise.all([
@@ -33,7 +36,7 @@ export default async function MyCardsPage({
   ]);
 
   const tabs = [
-    { id: "decks" as const, label: "Decks", count: decks.length, href: "/my-cards" },
+    { id: "decks" as const, label: "Decks", count: decks.length, href: "/decks" },
     { id: "branches" as const, label: "Branches", count: branches.length, href: "/my-cards?section=branches" },
     { id: "collection" as const, label: "Collection", count: cards.length, href: "/my-cards?section=collection" },
   ];
@@ -95,19 +98,6 @@ export default async function MyCardsPage({
       </nav>
 
       <div className="mt-6 min-w-0">
-        {section === "decks" &&
-          (decks.length === 0 ? (
-            <DeckEmpty
-              title="No decks yet"
-              body="Create a deck, or import a list you already built on Moxfield or Archidekt. Copies of other people's decks show up here too."
-              href="/decks/new"
-              cta="Create deck"
-              secondaryHref="/decks/import"
-              secondaryCta="Import a list"
-            />
-          ) : (
-            <DeckGrid decks={decks} />
-          ))}
         {section === "branches" &&
           (branches.length === 0 ? (
             <DeckEmpty
