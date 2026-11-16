@@ -2,9 +2,8 @@
  * Signed-in primary navigation. Favorites and Profile stay reachable from
  * the account cluster in the header; they are not top-level items.
  *
- * The deck index at /decks still redirects to /my-cards (the decks tab).
- * Decks stays the active item there, and on every /decks/* page. Collection
- * is the owned-cards tab on the same page.
+ * Decks is /decks (your decks and public decks). Collection is only the
+ * owned-cards tab on /my-cards. A deck page still highlights Decks.
  */
 export const MAIN_NAV = [
   { href: "/dashboard", label: "Home" },
@@ -26,10 +25,7 @@ export function mainNavActive(
   section?: string | null,
 ): boolean {
   if (href === "/decks") {
-    if (pathname === "/decks" || pathname.startsWith("/decks/") || pathname.startsWith("/decks?")) {
-      return true;
-    }
-    return pathname === "/my-cards" && section !== "collection";
+    return pathname === "/decks" || pathname.startsWith("/decks/") || pathname.startsWith("/decks?");
   }
   if (href === "/my-cards?section=collection") {
     return pathname === "/my-cards" && section === "collection";
