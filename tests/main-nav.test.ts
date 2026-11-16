@@ -143,6 +143,8 @@ describe("SiteHeader nav", () => {
     expect(icon?.className).toContain("focus-visible:ring-2");
     const account = screen.getByRole("button", { name: "Account menu for ada" });
     expect(account.className).toContain("size-11");
+    expect(account.className).toContain("hidden");
+    expect(account.className).toContain("md:inline-flex");
     const menuButton = screen.getByRole("button", { name: "Open menu" });
     expect(menuButton.className).toContain("size-11");
     expect(menuButton.className).toContain("md:hidden");
@@ -170,8 +172,18 @@ describe("SiteHeader nav", () => {
       "/friends",
     ]);
     expect(within(mobile!).queryByRole("link", { name: "Search" })).toBeNull();
-    expect(within(mobile!).queryByRole("link", { name: "Favorites" })).toBeNull();
-    expect(within(mobile!).queryByRole("button", { name: "Sign out" })).toBeNull();
+
+    const profile = screen.getByRole("region", { name: "Profile & settings" });
+    expect(profile.className).toContain("md:hidden");
+    expect(within(profile).getByText("@ada")).toBeTruthy();
+    const profileLinks = within(profile).getAllByRole("link");
+    expect(profileLinks.map((link) => link.textContent)).toEqual(["Profile", "Edit profile", "Favorites"]);
+    expect(profileLinks.map((link) => link.getAttribute("href"))).toEqual(["/u/ada", "/profile", "/favorites"]);
+    expect(profileLinks.every((link) => link.className.includes("min-h-11"))).toBe(true);
+    const signOut = within(profile).getByRole("button", { name: "Sign out" });
+    expect(signOut.getAttribute("type")).toBe("submit");
+    expect(signOut.closest("form")).toBeTruthy();
+    expect(signOut.compareDocumentPosition(profileLinks[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(0);
   });
 
   it("marks the header search button current only on /browse", () => {
