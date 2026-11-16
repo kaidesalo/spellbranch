@@ -242,6 +242,19 @@ export default async function DeckDetailPage({
           {canFork && user && !rootForkLocked && (
             <ForkDeckForm deckId={deck.id} defaultName={defaultBranchName(deck.name)} />
           )}
+          {!user && deck.visibility === "public" && deck.allowForks && (
+            <Button
+              size="sm"
+              variant="outline"
+              render={
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/decks/${deck.id}`)}`}
+                />
+              }
+            >
+              Sign in to fork
+            </Button>
+          )}
           {rootForkLocked && (
             <p className="w-full text-sm text-muted-foreground sm:w-auto">{ORIGINAL_DECK_FORKS_LOCKED}</p>
           )}

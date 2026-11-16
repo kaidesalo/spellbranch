@@ -6,7 +6,7 @@ describe("safeNextPath", () => {
     ["/dashboard", "/dashboard"],
     ["/decks/123?tab=compare#cards", "/decks/123?tab=compare#cards"],
     ["/decks/../friends", "/friends"],
-    ["/%2F%2Fevil.test", "/%2F%2Fevil.test"],
+    ["/search?q=sol%20ring&type=cards", "/search?q=sol%20ring&type=cards"],
   ])("keeps same-origin path %s", (input, expected) => {
     expect(safeNextPath(input)).toBe(expected);
   });
@@ -28,6 +28,16 @@ describe("safeNextPath", () => {
     ["/.//evil.test"],
     ["/./%2e/..//evil.test"],
     ["/" + "a".repeat(3000)],
+    ["/%2F%2Fevil.test"],
+    ["/%2f%2fevil.test"],
+    ["/%2F%2F%2Fevil.test"],
+    ["/%5Cevil.test"],
+    ["/%5cevil.test"],
+    ["/%00/dashboard"],
+    ["/search%00"],
+    ["/%252F%252Fevil.test"],
+    ["http://evil.test"],
+    ["/https://evil.test"],
   ])("rejects %j", (input) => {
     expect(safeNextPath(input as string | null | undefined, "/fallback")).toBe("/fallback");
   });

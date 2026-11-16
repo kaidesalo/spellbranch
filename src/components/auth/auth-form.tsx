@@ -13,9 +13,12 @@ type Mode = "signin" | "signup";
 export function AuthForm({
   mode,
   action,
+  next,
 }: {
   mode: Mode;
   action: (formData: FormData) => Promise<AuthResult>;
+  /** Already passed through safeNextPath by the page. */
+  next?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,6 +39,7 @@ export function AuthForm({
         });
       }}
     >
+      {next && <input type="hidden" name="next" value={next} />}
       {mode === "signup" && (
         <>
           <div className="space-y-2">
@@ -112,14 +116,20 @@ export function AuthForm({
         {mode === "signup" ? (
           <>
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+            <Link
+              href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
               Sign in
             </Link>
           </>
         ) : (
           <>
             New here?{" "}
-            <Link href="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+            <Link
+              href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
               Create an account
             </Link>
           </>

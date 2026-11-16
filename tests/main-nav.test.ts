@@ -98,8 +98,10 @@ describe("main nav model", () => {
   });
 });
 
-function searchIcon() {
-  return screen.getAllByRole("link", { name: "Search" }).find((link) => link.getAttribute("aria-label") === "Search");
+function searchButton() {
+  return screen
+    .getAllByRole("button", { name: "Search" })
+    .find((button) => button.getAttribute("aria-label") === "Search");
 }
 
 describe("SiteHeader nav", () => {
@@ -109,25 +111,47 @@ describe("SiteHeader nav", () => {
 
     const desktop = screen.getByRole("navigation", { name: "Main" });
     expect(desktop.className).toContain("md:flex");
+    const desktopItems = [...desktop.querySelectorAll("a, button")];
+    expect(desktopItems.map((item) => item.textContent)).toEqual(labels);
     const desktopLinks = within(desktop).getAllByRole("link");
-    expect(desktopLinks.map((link) => link.textContent)).toEqual(labels);
-    expect(desktopLinks.map((link) => link.getAttribute("href"))).toEqual(hrefs);
+    expect(desktopLinks.map((link) => link.textContent)).toEqual([
+      "Home",
+      "Collection",
+      "Decks",
+      "Social",
+    ]);
+    expect(desktopLinks.map((link) => link.getAttribute("href"))).toEqual([
+      "/dashboard",
+      "/my-cards?section=collection",
+      "/decks",
+      "/friends",
+    ]);
     expect(desktopLinks.map((link) => link.getAttribute("aria-current"))).toEqual([
-      null,
       null,
       null,
       "page",
       null,
     ]);
+    expect(within(desktop).getByRole("button", { name: "Search" }).getAttribute("aria-current")).toBeNull();
 
-    const icon = searchIcon();
-    expect(icon?.getAttribute("href")).toBe("/browse");
+    const icon = searchButton();
+    expect(icon?.tagName).toBe("BUTTON");
+    expect(icon?.getAttribute("aria-label")).toBe("Search");
     expect(icon?.getAttribute("aria-current")).toBeNull();
     expect(icon?.className).toContain("size-11");
     expect(icon?.className).toContain("md:hidden");
     expect(icon?.className).toContain("focus-visible:ring-2");
-    expect(screen.getByRole("button", { name: "Account menu for ada" })).toBeTruthy();
+    const account = screen.getByRole("button", { name: "Account menu for ada" });
+    expect(account.className).toContain("size-11");
+    const menuButton = screen.getByRole("button", { name: "Open menu" });
+    expect(menuButton.className).toContain("size-11");
+    expect(menuButton.className).toContain("md:hidden");
+    const cluster = icon?.parentElement;
+    expect(cluster?.children[0]).toBe(icon);
+    expect(cluster?.children[1]).toBe(account);
+    expect(cluster?.contains(menuButton)).toBe(true);
     expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Favorites" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const mobile = [...document.querySelectorAll("nav")].find((nav) => !nav.className.includes("md:flex"));
@@ -150,20 +174,24 @@ describe("SiteHeader nav", () => {
     expect(within(mobile!).queryByRole("button", { name: "Sign out" })).toBeNull();
   });
 
-  it("marks the header search link current only on /browse", () => {
+  it("marks the header search button current only on /browse", () => {
     navState.pathname = "/browse";
     render(createElement(SiteHeader, { user }));
-    const active = searchIcon();
-    expect(active?.getAttribute("href")).toBe("/browse");
+    const active = searchButton();
     expect(active?.getAttribute("aria-label")).toBe("Search");
     expect(active?.getAttribute("aria-current")).toBe("page");
     expect(active?.className).toContain("bg-primary");
 
     cleanup();
+    navState.pathname = "/search";
+    render(createElement(SiteHeader, { user }));
+    expect(searchButton()?.getAttribute("aria-current")).toBe("page");
+
+    cleanup();
     navState.pathname = "/friends";
     render(createElement(SiteHeader, { user }));
-    expect(searchIcon()?.getAttribute("aria-current")).toBeNull();
-    expect(searchIcon()?.className).not.toContain("bg-primary");
+    expect(searchButton()?.getAttribute("aria-current")).toBeNull();
+    expect(searchButton()?.className.split(" ")).not.toContain("bg-primary");
   });
 
   it("marks Collection on the collection tab", () => {
@@ -172,8 +200,8 @@ describe("SiteHeader nav", () => {
     render(createElement(SiteHeader, { user }));
     const nav = screen.getByRole("navigation", { name: "Main" });
     const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["Home", "Collection", "Decks", "Social"]);
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([
-      null,
       null,
       "page",
       null,
@@ -188,5 +216,10 @@ describe("SiteHeader nav", () => {
     expect(screen.getByRole("link", { name: "Join free" }).getAttribute("href")).toBe("/signup");
     expect(screen.queryByRole("link", { name: "Social" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Search" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Account menu for ada" })).toBeNull();
+    const searchButtons = screen.getAllByRole("button", { name: "Search" });
+    expect(searchButtons).toHaveLength(2);
+    expect(searchButtons.some((button) => button.className.includes("md:hidden"))).toBe(true);
+    expect(searchButtons.some((button) => button.className.includes("md:inline-flex"))).toBe(true);
   });
 });
