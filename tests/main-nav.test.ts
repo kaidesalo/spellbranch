@@ -139,8 +139,19 @@ describe("SiteHeader nav", () => {
     expect(icon?.getAttribute("aria-label")).toBe("Search");
     expect(icon?.getAttribute("aria-current")).toBeNull();
     expect(icon?.className).toContain("size-11");
+    expect(icon?.className).toContain("md:hidden");
     expect(icon?.className).toContain("focus-visible:ring-2");
-    expect(icon?.parentElement?.className).toContain("md:hidden");
+    const account = screen.getByRole("button", { name: "Account menu for ada" });
+    expect(account.className).toContain("size-11");
+    const menuButton = screen.getByRole("button", { name: "Open menu" });
+    expect(menuButton.className).toContain("size-11");
+    expect(menuButton.className).toContain("md:hidden");
+    const cluster = icon?.parentElement;
+    expect(cluster?.children[0]).toBe(icon);
+    expect(cluster?.children[1]).toBe(account);
+    expect(cluster?.contains(menuButton)).toBe(true);
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Favorites" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const mobile = [...document.querySelectorAll("nav")].find((nav) => !nav.className.includes("md:flex"));
@@ -159,9 +170,8 @@ describe("SiteHeader nav", () => {
       "/friends",
     ]);
     expect(within(mobile!).queryByRole("link", { name: "Search" })).toBeNull();
-
-    expect(screen.getByRole("link", { name: "Ada" }).getAttribute("href")).toBe("/profile");
-    expect(screen.getAllByRole("link", { name: "Favorites" }).length).toBeGreaterThan(0);
+    expect(within(mobile!).queryByRole("link", { name: "Favorites" })).toBeNull();
+    expect(within(mobile!).queryByRole("button", { name: "Sign out" })).toBeNull();
   });
 
   it("marks the header search button current only on /browse", () => {
@@ -171,6 +181,11 @@ describe("SiteHeader nav", () => {
     expect(active?.getAttribute("aria-label")).toBe("Search");
     expect(active?.getAttribute("aria-current")).toBe("page");
     expect(active?.className).toContain("bg-primary");
+
+    cleanup();
+    navState.pathname = "/search";
+    render(createElement(SiteHeader, { user }));
+    expect(searchButton()?.getAttribute("aria-current")).toBe("page");
 
     cleanup();
     navState.pathname = "/friends";
@@ -201,6 +216,10 @@ describe("SiteHeader nav", () => {
     expect(screen.getByRole("link", { name: "Join free" }).getAttribute("href")).toBe("/signup");
     expect(screen.queryByRole("link", { name: "Social" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Search" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Search" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Account menu for ada" })).toBeNull();
+    const searchButtons = screen.getAllByRole("button", { name: "Search" });
+    expect(searchButtons).toHaveLength(2);
+    expect(searchButtons.some((button) => button.className.includes("md:hidden"))).toBe(true);
+    expect(searchButtons.some((button) => button.className.includes("md:inline-flex"))).toBe(true);
   });
 });

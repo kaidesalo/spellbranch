@@ -115,6 +115,7 @@ async function getLocalSessionUser(): Promise<SessionUser | null> {
     email: user.email,
     username: user.username,
     displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
   };
 }
 
@@ -135,7 +136,7 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .eq("id", claims.sub)
     .maybeSingle();
 
@@ -151,6 +152,7 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
     email: typeof claims.email === "string" ? claims.email : "",
     username: profile.username as string,
     displayName: profile.display_name as string,
+    avatarUrl: typeof profile.avatar_url === "string" ? profile.avatar_url : null,
   };
 }
 

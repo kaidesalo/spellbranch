@@ -193,6 +193,8 @@ export interface SessionUser {
   email: string;
   username: string;
   displayName: string;
+  /** profiles.avatar_url when the session read it. Missing means no picture. */
+  avatarUrl?: string | null;
 }
 
 export interface DeckWithMeta extends Deck {
