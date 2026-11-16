@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Menu, Search } from "lucide-react";
+import { signOutAction } from "@/lib/actions/auth";
 import type { SessionUser } from "@/lib/types";
-import { AccountMenu } from "@/components/layout/account-menu";
+import { AccountMenu, accountMenuItems } from "@/components/layout/account-menu";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MAIN_NAV, MOBILE_MENU_NAV, mainNavActive, type MainNavHref } from "@/components/layout/main-nav";
@@ -181,9 +182,45 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                     pathname={pathname}
                     section={section}
                     onNavigate={() => setOpenPath(null)}
-                    className="py-3 text-sm font-medium text-foreground"
+                    className="min-h-11 py-3 text-sm font-medium text-foreground"
                   />
                 </nav>
+                <section
+                  aria-labelledby="mobile-profile-heading"
+                  className="mt-2 border-t border-border px-2 pt-4 md:hidden"
+                >
+                  <h2 id="mobile-profile-heading" className="label-caps px-3 text-primary">
+                    Profile & settings
+                  </h2>
+                  <p className="mt-3 truncate px-3 text-sm font-medium text-foreground">{user.displayName}</p>
+                  <p className="truncate px-3 text-xs text-muted-foreground">@{user.username}</p>
+                  <div className="mt-2 flex flex-col">
+                    {accountMenuItems(user.username).map((item) => {
+                      const current = pathname === item.href;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          aria-current={current ? "page" : undefined}
+                          onClick={() => setOpenPath(null)}
+                          className={cn(
+                            "flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-foreground",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            current && "bg-primary text-primary-foreground",
+                          )}
+                        >
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                  <div className="my-3 border-t border-border" />
+                  <form action={signOutAction} className="px-2 pb-4">
+                    <Button type="submit" variant="outline" className="h-11 w-full">
+                      Sign out
+                    </Button>
+                  </form>
+                </section>
               </SheetContent>
               </Sheet>
             </div>

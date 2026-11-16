@@ -62,6 +62,8 @@ describe("AccountMenu", () => {
     const { rerender } = render(createElement(AccountMenu, { user }));
     const button = screen.getByRole("button", { name: "Account menu for ada" });
     expect(button.tagName).toBe("BUTTON");
+    expect(button.className).toContain("hidden");
+    expect(button.className).toContain("md:inline-flex");
     expect(button.getAttribute("aria-haspopup")).toBe("menu");
     expect(button.getAttribute("aria-expanded")).toBe("false");
     expect(button.textContent).toBe("AL");
