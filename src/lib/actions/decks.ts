@@ -153,6 +153,19 @@ export async function deleteDeckAction(deckId: string): Promise<ActionResult> {
   redirect("/my-cards");
 }
 
+/** Decks the signed-in user owns. Forks of other people are not included. */
+export async function listOwnedDecksAction(): Promise<
+  { decks: { id: string; name: string }[] } | { error: string }
+> {
+  const user = await requireUser();
+  try {
+    const decks = await getRepository().listDecks(user.id, "mine");
+    return { decks: decks.map((deck) => ({ id: deck.id, name: deck.name })) };
+  } catch (err) {
+    return { error: userMessage(err, "Could not load decks") };
+  }
+}
+
 /**
  * Adds a card to a deck. The client sends only the Scryfall id (and a
  * quantity); the card is fetched from Scryfall here and built with

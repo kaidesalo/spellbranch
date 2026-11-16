@@ -15,16 +15,28 @@ const CARD_ID = "11111111-2222-4333-8444-555555555555";
 
 const addCard = vi.fn(async () => undefined);
 const getDeckPermissions = vi.fn(async () => ({ canEdit: true, canFork: true, canComment: true }));
+const listDecks = vi.fn(async () => [{ id: DECK, name: "Squirrels" }]);
 let me = ME;
+let signedOut = false;
 let requestHeaders = new Headers();
 let scryfall: (id: string) => Promise<ScryfallCard | null>;
 
 vi.mock("@/lib/auth/require-user", () => ({
-  requireUser: async () => ({ id: me, email: "me@example.test", username: "me_u", displayName: "Me" }),
+  requireUser: async () => {
+    if (signedOut) {
+      const { redirect } = await import("next/navigation");
+      redirect("/login");
+    }
+    return { id: me, email: "me@example.test", username: "me_u", displayName: "Me" };
+  },
 }));
 vi.mock("@/lib/data", async () => {
   const errors = await import("@/lib/data/errors");
-  return { getRepository: () => ({ addCard, getDeckPermissions }), userMessage: errors.userMessage, DataError: errors.DataError };
+  return {
+    getRepository: () => ({ addCard, getDeckPermissions, listDecks }),
+    userMessage: errors.userMessage,
+    DataError: errors.DataError,
+  };
 });
 vi.mock("@/lib/scryfall/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/scryfall/client")>()),
@@ -34,7 +46,7 @@ vi.mock("next/headers", () => ({ headers: async () => requestHeaders }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("redirect"); } }));
 
-const { addCardToDeckAction } = await import("@/lib/actions/decks");
+const { addCardToDeckAction, listOwnedDecksAction } = await import("@/lib/actions/decks");
 const { getScryfallCard, ScryfallLookupError } = await import("@/lib/scryfall/client");
 const { DeckColorError } = await import("@/lib/data/errors");
 
@@ -55,7 +67,9 @@ beforeEach(() => {
   setRateLimitStoreForTests(new MemoryStore(() => 1_200_000_000_000));
   requestHeaders = new Headers({ "x-real-ip": "203.0.113.9" });
   me = ME;
+  signedOut = false;
   addCard.mockReset().mockResolvedValue(undefined);
+  listDecks.mockReset().mockResolvedValue([{ id: DECK, name: "Squirrels" }]);
   getDeckPermissions.mockReset().mockResolvedValue({ canEdit: true, canFork: true, canComment: true });
   vi.mocked(getScryfallCard).mockClear();
   scryfall = async () => bolt();
@@ -135,5 +149,16 @@ describe("addCardToDeckAction", () => {
     expect(await addCardToDeckAction(DECK, { scryfallId: CARD_ID })).toEqual({ error: RATE_LIMITED_MESSAGE, retryAfterSec: 600 });
     expect(getDeckPermissions).not.toHaveBeenCalled();
     expect(getScryfallCard).not.toHaveBeenCalled();
+  });
+
+  it("lists only the signed-in user's own decks", async () => {
+    expect(await listOwnedDecksAction()).toEqual({ decks: [{ id: DECK, name: "Squirrels" }] });
+    expect(listDecks).toHaveBeenCalledWith(ME, "mine");
+  });
+
+  it("refuses to list decks when nobody is signed in", async () => {
+    signedOut = true;
+    await expect(listOwnedDecksAction()).rejects.toThrow("redirect");
+    expect(listDecks).not.toHaveBeenCalled();
   });
 });

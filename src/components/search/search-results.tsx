@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LayoutGrid, List, Search } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { addCollectionCardAction } from "@/lib/actions/collection";
 import {
   EMPTY_ADVANCED_FILTERS,
   advancedFiltersActive,
@@ -15,7 +13,8 @@ import {
   type AdvancedFilters,
 } from "@/lib/advanced-search";
 import { AdvancedFiltersPanel } from "@/components/layout/advanced-filters";
-import { scryfallImageOrNull } from "@/lib/data/validation";
+import { isUuid, scryfallImageOrNull } from "@/lib/data/validation";
+import { SearchCardTile, type SearchCardHit } from "@/components/search/search-card-tile";
 import type { CatalogSet } from "@/lib/header-search";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { getCardImage } from "@/lib/scryfall/client";
@@ -37,15 +36,7 @@ export type SearchResultsQuery = {
   view: "grid" | "list";
 };
 
-type CardHit = {
-  id: string;
-  name: string;
-  typeLine: string;
-  setName: string;
-  image: string | null;
-};
-
-function cardHit(card: ScryfallCard): CardHit | null {
+function cardHit(card: ScryfallCard): SearchCardHit | null {
   if (!card.id || !card.name) return null;
   return {
     id: card.id,
@@ -53,6 +44,7 @@ function cardHit(card: ScryfallCard): CardHit | null {
     typeLine: card.type_line ?? "",
     setName: card.set_name ?? "",
     image: scryfallImageOrNull(getCardImage(card)),
+    oracleId: isUuid(card.oracle_id) ? card.oracle_id : null,
   };
 }
 
@@ -75,7 +67,7 @@ export function SearchResults({
   const requestKey = `${query.q}\0${query.type}\0${query.order}\0${query.dir}\0${query.unique}`;
   const [result, setResult] = useState<{
     key: string;
-    cards: CardHit[];
+    cards: SearchCardHit[];
     sets: CatalogSet[];
     total: number;
     page: number;
@@ -109,7 +101,7 @@ export function SearchResults({
         if (query.type === "cards") {
           setResult({
             key: requestKey,
-            cards: (data.cards ?? []).map(cardHit).filter((card): card is CardHit => card !== null),
+            cards: (data.cards ?? []).map(cardHit).filter((card): card is SearchCardHit => card !== null),
             sets: [],
             total: data.total ?? data.cards?.length ?? 0,
             page: 1,
@@ -187,7 +179,7 @@ export function SearchResults({
         ...current,
         cards: [
           ...current.cards,
-          ...(data.cards ?? []).map(cardHit).filter((card): card is CardHit => card !== null),
+          ...(data.cards ?? []).map(cardHit).filter((card): card is SearchCardHit => card !== null),
         ],
         page: nextPage,
         hasMore: data.hasMore === true,
@@ -319,63 +311,27 @@ export function SearchResults({
           data-testid="search-card-view"
           data-view={query.view}
           className={cn(
-            "mt-6",
+            "mt-6 min-w-0",
             query.view === "grid"
-              ? "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+              ? "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4"
               : "flex flex-col gap-3",
           )}
         >
           {cards.map((card) => (
-            <li
+            <SearchCardTile
               key={card.id}
-              className={cn(
-                "rounded-xl border border-border/80 bg-card/70 p-3",
-                query.view === "list" && "flex items-center gap-3",
-              )}
-            >
-              {card.image ? (
-                // Native img keeps loading="lazy" and the Scryfall CDN URL.
-                // next/image would rewrite that URL through the optimizer.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={card.image}
-                  alt={card.name}
-                  width={query.view === "grid" ? 244 : 122}
-                  height={query.view === "grid" ? 340 : 170}
-                  loading="lazy"
-                  className={cn("h-auto rounded-lg", query.view === "grid" ? "w-full" : "w-20 shrink-0")}
-                />
-              ) : (
-                <div className="flex h-40 items-center justify-center rounded-lg bg-background text-sm text-muted-foreground">
-                  No image
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="mt-2 truncate font-medium">{card.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {[card.setName, card.typeLine].filter(Boolean).join(" · ")}
-                </p>
-                {signedIn ? (
-                  <AddToCollection id={card.id} />
-                ) : (
-                  <Link
-                    href={`/login?next=${encodeURIComponent(
-                      searchPageHref({
-                        q: query.q,
-                        type: query.type,
-                        order: query.order || undefined,
-                        dir: query.dir || undefined,
-                        unique: query.unique || undefined,
-                        view: query.view,
-                      }),
-                    )}`}
-                    className="mt-2 inline-flex h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  >
-                    Sign in to add
-                  </Link>
-                )}
-              </div>
-            </li>
+              card={card}
+              view={query.view}
+              signedIn={signedIn}
+              returnHref={searchPageHref({
+                q: query.q,
+                type: query.type,
+                order: query.order || undefined,
+                dir: query.dir || undefined,
+                unique: query.unique || undefined,
+                view: query.view,
+              })}
+            />
           ))}
         </ul>
       )}
@@ -412,24 +368,3 @@ export function SearchResults({
   );
 }
 
-function AddToCollection({ id }: { id: string }) {
-  const [pending, startTransition] = useTransition();
-  const [added, setAdded] = useState(false);
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      className="mt-2 h-11"
-      disabled={pending || added}
-      onClick={() => {
-        startTransition(async () => {
-          const result = await addCollectionCardAction({ scryfallId: id });
-          if (result.error) toast.error(result.error);
-          else setAdded(true);
-        });
-      }}
-    >
-      {added ? "Added" : "Add to collection"}
-    </Button>
-  );
-}
