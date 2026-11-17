@@ -17,6 +17,7 @@ import {
   normalizeCondition,
   normalizeFinish,
 } from "@/lib/collection";
+import { isMissingAvatarPresetColumn } from "@/lib/avatar-presets";
 import { commanderProblem, normalizeColorIdentity, normalizeCommander } from "@/lib/commander";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
@@ -106,6 +107,7 @@ const CARD_COLOR_COLS = "id, card_name, colors, color_identity, quantity, board"
 /** Shown when a deck-colors CHECK or trigger (008) refuses a write the app let through (a race). */
 const COLOR_CONFLICT = "That doesn't fit this deck's colors any more. Reload the deck and try again.";
 const PROFILE_COLS = "id, username, display_name, avatar_url";
+const PROFILE_COLS_WITH_PRESET = `${PROFILE_COLS}, avatar_preset`;
 const FRIENDSHIP_COLS = "id, requester_id, addressee_id, status, created_at";
 const FAVORITE_COLS = "id, user_id, scryfall_id, card_name, image_uri, mana_cost, type_line, created_at";
 const COLLECTION_COLS =
@@ -161,7 +163,13 @@ type CardColorRow = Pick<
   CardRow,
   "id" | "card_name" | "colors" | "color_identity" | "quantity" | "board"
 >;
-type ProfileRow = { id: string; username: string; display_name: string; avatar_url: string | null };
+type ProfileRow = {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  avatar_preset?: string | null;
+};
 type FriendshipRow = {
   id: string;
   requester_id: string;
@@ -299,7 +307,21 @@ export const toProfile = (r: ProfileRow): PublicProfile => ({
   username: r.username,
   displayName: r.display_name,
   avatarUrl: r.avatar_url,
+  ...(typeof r.avatar_preset === "string" && r.avatar_preset ? { avatarPreset: r.avatar_preset } : {}),
 });
+
+/**
+ * Reads public profile columns, then retries without avatar_preset when that
+ * column is not on the table or view yet (migration 017).
+ */
+async function selectProfileRows<T>(
+  op: string,
+  run: (columns: string) => PromiseLike<{ data: T; error: PgError }>,
+): Promise<T> {
+  const first = await run(PROFILE_COLS_WITH_PRESET);
+  if (isMissingAvatarPresetColumn(first.error)) return check(op, await run(PROFILE_COLS));
+  return check(op, first);
+}
 
 const toFriendship = (r: FriendshipRow): Friendship => ({
   id: r.id,
@@ -413,10 +435,9 @@ const byUpdatedDesc = (a: Deck, b: Deck) => b.updatedAt.localeCompare(a.updatedA
 
 async function loadProfiles(client: Client, ids: string[]): Promise<Map<string, PublicProfile>> {
   if (ids.length === 0) return new Map();
-  const rows = check(
-    "public_profiles",
-    await client.from("public_profiles").select(PROFILE_COLS).in("id", ids),
-  ) as ProfileRow[] | null;
+  const rows = (await selectProfileRows("public_profiles", (columns) =>
+    client.from("public_profiles").select(columns).in("id", ids),
+  )) as ProfileRow[] | null;
   return new Map((rows ?? []).map((r) => [r.id, toProfile(r)]));
 }
 
@@ -1589,14 +1610,19 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
     async getOwnProfile(userId) {
       const client = await getClient();
       // bio is not selectable (012). profile_bio() returns it for the owner.
-      const row = check(
-        "profiles own",
-        await client
-          .from("profiles")
-          .select("id, username, display_name")
-          .eq("id", userId)
-          .maybeSingle(),
-      ) as { id: string; username: string; display_name: string } | null;
+      const ownColumns = ["id, username, display_name, avatar_preset", "id, username, display_name"] as const;
+      let row: { id: string; username: string; display_name: string; avatar_preset?: string | null } | null = null;
+      for (const columns of ownColumns) {
+        const res = await client.from("profiles").select(columns).eq("id", userId).maybeSingle();
+        if (isMissingAvatarPresetColumn(res.error)) continue;
+        row = check("profiles own", res) as {
+          id: string;
+          username: string;
+          display_name: string;
+          avatar_preset?: string | null;
+        } | null;
+        break;
+      }
       if (!row) return null;
       const bioRes = await client.rpc("profile_bio", { user_id: userId });
       if (bioRes.error) throw new SupabaseDataError("profile_bio", bioRes.error.code);
@@ -1605,6 +1631,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         username: row.username,
         displayName: row.display_name,
         bio: typeof bioRes.data === "string" ? bioRes.data : "",
+        avatarPreset: typeof row.avatar_preset === "string" ? row.avatar_preset : null,
       };
     },
 
@@ -1618,14 +1645,9 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       // is anchored. public_profiles is security invoker, so RLS applies.
       // Do not call find_profile(): that function is security definer and
       // returns a row even when this caller's RLS would hide the profile.
-      const row = check(
-        "public_profiles username",
-        await client
-          .from("public_profiles")
-          .select(PROFILE_COLS)
-          .filter("username", "imatch", `^${q}$`)
-          .maybeSingle(),
-      ) as ProfileRow | null;
+      const row = (await selectProfileRows("public_profiles username", (columns) =>
+        client.from("public_profiles").select(columns).filter("username", "imatch", `^${q}$`).maybeSingle(),
+      )) as ProfileRow | null;
       if (!row) return null;
 
       // Bio is friends-only (012): profile_bio() returns text for the owner

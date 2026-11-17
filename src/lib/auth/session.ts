@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { SessionUser } from "@/lib/types";
 import { readStore } from "@/lib/data/store";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isMissingAvatarPresetColumn } from "@/lib/avatar-presets";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
@@ -116,6 +117,7 @@ async function getLocalSessionUser(): Promise<SessionUser | null> {
     username: user.username,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    avatarPreset: user.avatarPreset ?? null,
   };
 }
 
@@ -134,11 +136,23 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
   const claims = data?.claims;
   if (error || !claims || typeof claims.sub !== "string") return null;
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, username, display_name, avatar_url")
-    .eq("id", claims.sub)
-    .maybeSingle();
+  const columns = ["id, username, display_name, avatar_url, avatar_preset", "id, username, display_name, avatar_url"];
+  type ProfileRead = {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+    avatar_preset?: string | null;
+  };
+  let profile: ProfileRead | null = null;
+  let profileError: { message: string } | null = null;
+  for (const columnList of columns) {
+    const res = await supabase.from("profiles").select(columnList).eq("id", claims.sub).maybeSingle();
+    if (isMissingAvatarPresetColumn(res.error)) continue;
+    profile = res.data as ProfileRead | null;
+    profileError = res.error;
+    break;
+  }
 
   if (profileError || !profile) {
     if (profileError) {
@@ -148,11 +162,12 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
   }
 
   return {
-    id: profile.id as string,
+    id: profile.id,
     email: typeof claims.email === "string" ? claims.email : "",
-    username: profile.username as string,
-    displayName: profile.display_name as string,
+    username: profile.username,
+    displayName: profile.display_name,
     avatarUrl: typeof profile.avatar_url === "string" ? profile.avatar_url : null,
+    avatarPreset: typeof profile.avatar_preset === "string" ? profile.avatar_preset : null,
   };
 }
 

@@ -306,7 +306,13 @@ describe.skipIf(!REST || !SECRET)("Supabase adapter against PostgREST + PG17 stu
   });
 
   it("own profile comes from profiles; nobody's email is selectable", async () => {
-    expect(await ann().getOwnProfile(ANN)).toEqual({ id: ANN, username: "it_ann", displayName: "Ann", bio: "" });
+    expect(await ann().getOwnProfile(ANN)).toEqual({
+      id: ANN,
+      username: "it_ann",
+      displayName: "Ann",
+      bio: "",
+      avatarPreset: null,
+    });
     const { error } = await clientFor(ANN).from("profiles").update({ bio: "x".repeat(281) }).eq("id", ANN);
     expect(error?.code).toBe("23514"); // 003
     const anonRead = await clientFor(null).from("profiles").select("bio").limit(1);

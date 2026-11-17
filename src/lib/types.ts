@@ -22,6 +22,8 @@ export interface PublicProfile {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  /** profiles.avatar_preset. Missing or null means no preset. */
+  avatarPreset?: string | null;
 }
 
 /**
@@ -39,6 +41,8 @@ export interface OwnProfile {
   username: string;
   displayName: string;
   bio: string;
+  /** Null when the column is missing or the user chose the default. */
+  avatarPreset: string | null;
 }
 
 export interface Friendship {
@@ -195,6 +199,8 @@ export interface SessionUser {
   displayName: string;
   /** profiles.avatar_url when the session read it. Missing means no picture. */
   avatarUrl?: string | null;
+  /** profiles.avatar_preset. A known key wins over avatarUrl. */
+  avatarPreset?: string | null;
 }
 
 export interface DeckWithMeta extends Deck {
