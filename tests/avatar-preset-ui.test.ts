@@ -32,11 +32,11 @@ const user: SessionUser = {
 
 const labels = [
   "None / use default",
-  "Ghalta, Primal Hunger",
-  "Lathliss, Dragon Queen",
-  "Ghoulcaller Gisa",
-  "Sai, Master Thopterist",
-  "Giada, Font of Hope",
+  "Ghalta, Primal Hunger (art by Raph Lomotan)",
+  "Lathliss, Dragon Queen (art by Zoltan Boros)",
+  "Ghoulcaller Gisa (art by Miguel Mercado)",
+  "Sai, Master Thopterist (art by Bryan Sola)",
+  "Giada, Font of Hope (art by Johannes Voss)",
 ];
 
 function publicProfile(over: Partial<VisibleProfile> = {}): VisibleProfile {
@@ -57,10 +57,15 @@ describe("avatar preset UI", () => {
     render(createElement(ProfileForm, { user, bio: "", avatarPreset: "sai" }));
     const radios = screen.getAllByRole("radio");
     expect(radios.map((radio) => radio.getAttribute("aria-label"))).toEqual(labels);
-    expect(screen.getByRole("radio", { name: "Sai, Master Thopterist" }).getAttribute("value")).toBe("sai");
-    expect((screen.getByRole("radio", { name: "Sai, Master Thopterist" }) as HTMLInputElement).defaultChecked).toBe(
-      true,
+    expect(screen.getByRole("radio", { name: "Sai, Master Thopterist (art by Bryan Sola)" }).getAttribute("value")).toBe(
+      "sai",
     );
+    expect(
+      (screen.getByRole("radio", { name: "Sai, Master Thopterist (art by Bryan Sola)" }) as HTMLInputElement)
+        .defaultChecked,
+    ).toBe(true);
+    expect(screen.getByText("art by Bryan Sola")).toBeTruthy();
+    expect(screen.getByText("Ghalta, Primal Hunger")).toBeTruthy();
     for (const radio of radios) {
       expect(radio.className).toContain("sr-only");
       expect(radio.closest("label")?.className).toContain("min-h-11");
@@ -85,8 +90,8 @@ describe("avatar preset UI", () => {
         isSelf: true,
       }),
     );
-    expect(screen.getByRole("img", { name: "Giada, Font of Hope" }).getAttribute("src")).toBe(
-      "/avatars/giada-512.webp",
-    );
+    const portrait = screen.getByRole("img", { name: "Giada, Font of Hope (art by Johannes Voss)" });
+    expect(portrait.getAttribute("src")).toBe("/avatars/giada-512.webp");
+    expect(portrait.getAttribute("title")).toBe("Giada, Font of Hope (art by Johannes Voss)");
   });
 });

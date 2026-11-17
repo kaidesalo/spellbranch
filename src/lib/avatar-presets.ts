@@ -12,30 +12,35 @@ export const AVATAR_PRESETS = [
   {
     key: "ghalta",
     label: "Ghalta, Primal Hunger",
+    artist: "Raph Lomotan",
     src256: "/avatars/ghalta-256.webp",
     src512: "/avatars/ghalta-512.webp",
   },
   {
     key: "lathliss",
     label: "Lathliss, Dragon Queen",
+    artist: "Zoltan Boros",
     src256: "/avatars/lathliss-256.webp",
     src512: "/avatars/lathliss-512.webp",
   },
   {
     key: "gisa",
     label: "Ghoulcaller Gisa",
+    artist: "Miguel Mercado",
     src256: "/avatars/gisa-256.webp",
     src512: "/avatars/gisa-512.webp",
   },
   {
     key: "sai",
     label: "Sai, Master Thopterist",
+    artist: "Bryan Sola",
     src256: "/avatars/sai-256.webp",
     src512: "/avatars/sai-512.webp",
   },
   {
     key: "giada",
     label: "Giada, Font of Hope",
+    artist: "Johannes Voss",
     src256: "/avatars/giada-256.webp",
     src512: "/avatars/giada-512.webp",
   },
@@ -54,11 +59,17 @@ export function avatarPresetByKey(value: string | null | undefined) {
   return BY_KEY.get(value as AvatarPresetKey) ?? null;
 }
 
-export type ResolvedAvatar = { src: string; alt: string };
+export type ResolvedAvatar = { src: string; alt: string; title?: string };
+
+/** "Ghalta, Primal Hunger (art by Raph Lomotan)". */
+export function avatarCreditName(preset: { label: string; artist: string }): string {
+  return `${preset.label} (art by ${preset.artist})`;
+}
 
 /**
  * The image to show, or null for the initials fallback.
  * Preset first, then a safe https avatar_url.
+ * A large render names the artist. Menu-sized renders keep the card name only.
  */
 export function resolveAvatar(
   input: { avatarPreset?: string | null; avatarUrl?: string | null },
@@ -66,7 +77,11 @@ export function resolveAvatar(
 ): ResolvedAvatar | null {
   const preset = avatarPresetByKey(input.avatarPreset);
   if (preset) {
-    return { src: size === 512 ? preset.src512 : preset.src256, alt: preset.label };
+    const credit = avatarCreditName(preset);
+    if (size === 512) {
+      return { src: preset.src512, alt: credit, title: credit };
+    }
+    return { src: preset.src256, alt: preset.label };
   }
   const url = safeAvatarUrl(input.avatarUrl);
   if (url) return { src: url, alt: "" };

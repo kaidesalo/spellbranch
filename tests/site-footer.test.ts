@@ -13,7 +13,15 @@ describe("SiteFooter", () => {
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).toContain("vulpibyte.dev");
     expect(html).toContain("abc1234");
-    expect(html).toContain("unofficial Fan Content permitted under the");
+    const disclaimer =
+      "Spellbranch is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.";
+    const text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+    expect(text).toContain(disclaimer);
+    expect(html).not.toContain("trademarks of Wizards of the Coast");
+    expect(html).toContain('href="https://company.wizards.com/en/legal/fancontentpolicy"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain(">Fan Content Policy</a>");
     expect(html).toContain('href="https://scryfall.com"');
     expect(html).not.toMatch(/Terms|Privacy Policy|instagram|twitter/i);
   });
