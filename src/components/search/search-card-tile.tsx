@@ -11,11 +11,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { PrintingPickerSheet, type PrintingChoice } from "@/components/cards/printing-picker-sheet";
 import { addCollectionCardAction } from "@/lib/actions/collection";
 import { addCardToDeckAction, listOwnedDecksAction } from "@/lib/actions/decks";
 import { safeNextPath } from "@/lib/auth/redirect";
-import { isUuid, scryfallImageOrNull } from "@/lib/data/validation";
-import { getCardImage, type ScryfallCard } from "@/lib/scryfall/client";
 import { cn } from "@/lib/utils";
 
 export type SearchCardHit = {
@@ -25,12 +24,6 @@ export type SearchCardHit = {
   setName: string;
   image: string | null;
   oracleId: string | null;
-};
-
-type PrintingChoice = {
-  id: string;
-  setName: string;
-  image: string | null;
 };
 
 function signInHref(returnHref: string): string {
@@ -231,44 +224,6 @@ function ChangePrintingButton({
 }) {
   const label = `Change printing of ${card.name}`;
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [printings, setPrintings] = useState<PrintingChoice[]>([]);
-
-  async function openPicker() {
-    setOpen(true);
-    setError(null);
-    if (!card.oracleId) {
-      setPrintings([]);
-      setError("This card has no other printings we can look up.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        q: `oracleid:${card.oracleId}`,
-        unique: "prints",
-        order: "released",
-      });
-      const res = await fetch(`/api/scryfall/search?${params}`);
-      const data = (await res.json()) as { cards?: ScryfallCard[]; error?: string };
-      if (!res.ok) throw new Error(data.error || "Could not load printings");
-      const choices = (data.cards ?? [])
-        .filter((hit) => hit.id && hit.oracle_id === card.oracleId && isUuid(hit.id))
-        .map((hit) => ({
-          id: hit.id,
-          setName: hit.set_name?.trim() || "Unknown set",
-          image: scryfallImageOrNull(getCardImage(hit)),
-        }));
-      setPrintings(choices);
-      if (choices.length === 0) setError("No printings found.");
-    } catch (err) {
-      setPrintings([]);
-      setError(err instanceof Error ? err.message : "Could not load printings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   if (!signedIn) {
     return (
@@ -289,37 +244,18 @@ function ChangePrintingButton({
         aria-label={label}
         aria-haspopup="dialog"
         className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-border text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() => void openPicker()}
+        onClick={() => setOpen(true)}
       >
         <Images className="size-4" aria-hidden />
       </button>
-      <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" data-testid="search-printing-sheet" className="max-h-[70vh] rounded-t-2xl">
-            <SheetHeader className="text-left">
-              <SheetTitle>Change printing</SheetTitle>
-              <SheetDescription>{card.name}</SheetDescription>
-            </SheetHeader>
-            <div className="flex flex-col gap-2 overflow-y-auto px-4 pb-4">
-              {loading && <p className="text-sm text-muted-foreground">Loading printings…</p>}
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              {printings.map((printing) => (
-                <button
-                  key={printing.id}
-                  type="button"
-                  aria-current={printing.id === currentId ? "true" : undefined}
-                  className="min-h-11 truncate rounded-lg border border-border px-3 text-left text-sm hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => {
-                    onPick(printing);
-                    setOpen(false);
-                  }}
-                >
-                  {printing.setName}
-                  {printing.id === currentId ? " · current" : ""}
-                </button>
-              ))}
-            </div>
-          </SheetContent>
-      </Sheet>
+      <PrintingPickerSheet
+        open={open}
+        onOpenChange={setOpen}
+        oracleId={card.oracleId}
+        currentId={currentId}
+        cardName={card.name}
+        onPick={onPick}
+      />
     </>
   );
 }

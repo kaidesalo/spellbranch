@@ -458,6 +458,128 @@ export async function setCommanderAction(
   return { success: true };
 }
 
+const PRINTING_MISMATCH = "That printing is a different card.";
+
+function oracleKey(card: { oracle_id?: string } | null): string | null {
+  const id = card?.oracle_id;
+  return typeof id === "string" && id.length > 0 ? id.toLowerCase() : null;
+}
+
+/**
+ * Oracle id for the deck's current commander, so the shared printing picker
+ * can query `/api/scryfall/search?q=oracleid:…&unique=prints`. Owner only.
+ * The commander row does not store an oracle id; this looks it up from the
+ * stored Scryfall id.
+ */
+export async function lookupCommanderOracleAction(
+  deckId: string,
+): Promise<{ error?: string; retryAfterSec?: number; oracleId?: string }> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+
+  const allowed = await limit("commander-lookup", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
+
+  const repo = getRepository();
+  try {
+    const permissions = await repo.getDeckPermissions(user.id, id.data);
+    if (!permissions.canEdit) return { error: "You cannot edit this deck" };
+    await repo.assertCanSetCommander(user.id, id.data);
+  } catch (err) {
+    return { error: userMessage(err, "Could not look up printings") };
+  }
+
+  const deck = await repo.getDeck(user.id, id.data);
+  if (!deck) return { error: "Deck not found" };
+  if (!deck.commander) return { error: "This deck has no commander." };
+
+  let found;
+  try {
+    found = await getScryfallCard(deck.commander.scryfallId);
+  } catch (err) {
+    return { error: scryfallLookupMessage(err) };
+  }
+  if (!found?.oracle_id) return { error: "This card has no other printings we can look up." };
+  return { oracleId: found.oracle_id };
+}
+
+/**
+ * Replaces the commander's printing with another printing of the same card.
+ * The client sends only the new Scryfall id. Both cards are fetched here;
+ * the write is refused unless their oracle ids match, so the commander stays
+ * the same card and stays in the commander slot (setCommander, not the deck
+ * list). Stored fields that identify the printing are the Scryfall id and
+ * the card and art images. There is no set column on the commander; the set
+ * is the printing the id points at.
+ *
+ * One commander per deck. Partner and background commanders are not in the
+ * data model, so this action only updates that one slot.
+ */
+export async function changeCommanderPrintingAction(
+  deckId: string,
+  scryfallId: string,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = check(idSchema, deckId, "Deck not found");
+  if (!id.ok) return { error: id.error };
+  const card = check(idSchema, scryfallId, "Card not found");
+  if (!card.ok) return { error: card.error };
+
+  const allowed = await limit("commander-lookup", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
+
+  const repo = getRepository();
+  try {
+    const permissions = await repo.getDeckPermissions(user.id, id.data);
+    if (!permissions.canEdit) return { error: "You cannot edit this deck" };
+    await repo.assertCanSetCommander(user.id, id.data);
+  } catch (err) {
+    return { error: userMessage(err, "Could not update the commander") };
+  }
+
+  const deck = await repo.getDeck(user.id, id.data);
+  if (!deck) return { error: "Deck not found" };
+  const current = deck.commander;
+  if (!current) return { error: "This deck has no commander." };
+
+  let currentCard;
+  let nextCard;
+  try {
+    [currentCard, nextCard] = await Promise.all([
+      getScryfallCard(current.scryfallId),
+      getScryfallCard(card.data),
+    ]);
+  } catch (err) {
+    return { error: scryfallLookupMessage(err) };
+  }
+  if (!currentCard || !nextCard) return { error: "Card not found" };
+
+  const currentOracle = oracleKey(currentCard);
+  const nextOracle = oracleKey(nextCard);
+  if (!currentOracle || !nextOracle || currentOracle !== nextOracle) {
+    return { error: PRINTING_MISMATCH };
+  }
+
+  if (nextCard.id.toLowerCase() === current.scryfallId.toLowerCase()) {
+    return { success: true };
+  }
+
+  const commander = commanderFromScryfall(nextCard);
+  if (!commander) return { error: COMMANDER_MESSAGES.notLegendaryCreature };
+
+  try {
+    await repo.setCommander(user.id, id.data, commander);
+  } catch (err) {
+    return failure(err, "Could not update the commander");
+  }
+
+  revalidatePath(`/decks/${id.data}`);
+  revalidatePath("/decks");
+  revalidatePath("/my-cards");
+  return { success: true };
+}
+
 export async function forkDeckAction(deckId: string, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = check(idSchema, deckId, "You are not allowed to fork this deck");
