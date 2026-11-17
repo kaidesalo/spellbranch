@@ -8,6 +8,7 @@ import { Menu, Search } from "lucide-react";
 import { signOutAction } from "@/lib/actions/auth";
 import type { SessionUser } from "@/lib/types";
 import { AccountMenu, accountMenuItems } from "@/components/layout/account-menu";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MAIN_NAV, MOBILE_MENU_NAV, mainNavActive, type MainNavHref } from "@/components/layout/main-nav";
@@ -192,8 +193,18 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                   <h2 id="mobile-profile-heading" className="label-caps px-3 text-primary">
                     Profile & settings
                   </h2>
-                  <p className="mt-3 truncate px-3 text-sm font-medium text-foreground">{user.displayName}</p>
-                  <p className="truncate px-3 text-xs text-muted-foreground">@{user.username}</p>
+                  <div className="mt-3 flex min-w-0 items-center gap-3 px-3">
+                    <ProfileAvatar
+                      avatarPreset={user.avatarPreset}
+                      avatarUrl={user.avatarUrl}
+                      displayName={user.displayName}
+                      username={user.username}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{user.displayName}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{user.username}</p>
+                    </div>
+                  </div>
                   <div className="mt-2 flex flex-col">
                     {accountMenuItems(user.username).map((item) => {
                       const current = pathname === item.href;

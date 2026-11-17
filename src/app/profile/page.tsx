@@ -26,6 +26,7 @@ export default async function ProfilePage() {
         <ProfileForm
           user={profile ? { ...user, username: profile.username } : user}
           bio={profile?.bio ?? ""}
+          avatarPreset={profile?.avatarPreset ?? null}
         />
       </div>
     </div>

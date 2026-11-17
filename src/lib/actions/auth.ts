@@ -1,6 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isAvatarPresetKey, isMissingAvatarPresetColumn } from "@/lib/avatar-presets";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
@@ -238,6 +240,13 @@ export async function updateProfileAction(
   if (bio.length > LIMITS.bio) {
     return { error: `Bio must be ${LIMITS.bio} characters or fewer` };
   }
+  let presetUpdate: string | null | undefined;
+  if (formData.has("avatarPreset")) {
+    const raw = formData.get("avatarPreset");
+    const parsed = parseAvatarPreset(typeof raw === "string" ? raw : null);
+    if (!parsed.ok) return { error: parsed.error };
+    presetUpdate = parsed.value;
+  }
 
   const allowed = await limit("profile-write", { ip: await requestIp(), userId: user.id });
   if (!allowed.ok) return limitError(allowed);
@@ -249,6 +258,11 @@ export async function updateProfileAction(
       .update({ display_name: displayName, bio })
       .eq("id", user.id);
     if (error) return { error: "Could not update profile" };
+    if (presetUpdate !== undefined) {
+      const presetError = await writeAvatarPreset(user.id, presetUpdate);
+      if (presetError) return { error: presetError };
+    }
+    revalidatePath("/", "layout");
     return { success: true };
   }
 
@@ -257,6 +271,7 @@ export async function updateProfileAction(
     if (!profile) throw new Error("Profile not found");
     profile.displayName = displayName;
     profile.bio = bio;
+    if (presetUpdate !== undefined) profile.avatarPreset = presetUpdate;
   });
 
   await setSessionCookie({
@@ -264,6 +279,53 @@ export async function updateProfileAction(
     displayName,
   });
 
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+const PRESET_UNAVAILABLE = "Profile pictures aren't available yet.";
+const PRESET_INVALID = "Choose a profile picture from the list.";
+
+function parseAvatarPreset(
+  value: unknown,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (value === null || value === "") return { ok: true, value: null };
+  if (isAvatarPresetKey(value)) return { ok: true, value };
+  return { ok: false, error: PRESET_INVALID };
+}
+
+/** null when the write landed. A string is a message safe to show. */
+async function writeAvatarPreset(userId: string, preset: string | null): Promise<string | null> {
+  if (isSupabaseConfigured()) {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.from("profiles").update({ avatar_preset: preset }).eq("id", userId);
+    if (!error) return null;
+    if (isMissingAvatarPresetColumn(error)) return PRESET_UNAVAILABLE;
+    return "Could not update profile";
+  }
+  await updateStore((store) => {
+    const profile = store.users.find((u) => u.id === userId);
+    if (!profile) throw new Error("Profile not found");
+    profile.avatarPreset = preset;
+  });
+  return null;
+}
+
+/**
+ * Stores a preset key on the signed-in user's own profile row, or clears it.
+ * The client cannot choose another user or send an image URL. The database
+ * CHECK and this allowlist both refuse any other key. RLS ("Users update own
+ * profile") still requires auth.uid() = id.
+ */
+export async function setAvatarPresetAction(preset: string | null): Promise<AuthResult> {
+  const user = await requireUser();
+  const parsed = parseAvatarPreset(preset);
+  if (!parsed.ok) return { error: parsed.error };
+  const allowed = await limit("profile-write", { ip: await requestIp(), userId: user.id });
+  if (!allowed.ok) return limitError(allowed);
+  const error = await writeAvatarPreset(user.id, parsed.value);
+  if (error) return { error };
+  revalidatePath("/", "layout");
   return { success: true };
 }
 

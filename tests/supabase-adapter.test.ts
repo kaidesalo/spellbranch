@@ -716,10 +716,11 @@ describe("supabase adapter: own profile", () => {
       username: "me_u_1a2b",
       displayName: "Me",
       bio: "own bio",
+      avatarPreset: null,
     });
     expect(calls[0]).toMatchObject({
       table: "profiles",
-      columns: "id, username, display_name",
+      columns: "id, username, display_name, avatar_preset",
       filters: [["eq", "id", ME]],
     });
     expect(calls[0].columns).not.toMatch(/bio|email/);

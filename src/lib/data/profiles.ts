@@ -5,6 +5,7 @@ type ProfileSource = {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  avatarPreset?: string | null;
 };
 
 /**
@@ -18,5 +19,6 @@ export function toPublicProfile(user: ProfileSource): PublicProfile {
     username: user.username,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    ...(user.avatarPreset ? { avatarPreset: user.avatarPreset } : {}),
   };
 }

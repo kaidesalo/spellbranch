@@ -921,7 +921,15 @@ export const localRepository: Repository = {
   async getOwnProfile(userId) {
     const store = await readStore();
     const u = store.users.find((x) => x.id === userId);
-    return u ? { id: u.id, username: u.username, displayName: u.displayName, bio: u.bio } : null;
+    return u
+      ? {
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName,
+          bio: u.bio,
+          avatarPreset: u.avatarPreset ?? null,
+        }
+      : null;
   },
 
   async getUserProfile(viewerId, username) {

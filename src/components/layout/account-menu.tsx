@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutAction } from "@/lib/actions/auth";
-import { AVATAR_REFERRER_POLICY, profileInitials, safeAvatarUrl } from "@/lib/profile-display";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import type { SessionUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -33,10 +33,7 @@ const itemClass =
 
 export function AccountMenu({ user }: { user: SessionUser }) {
   const pathname = usePathname();
-  const picture = safeAvatarUrl(user.avatarUrl);
-  const [broken, setBroken] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const showPicture = Boolean(picture) && !broken;
   const items = accountMenuItems(user.username);
 
   return (
@@ -50,21 +47,13 @@ export function AccountMenu({ user }: { user: SessionUser }) {
         aria-label={`Account menu for ${user.username}`}
         className="hidden size-11 shrink-0 items-center justify-center rounded-full border border-primary/80 bg-secondary p-0.5 text-xs font-medium text-primary outline-none hover:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:inline-flex"
       >
-        <span className="flex size-full items-center justify-center overflow-hidden rounded-full bg-secondary">
-          {showPicture ? (
-            // Plain img: avatar hosts are not in next.config remotePatterns.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={picture!}
-              alt=""
-              referrerPolicy={AVATAR_REFERRER_POLICY}
-              className="size-full object-cover"
-              onError={() => setBroken(true)}
-            />
-          ) : (
-            <span aria-hidden>{profileInitials(user.displayName, user.username)}</span>
-          )}
-        </span>
+        <ProfileAvatar
+          avatarPreset={user.avatarPreset}
+          avatarUrl={user.avatarUrl}
+          displayName={user.displayName}
+          username={user.username}
+          className="size-full border-0"
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

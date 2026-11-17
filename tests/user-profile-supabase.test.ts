@@ -72,7 +72,7 @@ describe("supabase getUserProfile", () => {
     const lookup = calls[0];
     expect(lookup).toMatchObject({
       table: "public_profiles",
-      columns: "id, username, display_name, avatar_url",
+      columns: "id, username, display_name, avatar_url, avatar_preset",
       single: "maybeSingle",
     });
     // "_" stays literal. ilike would treat it as a wildcard.
@@ -98,6 +98,22 @@ describe("supabase getUserProfile", () => {
     expect(view?.profile.bio).toBeNull();
     expect(view?.decks).toHaveLength(1);
     expect(calls.some((c) => c.table === "profiles" || c.fn === "profile_bio")).toBe(false);
+  });
+
+  it("retries without avatar_preset when that column is not on the view yet", async () => {
+    const { repo, calls } = profilePage((c) =>
+      isTable(c, "public_profiles") && c.columns?.includes("avatar_preset")
+        ? pgError("PGRST204", "Could not find the 'avatar_preset' column of 'public_profiles' in the schema cache")
+        : undefined,
+    );
+    const view = await repo.getUserProfile(ME, "bob_u");
+    expect(view?.profile.username).toBe("bob_u");
+    expect(view?.profile.avatarPreset).toBeUndefined();
+    const lookups = calls.filter((c) => c.table === "public_profiles" && c.single);
+    expect(lookups.map((c) => c.columns)).toEqual([
+      "id, username, display_name, avatar_url, avatar_preset",
+      "id, username, display_name, avatar_url",
+    ]);
   });
 
   it("does not list decks when public_profiles returns nothing", async () => {

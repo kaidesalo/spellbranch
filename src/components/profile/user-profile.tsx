@@ -1,8 +1,7 @@
 import Link from "next/link";
 import type { CollectionCard, DeckWithMeta, VisibleProfile } from "@/lib/types";
 import { FINISH_LABEL } from "@/lib/collection";
-import { AVATAR_REFERRER_POLICY, profileInitials, safeAvatarUrl } from "@/lib/profile-display";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { DeckCardSummary } from "@/components/decks/deck-card-summary";
 
@@ -17,25 +16,16 @@ export function UserProfile({
   tradeCards?: CollectionCard[];
   isSelf: boolean;
 }) {
-  const avatarUrl = safeAvatarUrl(profile.avatarUrl);
-  const initials = profileInitials(profile.displayName, profile.username);
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <header className="flex items-start gap-4 sm:gap-5">
-        <Avatar data-testid="profile-avatar" className="size-16 sm:size-20">
-          {avatarUrl ? (
-            <AvatarImage
-              src={avatarUrl}
-              alt=""
-              keepMounted
-              referrerPolicy={AVATAR_REFERRER_POLICY}
-            />
-          ) : null}
-          <AvatarFallback className="bg-secondary text-base font-medium text-primary sm:text-lg">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <ProfileAvatar
+          avatarPreset={profile.avatarPreset}
+          avatarUrl={profile.avatarUrl}
+          displayName={profile.displayName}
+          username={profile.username}
+          size="profile"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">

@@ -7,15 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AvatarPresetPicker } from "@/components/profile/avatar-preset-picker";
 import { updateProfileAction, type AuthResult } from "@/lib/actions/auth";
 import type { SessionUser } from "@/lib/types";
 
 export function ProfileForm({
   user,
   bio,
+  avatarPreset = null,
 }: {
   user: SessionUser;
   bio: string;
+  avatarPreset?: string | null;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -42,6 +45,7 @@ export function ProfileForm({
         <Label>Email</Label>
         <Input value={user.email} disabled />
       </div>
+      <AvatarPresetPicker current={avatarPreset} />
       <div className="space-y-2">
         <Label htmlFor="displayName">Display name</Label>
         <Input
