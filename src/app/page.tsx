@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, GitBranch, GitCompareArrows, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MtgNewsSection } from "@/components/home/mtg-news-section";
 import { getSessionUser } from "@/lib/auth/session";
+import { getMtgNews } from "@/lib/news/mtg-news";
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {
   const user = await getSessionUser();
   if (user) redirect("/dashboard");
+  const articles = await getMtgNews();
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -102,6 +105,8 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      <MtgNewsSection articles={articles} />
     </div>
   );
 }
