@@ -55,6 +55,10 @@ export function DeckEmpty({
   );
 }
 
+export function PreconBadge() {
+  return <Badge data-testid="precon-badge">Precon</Badge>;
+}
+
 export function BranchBadge() {
   return <Badge variant="secondary">Branch</Badge>;
 }

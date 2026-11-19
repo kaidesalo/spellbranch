@@ -57,7 +57,7 @@ import type { CopyLink, Deck, DeckCard, DeckCategory, DeckWithMeta, Friendship }
  * Permissions are enforced here in app code (src/lib/permissions.ts).
  */
 
-function ownerProfile(store: DataStore, id: string) {
+function ownerProfile(store: DataStore, id: string | null) {
   const u = store.users.find((x) => x.id === id);
   return u ? toPublicProfile(u) : undefined;
 }
@@ -290,8 +290,10 @@ export const localRepository: Repository = {
     } else if (scope === "friends") {
       if (!viewerId) return [];
       decks = decks.filter((d) => d.ownerId !== viewerId && d.visibility === "friends");
+    } else if (scope === "precons") {
+      decks = decks.filter((d) => d.isPrecon && d.visibility === "public" && !d.forkedFromId);
     } else {
-      decks = decks.filter((d) => d.visibility === "public" && !d.forkedFromId);
+      decks = decks.filter((d) => d.visibility === "public" && !d.forkedFromId && !d.isPrecon);
     }
 
     return decks.map((d) => decorateDeck(store, d, viewerId)).sort(byUpdatedDesc);
@@ -314,6 +316,7 @@ export const localRepository: Repository = {
       .filter((d) => {
         if (!d.forkedFromId || !owned.has(d.forkedFromId)) return false;
         return (
+          d.ownerId !== null &&
           d.ownerId !== userId &&
           areFriends(store.friendships, userId, d.ownerId) &&
           canViewDeck(store, d, userId)
@@ -376,6 +379,7 @@ export const localRepository: Repository = {
         id,
         ownerId: userId,
         ...input,
+        isPrecon: false,
         colors: input.colors ? normalizeDeckColors(input.colors) : null,
         forkedFromId: null,
         copiedFromId: null,
@@ -718,6 +722,7 @@ export const localRepository: Repository = {
         // The commander and colors carry over like the cards (fork_deck() too).
         commander: source.commander ? { ...source.commander } : null,
         colors: deckColors(source),
+        isPrecon: false,
         createdAt: now,
         updatedAt: now,
       });
@@ -752,6 +757,7 @@ export const localRepository: Repository = {
         preferredBranchId: null,
         commander: source.commander ? { ...source.commander } : null,
         colors: deckColors(source),
+        isPrecon: false,
         createdAt: now,
         updatedAt: now,
       });

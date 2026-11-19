@@ -24,6 +24,7 @@ import { CommentSection } from "@/components/comments/comment-section";
 import { BranchSwitcher } from "@/components/decks/branch-switcher";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
 import { DeckStatistics } from "@/components/decks/deck-stats";
+import { PreconBadge } from "@/components/decks/deck-grid";
 import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 import { ForkDeckForm } from "@/components/decks/fork-deck-form";
 import { CopyDeckForm } from "@/components/decks/copy-deck-form";
@@ -108,6 +109,7 @@ export default async function DeckDetailPage({
             <h1 className="font-display break-words text-3xl font-semibold tracking-tight">
               {deck.name}
             </h1>
+            {deck.isPrecon && <PreconBadge />}
             {deck.forkedFromId && <Badge variant="secondary">Branch</Badge>}
             {deck.copiedFromDeck && (
               <Badge variant="secondary">Copy</Badge>
@@ -158,6 +160,18 @@ export default async function DeckDetailPage({
                 Pick its colors
               </Link>
               {isCommanderFormat ? " or choose a commander to restrict it." : " to restrict it."}
+            </p>
+          )}
+          {deck.isPrecon && (
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+              Decklists via{" "}
+              <a
+                href="https://mtgjson.com/"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                MTGJSON
+              </a>
+              .
             </p>
           )}
           {deck.notes && (

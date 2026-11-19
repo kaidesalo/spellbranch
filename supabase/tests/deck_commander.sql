@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(55);
+select plan(59);
 
 grant all on all tables in schema pg_temp to anon, authenticated;
 grant all on all sequences in schema pg_temp to anon, authenticated;
@@ -95,7 +95,8 @@ insert into type_cases values
   ('Legendary Creature — Human // Legendary Planeswalker — Nissa', true, 'front face Legendary Creature (DFC)'),
   ('Legendary Artifact',                                         false, 'Legendary Artifact (not a creature)'),
   ('Creature — Elf Druid',                                       false, 'non-legendary Creature'),
-  ('Legendary Planeswalker — Teferi',                            false, 'Legendary Planeswalker (out of scope)'),
+  ('Legendary Planeswalker — Teferi',                            false, 'Legendary Planeswalker (out of scope for a normal deck)'),
+  ('Legendary Artifact — Spacecraft',                            false, 'Legendary spacecraft (out of scope for a normal deck)'),
   ('Legendary Enchantment — Background',                         false, 'Background (out of scope)'),
   ('Legendary Planeswalker — Nissa // Legendary Creature — Elf', false, 'only the back face is a creature'),
   ('Artifact — Equipment Legendary Creature',                    false, 'words only after the em dash'),
@@ -129,7 +130,11 @@ select throws_ok($$
 select throws_ok($$
   update public.decks set commander_type_line = 'Legendary Planeswalker — Teferi'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
-  '23514', null, 'a planeswalker is rejected (out of scope)');
+  '23514', null, 'a normal deck rejects a planeswalker commander');
+select throws_ok($$
+  update public.decks set commander_type_line = 'Legendary Artifact — Spacecraft'
+  where id = 'c1000000-0000-4000-8000-000000000001'$$,
+  '23514', null, 'a normal deck rejects a spacecraft commander');
 select throws_ok($$
   update public.decks set commander_type_line = 'Legendary Planeswalker — Nissa // Legendary Creature — Elf'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
@@ -289,6 +294,29 @@ select throws_ok($$
   '42501', null, 'anon cannot update a commander (no UPDATE grant)');
 
 reset role;
+select throws_ok($$
+  insert into public.decks (id, owner_id, name, format, visibility, allow_forks, is_precon)
+  values ('c1000000-0000-4000-8000-0000000000ab', null, 'Orphan', 'commander', 'public', true, false)$$,
+  '23514', null, 'a normal deck must have an owner');
+select throws_ok($$
+  insert into public.decks (id, owner_id, name, format, visibility, allow_forks, is_precon)
+  values ('c1000000-0000-4000-8000-0000000000ac', 'c0000000-0000-4000-8000-000000000001', 'Owned precon', 'commander', 'public', true, true)$$,
+  '23514', null, 'a precon cannot have an owner');
+select lives_ok($$
+  insert into public.decks (
+    id, owner_id, name, format, visibility, allow_forks, is_precon,
+    commander_scryfall_id, commander_name, commander_type_line
+  ) values (
+    'c1000000-0000-4000-8000-0000000000aa', null, 'Official precon', 'commander', 'public', true, true,
+    '22222222-2222-4222-8222-222222222222', 'Teferi, Time Raveler', 'Legendary Planeswalker — Teferi'
+  )$$,
+  'a precon may have a planeswalker commander');
+select lives_ok($$
+  update public.decks set
+    commander_name = 'Inspirit, Flagship Vessel',
+    commander_type_line = 'Legendary Artifact — Spacecraft'
+  where id = 'c1000000-0000-4000-8000-0000000000aa'$$,
+  'a precon may have a spacecraft commander');
 select is(
   (select commander_name from public.decks where id = 'c1000000-0000-4000-8000-000000000001'),
   'Test Legend', 'after all non-owner attempts the public deck keeps its commander');

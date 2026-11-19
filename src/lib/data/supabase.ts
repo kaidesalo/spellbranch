@@ -96,7 +96,7 @@ type PgError = { code?: string; message?: string; hint?: string } | null;
 // (One string literal: supabase-js types the result from it.)
 /** Every deck SELECT. Explicit columns only: never `*`, never copied_from_id. */
 export const DECK_COLS =
-  "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, colors, created_at, updated_at";
+  "id, owner_id, name, format, notes, visibility, allow_forks, forked_from_id, preferred_branch_id, commander_scryfall_id, commander_name, commander_type_line, commander_mana_cost, commander_image_uri, commander_art_uri, commander_color_identity, colors, is_precon, created_at, updated_at";
 const CARD_COLS =
   "id, deck_id, scryfall_id, card_name, image_uri, mana_cost, type_line, colors, color_identity, oracle_text, quantity, category_id, board, created_at";
 const CATEGORY_COLS = "id, deck_id, name, position, created_at, updated_at";
@@ -115,7 +115,8 @@ const COLLECTION_COLS =
 
 type DeckRow = {
   id: string;
-  owner_id: string;
+  owner_id: string | null;
+  is_precon?: boolean;
   name: string;
   format: string;
   notes: string;
@@ -207,6 +208,7 @@ type CommentRow = { id: string; deck_id: string; author_id: string; body: string
 export const toDeck = (r: DeckRow): Deck => ({
   id: r.id,
   ownerId: r.owner_id,
+  isPrecon: r.is_precon === true,
   name: r.name,
   format: r.format as DeckFormat,
   notes: r.notes ?? "",
@@ -475,7 +477,10 @@ async function decorate(
     withSourceBranches && sourceIds.length
       ? client.from("decks").select(DECK_COLS).in("forked_from_id", sourceIds)
       : Promise.resolve({ data: [], error: null }),
-    loadProfiles(client, uniq(decks.map((d) => d.ownerId))),
+    loadProfiles(
+      client,
+      uniq(decks.map((d) => d.ownerId).filter((id): id is string => id !== null)),
+    ),
   ]);
 
   const cardRows = (check("deck_cards", cardsRes) ?? []) as unknown as CardRow[];
@@ -492,13 +497,14 @@ async function decorate(
     : [];
   const branchOwners = await loadProfiles(
     client,
-    uniq([
-      ...branches.map((b) => b.ownerId),
-      ...sourceBranchRows.map((b) => b.ownerId),
-      ...sources.map((s) => s.ownerId),
-    ]).filter((id) => !owners.has(id)),
+    uniq(
+      [...branches, ...sourceBranchRows, ...sources]
+        .map((deck) => deck.ownerId)
+        .filter((id): id is string => id !== null),
+    ).filter((id) => !owners.has(id)),
   );
-  const profile = (ownerId: string) => owners.get(ownerId) ?? branchOwners.get(ownerId);
+  const profile = (ownerId: string | null) =>
+    ownerId ? (owners.get(ownerId) ?? branchOwners.get(ownerId)) : undefined;
 
   return decks.map((deck) => {
     const mine = cardRows.filter((c) => c.deck_id === deck.id);
@@ -515,7 +521,7 @@ async function decorate(
     return {
       ...deck,
       preferredBranchId,
-      owner: owners.get(deck.ownerId),
+      owner: profile(deck.ownerId),
       cards: withCards ? mine.map(toCard) : undefined,
       categories: withCards
         ? categoryRows
@@ -699,8 +705,10 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       } else if (scope === "friends") {
         // RLS only returns friends-only decks of accepted friends.
         query = query.eq("visibility", "friends").neq("owner_id", viewerId!);
+      } else if (scope === "precons") {
+        query = query.eq("is_precon", true).eq("visibility", "public").is("forked_from_id", null);
       } else {
-        query = query.eq("visibility", "public").is("forked_from_id", null);
+        query = query.eq("visibility", "public").eq("is_precon", false).is("forked_from_id", null);
       }
       const rows = check("decks list", await query.order("updated_at", { ascending: false })) as
         | DeckRow[]
@@ -774,9 +782,9 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       if (link.sourceId) {
         const src = await fetchDeck(client, link.sourceId);
         if (src) {
-          const owners = await loadProfiles(client, [src.ownerId]);
+          const owners = await loadProfiles(client, src.ownerId ? [src.ownerId] : []);
           decorated.copiedFromId = src.id;
-          decorated.copiedFromDeck = { ...src, owner: owners.get(src.ownerId) };
+          decorated.copiedFromDeck = { ...src, owner: src.ownerId ? owners.get(src.ownerId) : undefined };
           decorated.copySourceUnavailable = false;
         } else {
           // The function said the source was visible, then it wasn't. Drop the id.
@@ -824,7 +832,7 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
       const client = await getClient();
       const deck = await fetchDeck(client, deckId); // visible under RLS, or null
       if (!deck || !viewerId) return none;
-      const isOwner = deck.ownerId === viewerId;
+      const isOwner = deck.ownerId === viewerId && !deck.isPrecon;
       // Copy follows this deck only. Fork of a branch also needs the original
       // deck to be visible and still forkable (or owned by the caller).
       const canCopy = isOwner || deck.allowForks;

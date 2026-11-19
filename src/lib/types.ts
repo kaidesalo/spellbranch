@@ -158,7 +158,10 @@ export interface DeckCommander {
 
 export interface Deck {
   id: string;
-  ownerId: string;
+  /** Null on an official precon, which is not owned by an auth user. */
+  ownerId: string | null;
+  /** Official Commander precon. Copies and branches are never precons. */
+  isPrecon?: boolean;
   name: string;
   format: DeckFormat;
   notes: string;
@@ -244,7 +247,7 @@ export interface DeckWithMeta extends Deck {
 export interface CopyLink {
   id: string;
   name: string;
-  ownerId: string;
+  ownerId: string | null;
   username: string | null;
   role: "copy" | "original";
   visible: boolean;
