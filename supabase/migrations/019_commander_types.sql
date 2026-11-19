@@ -16,13 +16,13 @@ alter table public.decks
   add constraint decks_commander_legendary_creature check (
     commander_type_line is null
     or (
-      split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Legendary(\s|$)'
+      split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Legendary([ \t\n\r\f\v]|$)'
       and (
-        split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Creature(\s|$)'
-        or split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
+        split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Creature([ \t\n\r\f\v]|$)'
+        or split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Planeswalker([ \t\n\r\f\v]|$)'
         or (
-          split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
-          and split_part(split_part(commander_type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
+          split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Artifact([ \t\n\r\f\v]|$)'
+          and split_part(split_part(commander_type_line, '//', 1), '—', 2) ~ '(^|[ \t\n\r\f\v])Spacecraft([ \t\n\r\f\v]|$)'
         )
       )
     )

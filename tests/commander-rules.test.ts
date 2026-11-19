@@ -114,6 +114,7 @@ describe("commanderFromScryfall", () => {
     );
     expect(isLegalCommanderTypeLine("Legendary Planeswalker — Jace")).toBe(true);
     expect(isLegalCommanderTypeLine("Legendary Artifact — Spacecraft")).toBe(true);
+    expect(isLegalCommanderTypeLine("Legendary\u00a0Creature — Elf")).toBe(false);
     for (const type_line of ["Legendary Artifact", "Legendary Artifact — Vehicle", "Creature — Elf", "Legendary Enchantment — Background"]) {
       expect(commanderFromScryfall(legend({ type_line }))).toBeNull();
       expect(isLegalCommanderTypeLine(type_line)).toBe(false);

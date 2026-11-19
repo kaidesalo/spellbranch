@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(60);
+select plan(61);
 
 grant all on all tables in schema pg_temp to anon, authenticated;
 grant all on all sequences in schema pg_temp to anon, authenticated;
@@ -102,19 +102,20 @@ insert into type_cases values
   ('Legendary Planeswalker — Nissa // Legendary Creature — Elf', true,  'front face is a planeswalker commander'),
   ('Artifact — Equipment Legendary Creature',                    false, 'words only after the em dash'),
   ('legendary creature — elf',                                   false, 'lowercase'),
-  ('LegendaryCreature — Elf',                                    false, 'not whole words');
+  ('LegendaryCreature — Elf',                                    false, 'not whole words'),
+  (E'Legendary\u00a0Creature — Elf',                              false, 'NBSP between Legendary and Creature');
 grant select on type_cases to authenticated;
 
 select is(
   (select array_agg(label order by label) from type_cases t
     where t.ok is distinct from (
-      split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Legendary(\s|$)'
+      split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Legendary([ \t\n\r\f\v]|$)'
       and (
-        split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Creature(\s|$)'
-        or split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
+        split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Creature([ \t\n\r\f\v]|$)'
+        or split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Planeswalker([ \t\n\r\f\v]|$)'
         or (
-          split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
-          and split_part(split_part(t.type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
+          split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|[ \t\n\r\f\v])Artifact([ \t\n\r\f\v]|$)'
+          and split_part(split_part(t.type_line, '//', 1), '—', 2) ~ '(^|[ \t\n\r\f\v])Spacecraft([ \t\n\r\f\v]|$)'
         )
       ))),
   null::text[], 'the type-line rule classifies every case as expected');
@@ -147,6 +148,10 @@ select throws_ok($$
   update public.decks set commander_type_line = 'Legendary Artifact — Vehicle'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
   '23514', null, 'a legendary vehicle is still rejected');
+select throws_ok($$
+  update public.decks set commander_type_line = E'Legendary\u00a0Creature — Elf'
+  where id = 'c1000000-0000-4000-8000-000000000001'$$,
+  '23514', null, 'NBSP between Legendary and Creature is rejected');
 select lives_ok($$
   update public.decks set commander_type_line = 'Legendary Planeswalker — Nissa // Legendary Creature — Elf'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
