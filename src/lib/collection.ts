@@ -33,6 +33,12 @@ export const CONDITION_LABEL: Record<CollectionCondition, string> = {
   DMG: "Damaged",
 };
 
+export type CollectionView = "full" | "decks" | "trade";
+
+export function collectionView(value: unknown): CollectionView {
+  return value === "decks" || value === "trade" ? value : "full";
+}
+
 export type MyCardsSection = "decks" | "branches" | "collection";
 
 export function myCardsSection(value: unknown): MyCardsSection {

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,83 +23,155 @@ import {
   collectionTotals,
   type CollectionCondition,
   type CollectionFinish,
+  type CollectionView,
 } from "@/lib/collection";
+import {
+  fullCollection,
+  inDecks,
+  tradeBinder,
+  type CollectionGroup,
+  type DeckCardRef,
+} from "@/lib/collection-views";
+import { cn } from "@/lib/utils";
 import type { CollectionCard, Visibility } from "@/lib/types";
 import { pickVisibleSelection, useScryfallSearch } from "@/components/cards/use-scryfall-search";
 import { ChangePrintingSheet } from "@/components/cards/change-printing-sheet";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 
+const VIEWS: { id: CollectionView; label: string }[] = [
+  { id: "full", label: "Full collection" },
+  { id: "decks", label: "In decks" },
+  { id: "trade", label: "Trade binder" },
+];
+
+function viewHref(id: CollectionView): string {
+  return `/my-cards?section=collection&view=${id}`;
+}
+
 export function CollectionPanel({
   cards,
   visibility,
   initialQuery = "",
+  view = "full",
+  memberships = [],
 }: {
   cards: CollectionCard[];
   visibility: Visibility;
   initialQuery?: string;
+  view?: CollectionView;
+  memberships?: DeckCardRef[];
 }) {
   const totals = collectionTotals(cards);
   const [query, setQuery] = useState("");
-  const [tradeOnly, setTradeOnly] = useState(false);
   const needle = query.trim().toLowerCase();
-  const shown = cards.filter((card) => {
-    if (tradeOnly && !card.forTrade) return false;
-    if (!needle) return true;
-    return card.cardName.toLowerCase().includes(needle);
-  });
+  const groups = (
+    view === "decks" ? inDecks(cards, memberships) : view === "trade" ? tradeBinder(cards, memberships) : fullCollection(cards, memberships)
+  ).filter((group) => !needle || group.name.toLowerCase().includes(needle));
 
   return (
     <div className="min-w-0 space-y-6" data-testid="collection-panel">
-      <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border/80 bg-card/70 p-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-medium tabular-nums text-muted-foreground">
-            {totals.copies} {totals.copies === 1 ? "card" : "cards"} · {totals.unique} unique ·{" "}
-            {totals.forTrade} for trade
+      <nav
+        aria-label="Collection views"
+        data-testid="collection-views"
+        className="grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
+      >
+        {VIEWS.map((item) => (
+          <Link
+            key={item.id}
+            href={viewHref(item.id)}
+            aria-current={view === item.id ? "page" : undefined}
+            data-testid={`collection-view-${item.id}`}
+            className={cn(
+              "flex min-h-11 min-w-0 items-center justify-center rounded-lg px-1.5 text-center text-xs font-semibold leading-tight sm:text-sm",
+              view === item.id ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary",
+            )}
+          >
+            <span className="min-w-0 break-words">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      {view === "full" && (
+        <p className="text-sm font-medium tabular-nums text-muted-foreground">
+          {totals.copies} {totals.copies === 1 ? "card" : "cards"} · {fullCollection(cards).length} unique ·{" "}
+          {totals.forTrade} for trade
+        </p>
+      )}
+
+      {view === "trade" && (
+        <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border/80 bg-card/70 p-4 sm:flex-row sm:items-end sm:justify-between">
+          <p className="min-w-0 text-sm text-muted-foreground">
+            Other people only see piles you mark for trade, and only when you allow it here.
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Other people only see piles you mark for trade, and only when you allow it below.
-          </p>
+          <label className="flex min-w-0 flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">Who can see cards for trade</span>
+            <VisibilitySelect visibility={visibility} />
+          </label>
         </div>
-        <label className="flex min-w-0 flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">Who can see cards for trade</span>
-          <VisibilitySelect visibility={visibility} />
-        </label>
-      </div>
+      )}
 
       <AddCard initialQuery={initialQuery} />
 
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter your collection"
-          aria-label="Filter your collection"
-          className="min-w-0 sm:max-w-sm"
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={tradeOnly}
-            onChange={(event) => setTradeOnly(event.target.checked)}
-          />
-          For trade
-        </label>
-      </div>
+      <Input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Filter your collection"
+        aria-label="Filter your collection"
+        className="min-w-0 sm:max-w-sm"
+      />
 
-      {shown.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-          {cards.length === 0 ? "No cards in your collection yet." : "Nothing matches that filter."}
+          {emptyCopy(view, cards.length === 0, needle.length > 0)}
         </p>
       ) : (
-        <ul className="divide-y divide-border/70 overflow-hidden rounded-xl border border-border/70 bg-background/50">
-          {shown.map((card) => (
-            <CollectionRow key={`${card.id}-${card.updatedAt}`} card={card} />
+        <ul className="min-w-0 space-y-4">
+          {groups.map((group) => (
+            <CollectionGroupBlock key={group.name.toLowerCase()} group={group} showDecks={view === "decks"} />
           ))}
         </ul>
       )}
 
-      <PasteList />
+      {view === "full" && <PasteList />}
     </div>
+  );
+}
+
+function emptyCopy(view: CollectionView, noneOwned: boolean, filtered: boolean): string {
+  if (filtered) return "Nothing matches that filter.";
+  if (view === "decks") return "None of the cards you own are in your decks.";
+  if (view === "trade") return "No cards marked for trade.";
+  return noneOwned ? "No cards in your collection yet." : "Nothing matches that filter.";
+}
+
+function CollectionGroupBlock({ group, showDecks }: { group: CollectionGroup; showDecks: boolean }) {
+  return (
+    <li className="min-w-0 overflow-hidden rounded-xl border border-border/70 bg-background/50">
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2 border-b border-border/70 px-3 py-3">
+        <h2 className="min-w-0 break-words text-base font-semibold">{group.name}</h2>
+        <p className="text-sm tabular-nums text-muted-foreground">
+          {group.quantity} {group.quantity === 1 ? "copy" : "copies"}
+        </p>
+      </div>
+      {showDecks && group.decks.length > 0 && (
+        <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 px-3 pt-3 text-sm">
+          {group.decks.map((deck) => (
+            <Link
+              key={deck.id}
+              href={`/decks/${deck.id}`}
+              className="min-h-11 break-words text-primary underline-offset-4 hover:underline"
+            >
+              {deck.name}
+            </Link>
+          ))}
+        </p>
+      )}
+      <ul className="divide-y divide-border/70">
+        {group.piles.map((card) => (
+          <CollectionRow key={`${card.id}-${card.updatedAt}`} card={card} />
+        ))}
+      </ul>
+    </li>
   );
 }
 
@@ -283,7 +356,7 @@ function CollectionRow({ card }: { card: CollectionCard }) {
           onChange={setCondition}
           label={`Condition of ${card.cardName}`}
         />
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-11 items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={forTrade}
