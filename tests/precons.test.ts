@@ -8,6 +8,7 @@ import {
   mapPrecon,
   officialCommanderTypeLine,
   preconId,
+  renderPreconPreflight,
   renderPreconSeed,
   selectCommanderDecks,
   type DeckListEntry,
@@ -128,10 +129,17 @@ describe("precon importer", () => {
     expect(island?.scryfallId).toBe("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
     expect(deck.cards.map((card) => card.cardName)).toEqual(["Island", "Partner Pilot", "Sol Ring"]);
     const sql = renderPreconSeed([deck]);
-    expect(sql).toContain("on conflict (id) do update");
+    expect(sql.indexOf("raise exception")).toBeGreaterThan(0);
+    expect(sql.indexOf("raise exception")).toBeLessThan(sql.indexOf("insert into public.decks"));
+    expect(sql).toContain("owner_id is not null or is_precon = false");
+    expect(sql).toContain("where decks.is_precon or decks.owner_id is null");
     expect(sql).toContain("on conflict (deck_id, scryfall_id, board) do update");
+    expect(sql).toContain("d.is_precon or d.owner_id is null");
     expect(sql).toContain(deck.commander.scryfallId);
-    expect(sql).toContain("is_precon");
+    const preflight = renderPreconPreflight([deck]);
+    expect(preflight).toContain(deck.id);
+    expect(preflight).toContain("null_owner_decks");
+    expect(preflight.toLowerCase()).not.toMatch(/\b(insert|update|delete|create|drop|alter|truncate|temp)\b/);
   });
 });
 

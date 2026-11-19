@@ -2,7 +2,8 @@
 --
 -- Apply after 001-017, in the SQL editor, as the database owner. Do not
 -- apply it from the app deploy and do not run it as anon or authenticated.
--- Then run supabase/seed/precons.sql the same way. 011 is reserved.
+-- Run supabase/checks/precon_preflight.sql first (read-only), then this file,
+-- then supabase/seed/precons.sql. 011 is reserved.
 --
 -- A precon is a public, forkable Commander deck with no owner. decks.owner_id
 -- references profiles, and profiles.id references auth.users, so a system
@@ -15,9 +16,12 @@
 -- policies still require auth.uid() = owner_id. The extra "is_precon = false"
 -- checks refuse a client flip of the flag. They do not grant any new write.
 --
--- The commander CHECK now also allows a front-face legendary planeswalker or
--- a legendary spacecraft. Four current precons are commanded by one of those.
--- The app still only lets a person pick a legendary creature.
+-- A normal deck still requires a legendary creature commander, exactly as
+-- before. A precon may also use a front-face legendary planeswalker or a
+-- legendary spacecraft. Four current precons are commanded by one of those.
+-- The app still only lets a person pick a legendary creature. A copy of one
+-- of those four keeps is_precon false, so the creature rule still applies
+-- to the copy.
 --
 -- fork_deck() and copy_deck() are 014's functions. The new column is selected
 -- into the deck row type and is not copied: the new row uses the column
@@ -35,9 +39,13 @@ alter table public.decks
 alter table public.decks drop constraint if exists decks_precon_official;
 alter table public.decks
   add constraint decks_precon_official check (
-    is_precon = false
+    (
+      is_precon = false
+      and owner_id is not null
+    )
     or (
-      owner_id is null
+      is_precon = true
+      and owner_id is null
       and visibility = 'public'
       and allow_forks
       and forked_from_id is null
@@ -61,10 +69,15 @@ alter table public.decks
       split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Legendary(\s|$)'
       and (
         split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Creature(\s|$)'
-        or split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
         or (
-          split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
-          and split_part(split_part(commander_type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
+          is_precon
+          and (
+            split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
+            or (
+              split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
+              and split_part(split_part(commander_type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
+            )
+          )
         )
       )
     )

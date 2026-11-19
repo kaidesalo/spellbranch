@@ -4,12 +4,13 @@
  *   node --experimental-strip-types scripts/import-precons.ts
  *
  * Does not connect to Supabase. Re-run it when a new precon set releases,
- * then apply the seed in the SQL editor after migration 018.
+ * then run the preflight, migration 018, and the seed in that order.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   mapPrecon,
+  renderPreconPreflight,
   renderPreconSeed,
   selectCommanderDecks,
   type DeckListEntry,
@@ -18,6 +19,7 @@ import {
 
 const LIST_URL = "https://mtgjson.com/api/v5/DeckList.json";
 const OUT = path.join(process.cwd(), "supabase", "seed", "precons.sql");
+const PREFLIGHT = path.join(process.cwd(), "supabase", "checks", "precon_preflight.sql");
 
 async function loadJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -37,7 +39,9 @@ async function main() {
     process.stdout.write(`${entry.releaseDate} ${entry.code} ${entry.name}\n`);
   }
   await mkdir(path.dirname(OUT), { recursive: true });
+  await mkdir(path.dirname(PREFLIGHT), { recursive: true });
   await writeFile(OUT, renderPreconSeed(decks));
+  await writeFile(PREFLIGHT, renderPreconPreflight(decks));
   process.stdout.write(`Wrote ${decks.length} precons to ${OUT}\n`);
 }
 
