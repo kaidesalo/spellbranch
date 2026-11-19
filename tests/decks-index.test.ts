@@ -74,6 +74,9 @@ describe("decks tabs", () => {
 
   it("shows only my decks or public decks, never collection", async () => {
     render(await DecksPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByRole("link", { name: "Branches" }).getAttribute("href")).toBe(
+      "/my-cards?section=branches",
+    );
     expect(screen.getByRole("link", { name: /My decks/ }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Secret List private")).toBeTruthy();
     expect(screen.queryByText("Open List public")).toBeNull();
