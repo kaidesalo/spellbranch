@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Import, Plus } from "lucide-react";
+import { GitBranch, Import, Plus } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { safeNextPath } from "@/lib/auth/redirect";
 import { listVisibleDecks } from "@/lib/queries/decks";
@@ -47,6 +47,10 @@ export default async function DecksPage({
         </div>
         {user && (
           <div className="flex min-w-0 flex-wrap gap-2 self-start sm:self-auto">
+            <Button variant="outline" render={<Link href="/my-cards?section=branches" />}>
+              <GitBranch data-icon="inline-start" />
+              Branches
+            </Button>
             <Button variant="outline" render={<Link href="/decks/import" />}>
               <Import data-icon="inline-start" />
               Import

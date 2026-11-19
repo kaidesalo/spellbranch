@@ -93,43 +93,47 @@ export default async function MyCardsPage({
             <Import data-icon="inline-start" />
             Import
           </Button>
-          <Button render={<Link href="/decks/new" />}>
-            <Plus data-icon="inline-start" />
-            New deck
-          </Button>
+          {section !== "collection" && (
+            <Button render={<Link href="/decks/new" />}>
+              <Plus data-icon="inline-start" />
+              New deck
+            </Button>
+          )}
         </div>
       </div>
 
-      <nav
-        aria-label="My cards"
-        data-testid="my-cards-switcher"
-        className="mt-6 grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
-      >
-        {tabs.map((tab) => (
-          <Link
-            key={tab.id}
-            href={tab.href}
-            aria-current={section === tab.id ? "page" : undefined}
-            data-testid={`my-cards-${tab.id}`}
-            className={cn(
-              "flex min-w-0 flex-col items-center rounded-lg px-1.5 py-2 text-center",
-              section === tab.id
-                ? "bg-primary text-primary-foreground"
-                : "text-foreground hover:bg-secondary",
-            )}
-          >
-            <span className="w-full truncate text-sm font-semibold">{tab.label}</span>
-            <span
+      {section !== "collection" && (
+        <nav
+          aria-label="My cards"
+          data-testid="my-cards-switcher"
+          className="mt-6 grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
+        >
+          {tabs.map((tab) => (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              aria-current={section === tab.id ? "page" : undefined}
+              data-testid={`my-cards-${tab.id}`}
               className={cn(
-                "text-xs font-medium tabular-nums",
-                section === tab.id ? "text-primary-foreground/80" : "text-muted-foreground",
+                "flex min-w-0 flex-col items-center rounded-lg px-1.5 py-2 text-center",
+                section === tab.id
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-secondary",
               )}
             >
-              {tab.count}
-            </span>
-          </Link>
-        ))}
-      </nav>
+              <span className="w-full truncate text-sm font-semibold">{tab.label}</span>
+              <span
+                className={cn(
+                  "text-xs font-medium tabular-nums",
+                  section === tab.id ? "text-primary-foreground/80" : "text-muted-foreground",
+                )}
+              >
+                {tab.count}
+              </span>
+            </Link>
+          ))}
+        </nav>
+      )}
 
       <div className="mt-6 min-w-0">
         {section === "branches" &&
