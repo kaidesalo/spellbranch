@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   commanderFromScryfall,
   deckCountLabel,
+  isLegalCommanderTypeLine,
   isLegendaryCreatureCard,
   isLegendaryCreatureTypeLine,
   isNonBlankName,
@@ -104,14 +105,22 @@ describe("commanderFromScryfall", () => {
     });
   });
 
-  it("rejects cards that can't lead a deck (out of scope included)", () => {
-    for (const type_line of ["Legendary Artifact", "Creature — Elf", "Legendary Planeswalker — Teferi", "Legendary Enchantment — Background"]) {
+  it("accepts a legendary planeswalker or spacecraft and rejects the rest", () => {
+    expect(commanderFromScryfall(legend({ type_line: "Legendary Planeswalker — Teferi" }))?.typeLine).toBe(
+      "Legendary Planeswalker — Teferi",
+    );
+    expect(commanderFromScryfall(legend({ type_line: "Legendary Artifact — Spacecraft" }))?.typeLine).toBe(
+      "Legendary Artifact — Spacecraft",
+    );
+    expect(isLegalCommanderTypeLine("Legendary Planeswalker — Jace")).toBe(true);
+    expect(isLegalCommanderTypeLine("Legendary Artifact — Spacecraft")).toBe(true);
+    for (const type_line of ["Legendary Artifact", "Legendary Artifact — Vehicle", "Creature — Elf", "Legendary Enchantment — Background"]) {
       expect(commanderFromScryfall(legend({ type_line }))).toBeNull();
+      expect(isLegalCommanderTypeLine(type_line)).toBe(false);
     }
-    // Back face only.
     expect(commanderFromScryfall(legend({
-      type_line: "Legendary Planeswalker — X // Legendary Creature — Y",
-      card_faces: [{ type_line: "Legendary Planeswalker — X" }, { type_line: "Legendary Creature — Y" }],
+      type_line: "Artifact — Clue // Legendary Creature — Y",
+      card_faces: [{ type_line: "Artifact — Clue" }, { type_line: "Legendary Creature — Y" }],
     }))).toBeNull();
   });
 
@@ -157,8 +166,12 @@ describe("helpers", () => {
   });
 
   it("commander search adds the legendary creature filter around the user's query", () => {
-    expect(buildSearchQuery("atraxa", "commander")).toBe('(name:"atraxa" OR atraxa) t:legendary t:creature');
-    expect(buildSearchQuery("c:g", "commander")).toBe("(c:g) t:legendary t:creature");
+    expect(buildSearchQuery("atraxa", "commander")).toBe(
+      '(name:"atraxa" OR atraxa) t:legendary (t:creature OR t:planeswalker OR t:spacecraft)',
+    );
+    expect(buildSearchQuery("c:g", "commander")).toBe(
+      "(c:g) t:legendary (t:creature OR t:planeswalker OR t:spacecraft)",
+    );
     expect(buildSearchQuery("atraxa")).toBe('name:"atraxa" OR atraxa');
   });
 

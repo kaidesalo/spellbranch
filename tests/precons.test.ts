@@ -185,6 +185,61 @@ describe("precon decks", () => {
     expect(db.decks[0]).toMatchObject({ ownerId: null, isPrecon: true, name: "Counter Intelligence" });
   });
 
+  it("copies and forks the planeswalker and spacecraft precons onto the user's deck", async () => {
+    const specials = [
+      ["CounterIntelligence_EOC", "Counter Intelligence", "Inspirit, Flagship Vessel", "Legendary Artifact — Spacecraft"],
+      ["WorldShaper_EOC", "World Shaper", "Hearthhull, the Worldseed", "Legendary Artifact — Spacecraft"],
+      ["LoreholdSpirit_SOC", "Lorehold Spirit", "Quintorius, History Chaser", "Legendary Planeswalker — Quintorius"],
+      ["MultiverseReforged_FRC", "Multiverse Reforged", "Jace, Multiverse Architect", "Legendary Planeswalker — Jace"],
+    ] as const;
+    db.decks = specials.map(([file, name, cardName, typeLine]) => ({
+      id: preconId(file),
+      ownerId: null,
+      isPrecon: true,
+      name,
+      format: "commander" as const,
+      notes: "",
+      visibility: "public" as const,
+      allowForks: true,
+      forkedFromId: null,
+      copiedFromId: null,
+      preferredBranchId: null,
+      commander: {
+        scryfallId: "11111111-2222-4333-8444-555555555555",
+        cardName,
+        typeLine,
+        manaCost: null,
+        imageUri: null,
+        artUri: null,
+        colorIdentity: [],
+      },
+      colors: [],
+      createdAt: T,
+      updatedAt: T,
+    }));
+    db.deckCards = [];
+    for (const [file, name, cardName, typeLine] of specials) {
+      const id = preconId(file);
+      const copyId = await repo.copyDeck(ME, id, `${name} copy`);
+      const forkId = await repo.forkDeck(ME, id, `${name} branch`);
+      const copy = db.decks.find((deck) => deck.id === copyId);
+      const fork = db.decks.find((deck) => deck.id === forkId);
+      expect(copy).toMatchObject({
+        ownerId: ME,
+        isPrecon: false,
+        copiedFromId: id,
+        commander: { cardName, typeLine },
+      });
+      expect(fork).toMatchObject({
+        ownerId: ME,
+        isPrecon: false,
+        forkedFromId: id,
+        commander: { cardName, typeLine },
+      });
+      expect(officialCommanderTypeLine(typeLine)).toBe(true);
+    }
+  });
+
   it("shows a Precon badge", () => {
     const html = renderToStaticMarkup(
       createElement(DeckCardSummary, {

@@ -81,6 +81,10 @@ describe("local adapter: commander", () => {
       repo.setCommander(ALICE, edh, { ...LEGEND, typeLine: "Legendary Artifact" }),
       COMMANDER_MESSAGES.notLegendaryCreature,
     );
+    await repo.setCommander(ALICE, edh, { ...LEGEND, typeLine: "Legendary Planeswalker — Teferi", cardName: "Teferi" });
+    expect((await repo.getDeck(ALICE, edh))?.commander?.cardName).toBe("Teferi");
+    await repo.setCommander(ALICE, edh, { ...LEGEND, typeLine: "Legendary Artifact — Spacecraft", cardName: "Inspirit" });
+    expect((await repo.getDeck(ALICE, edh))?.commander?.typeLine).toBe("Legendary Artifact — Spacecraft");
   });
 
   it("rejects a blank name and stores colors deduplicated in WUBRG order (migration 007)", async () => {

@@ -16,12 +16,9 @@
 -- policies still require auth.uid() = owner_id. The extra "is_precon = false"
 -- checks refuse a client flip of the flag. They do not grant any new write.
 --
--- A normal deck still requires a legendary creature commander, exactly as
--- before. A precon may also use a front-face legendary planeswalker or a
--- legendary spacecraft. Four current precons are commanded by one of those.
--- The app still only lets a person pick a legendary creature. A copy of one
--- of those four keeps is_precon false, so the creature rule still applies
--- to the copy.
+-- Every deck may have a front-face legendary creature, planeswalker, or
+-- spacecraft commander. The app uses the same rule
+-- (src/lib/commander-legality.ts). Partners and backgrounds stay out.
 --
 -- fork_deck() and copy_deck() are 014's functions. The new column is selected
 -- into the deck row type and is not copied: the new row uses the column
@@ -69,15 +66,10 @@ alter table public.decks
       split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Legendary(\s|$)'
       and (
         split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Creature(\s|$)'
+        or split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
         or (
-          is_precon
-          and (
-            split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
-            or (
-              split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
-              and split_part(split_part(commander_type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
-            )
-          )
+          split_part(split_part(commander_type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
+          and split_part(split_part(commander_type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
         )
       )
     )

@@ -15,7 +15,8 @@ import type { DeckCommander, DeckFormat } from "@/lib/types";
  * add-card and set-commander use. Nothing from the paste is stored except
  * the quantity.
  *
- * Spellbranch has one commander, and only a legendary creature. Extra
+ * Spellbranch has one commander: a legendary creature, planeswalker, or
+ * spacecraft. Extra
  * commanders and anything that can't sit in the command zone go into the
  * deck list so the card isn't lost.
  */
@@ -67,7 +68,7 @@ export function buildImportedDeck(input: {
     warnings.push(
       asCommander
         ? `Spellbranch keeps a single commander, so ${found.name} was added to the deck list.`
-        : `${found.name} isn't a legendary creature, so it was added to the deck list instead of the command zone.`,
+        : `${found.name} can't be a commander, so it was added to the deck list instead of the command zone.`,
     );
     pushCard(cards, asCard, warnings);
   }
