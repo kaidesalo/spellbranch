@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(59);
+select plan(60);
 
 grant all on all tables in schema pg_temp to anon, authenticated;
 grant all on all sequences in schema pg_temp to anon, authenticated;
@@ -95,10 +95,11 @@ insert into type_cases values
   ('Legendary Creature — Human // Legendary Planeswalker — Nissa', true, 'front face Legendary Creature (DFC)'),
   ('Legendary Artifact',                                         false, 'Legendary Artifact (not a creature)'),
   ('Creature — Elf Druid',                                       false, 'non-legendary Creature'),
-  ('Legendary Planeswalker — Teferi',                            false, 'Legendary Planeswalker (out of scope for a normal deck)'),
-  ('Legendary Artifact — Spacecraft',                            false, 'Legendary spacecraft (out of scope for a normal deck)'),
+  ('Legendary Planeswalker — Teferi',                            true,  'Legendary Planeswalker commander'),
+  ('Legendary Artifact — Spacecraft',                            true,  'Legendary spacecraft commander'),
+  ('Legendary Artifact — Vehicle',                               false, 'Legendary Vehicle is not a spacecraft'),
   ('Legendary Enchantment — Background',                         false, 'Background (out of scope)'),
-  ('Legendary Planeswalker — Nissa // Legendary Creature — Elf', false, 'only the back face is a creature'),
+  ('Legendary Planeswalker — Nissa // Legendary Creature — Elf', true,  'front face is a planeswalker commander'),
   ('Artifact — Equipment Legendary Creature',                    false, 'words only after the em dash'),
   ('legendary creature — elf',                                   false, 'lowercase'),
   ('LegendaryCreature — Elf',                                    false, 'not whole words');
@@ -108,7 +109,14 @@ select is(
   (select array_agg(label order by label) from type_cases t
     where t.ok is distinct from (
       split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Legendary(\s|$)'
-      and split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Creature(\s|$)')),
+      and (
+        split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Creature(\s|$)'
+        or split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Planeswalker(\s|$)'
+        or (
+          split_part(split_part(t.type_line, '//', 1), '—', 1) ~ '(^|\s)Artifact(\s|$)'
+          and split_part(split_part(t.type_line, '//', 1), '—', 2) ~ '(^|\s)Spacecraft(\s|$)'
+        )
+      ))),
   null::text[], 'the type-line rule classifies every case as expected');
 
 select lives_ok($$
@@ -127,18 +135,22 @@ select throws_ok($$
   update public.decks set commander_type_line = 'Creature — Elf Druid'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
   '23514', null, 'a non-legendary creature is rejected');
-select throws_ok($$
+select lives_ok($$
   update public.decks set commander_type_line = 'Legendary Planeswalker — Teferi'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
-  '23514', null, 'a normal deck rejects a planeswalker commander');
-select throws_ok($$
+  'a normal deck may have a planeswalker commander');
+select lives_ok($$
   update public.decks set commander_type_line = 'Legendary Artifact — Spacecraft'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
-  '23514', null, 'a normal deck rejects a spacecraft commander');
+  'a normal deck may have a spacecraft commander');
 select throws_ok($$
+  update public.decks set commander_type_line = 'Legendary Artifact — Vehicle'
+  where id = 'c1000000-0000-4000-8000-000000000001'$$,
+  '23514', null, 'a legendary vehicle is still rejected');
+select lives_ok($$
   update public.decks set commander_type_line = 'Legendary Planeswalker — Nissa // Legendary Creature — Elf'
   where id = 'c1000000-0000-4000-8000-000000000001'$$,
-  '23514', null, 'a card that is only a creature on its back face is rejected');
+  'a front-face planeswalker commander is accepted');
 
 -- All or nothing
 select throws_ok($$
