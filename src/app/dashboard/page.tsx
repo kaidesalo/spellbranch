@@ -9,19 +9,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DeckCardSummary } from "@/components/decks/deck-card-summary";
+import { MtgNewsSection } from "@/components/home/mtg-news-section";
+import { getMtgNews } from "@/lib/news/mtg-news";
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [decks, branches, friendBranches, friendsData, requestedUsername] = await Promise.all([
+  const [decks, branches, friendBranches, friendsData, requestedUsername, articles] = await Promise.all([
     listVisibleDecks("mine"),
     listMyBranches(),
     listFriendBranchesOnMyDecks(),
     getFriendsData(),
     getRequestedUsername(),
+    getMtgNews(),
   ]);
   const usernameNotice = usernameChangedNotice(requestedUsername, user.username);
 
   return (
+    <>
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -143,5 +147,7 @@ export default async function DashboardPage() {
         </section>
       )}
     </div>
+    <MtgNewsSection articles={articles} />
+    </>
   );
 }
