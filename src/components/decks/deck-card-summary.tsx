@@ -27,6 +27,7 @@ export function DeckCardSummary({
         {badge}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
+        {deck.isPrecon && <Badge data-testid="precon-badge">Precon</Badge>}
         <Badge variant="outline">
           {deck.format}
         </Badge>

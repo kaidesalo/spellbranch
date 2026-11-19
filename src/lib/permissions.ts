@@ -41,8 +41,9 @@ export function canViewDeck(
 ): boolean {
   if (deck.visibility === "public") return true;
   if (!viewerId) return false;
-  if (deck.ownerId === viewerId) return true;
+  if (deck.ownerId && deck.ownerId === viewerId) return true;
   if (
+    deck.ownerId &&
     deck.visibility === "friends" &&
     areFriends(store.friendships, deck.ownerId, viewerId)
   ) {
@@ -56,6 +57,7 @@ export function canViewDeck(
   return Boolean(
     source &&
       source.ownerId === viewerId &&
+      deck.ownerId !== null &&
       areFriends(store.friendships, deck.ownerId, viewerId),
   );
 }
@@ -93,6 +95,7 @@ export function canViewProfile(
 }
 
 export function canEditDeck(deck: Deck, userId: string | null): boolean {
+  if (deck.isPrecon) return false;
   return Boolean(userId && deck.ownerId === userId);
 }
 

@@ -36,6 +36,7 @@ vi.mock("@/lib/queries/decks", () => ({
   listVisibleDecks: async (scope: string) => {
     calls.push(scope);
     if (scope === "public") return [{ id: "pub", name: "Open List", visibility: "public" }];
+    if (scope === "precons") return [{ id: "pre", name: "Counter Intelligence", visibility: "public", isPrecon: true }];
     if (scope === "mine") return [{ id: "mine", name: "Secret List", visibility: "private" }];
     throw new Error(`unexpected scope ${scope}`);
   },
@@ -82,7 +83,7 @@ describe("decks tabs", () => {
     expect(screen.queryByText("Open List public")).toBeNull();
     expect(screen.queryByRole("link", { name: "Collection" })).toBeNull();
     expect(screen.queryByText(/collection/i)).toBeNull();
-    expect(calls).toEqual(["mine", "public"]);
+    expect(calls).toEqual(["mine", "public", "precons"]);
 
     cleanup();
     calls.length = 0;
@@ -90,7 +91,7 @@ describe("decks tabs", () => {
     expect(screen.getByRole("link", { name: /Public decks/ }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Open List public")).toBeTruthy();
     expect(screen.queryByText("Secret List private")).toBeNull();
-    expect(calls).toEqual(["mine", "public"]);
+    expect(calls).toEqual(["mine", "public", "precons"]);
   });
 
   it("asks a signed-out visitor to sign in for my decks and only queries public decks", async () => {
@@ -100,7 +101,7 @@ describe("decks tabs", () => {
     const next = decodeURIComponent(link.getAttribute("href")?.split("next=")[1] ?? "");
     expect(next).toBe("/decks");
     expect(screen.getByRole("heading", { name: "Sign in to see your decks" })).toBeTruthy();
-    expect(calls).toEqual(["public"]);
+    expect(calls).toEqual(["public", "precons"]);
     expect(calls).not.toContain("mine");
     expect(calls).not.toContain("friends");
   });

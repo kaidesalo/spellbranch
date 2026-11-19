@@ -43,7 +43,7 @@ function hasNewDeck(html: string): boolean {
 
 describe("New deck button", () => {
   it("is hidden on every collection view and stays on branches and /decks", async () => {
-    for (const view of ["full", "decks", "trade", undefined]) {
+    for (const view of ["full", "binders", undefined]) {
       const html = renderToStaticMarkup(
         await MyCardsPage({ searchParams: Promise.resolve({ section: "collection", view }) }),
       );
@@ -51,6 +51,13 @@ describe("New deck button", () => {
       expect(html).toContain('href="/decks/import"');
       expect(html).toContain("Browse");
     }
+
+    await expect(
+      MyCardsPage({ searchParams: Promise.resolve({ section: "collection", view: "decks" }) }),
+    ).rejects.toThrow("REDIRECT /my-cards?section=collection&view=binders");
+    await expect(
+      MyCardsPage({ searchParams: Promise.resolve({ section: "collection", view: "trade" }) }),
+    ).rejects.toThrow("REDIRECT /my-cards?section=collection&view=binders");
 
     const branches = renderToStaticMarkup(
       await MyCardsPage({ searchParams: Promise.resolve({ section: "branches" }) }),

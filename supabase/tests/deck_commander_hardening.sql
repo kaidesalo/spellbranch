@@ -107,8 +107,10 @@ select lives_ok($$update public.decks set commander_type_line = 'Legendary Encha
   '006 rules still hold: Legendary Enchantment Creature');
 select throws_ok($$update public.decks set commander_type_line = 'Legendary Artifact' where name = 'fine'$$,
   '23514', null, '006 rules still hold: Legendary Artifact is rejected');
-select throws_ok($$update public.decks set commander_type_line = 'Legendary Planeswalker — X // Legendary Creature — Y' where name = 'fine'$$,
-  '23514', null, '006 rules still hold: back-face creature is rejected');
+select lives_ok($$update public.decks set commander_type_line = 'Legendary Planeswalker — X // Legendary Creature — Y' where name = 'fine'$$,
+  'a front-face planeswalker commander is accepted');
+select throws_ok($$update public.decks set commander_type_line = 'Artifact — Clue // Legendary Creature — Y' where name = 'fine'$$,
+  '23514', null, 'a creature only on the back face is rejected');
 select throws_ok($$update public.decks set format = 'modern' where name = 'fine'$$,
   '23514', null, '006 rules still hold: leaving Commander needs clearing');
 reset role;

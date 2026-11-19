@@ -7,11 +7,12 @@ import { DeckEmpty, DeckGrid } from "@/components/decks/deck-grid";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type DecksTab = "mine" | "public";
+export type DecksTab = "mine" | "public" | "precons";
 
 /** Public is the signed-out default. My decks is the signed-in default. */
 export function decksTab(value: unknown, signedIn: boolean): DecksTab {
   if (value === "public") return "public";
+  if (value === "precons") return "precons";
   if (value === "mine") return "mine";
   return signedIn ? "mine" : "public";
 }
@@ -25,15 +26,17 @@ export default async function DecksPage({
   const { tab: tabParam } = await searchParams;
   const requested = Array.isArray(tabParam) ? tabParam[0] : tabParam;
   const tab = decksTab(requested, Boolean(user));
-  const [mine, pub] = await Promise.all([
+  const [mine, pub, precons] = await Promise.all([
     user ? listVisibleDecks("mine") : Promise.resolve([]),
     listVisibleDecks("public"),
+    listVisibleDecks("precons"),
   ]);
   const signInHref = `/login?next=${encodeURIComponent(safeNextPath("/decks"))}`;
 
   const tabs = [
     { id: "mine" as const, label: "My decks", count: user ? mine.length : null, href: "/decks" },
     { id: "public" as const, label: "Public decks", count: pub.length, href: "/decks?tab=public" },
+    { id: "precons" as const, label: "Precons", count: precons.length, href: "/decks?tab=precons" },
   ];
 
   return (
@@ -66,7 +69,7 @@ export default async function DecksPage({
       <nav
         aria-label="Decks"
         data-testid="decks-switcher"
-        className="mt-6 grid min-w-0 grid-cols-2 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
+        className="mt-6 grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
       >
         {tabs.map((item) => (
           <Link
@@ -121,6 +124,15 @@ export default async function DecksPage({
             <DeckEmpty title="No public decks yet" body="When someone sets a deck to public, it will show up here." />
           ) : (
             <DeckGrid decks={pub} />
+          ))}
+        {tab === "precons" &&
+          (precons.length === 0 ? (
+            <DeckEmpty
+              title="No precons yet"
+              body="Official Commander precons show up here once they are loaded."
+            />
+          ) : (
+            <DeckGrid decks={precons} />
           ))}
       </div>
     </div>

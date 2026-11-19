@@ -1,0 +1,55 @@
+{
+  "name": "Counter Intelligence",
+  "code": "EOC",
+  "type": "Commander Deck",
+  "releaseDate": "2025-08-01",
+  "commander": [
+    {
+      "name": "Inspirit, Flagship Vessel",
+      "count": 1,
+      "type": "Legendary Artifact — Spacecraft",
+      "manaCost": "{W}{U}{R}",
+      "text": "Station.",
+      "colors": ["W", "U", "R"],
+      "colorIdentity": ["R", "W", "U"],
+      "identifiers": { "scryfallId": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA" }
+    },
+    {
+      "name": "Partner Pilot",
+      "count": 1,
+      "type": "Legendary Creature — Human Pilot",
+      "manaCost": "{W}",
+      "colors": ["W"],
+      "colorIdentity": ["W"],
+      "identifiers": { "scryfallId": "BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB" }
+    }
+  ],
+  "mainBoard": [
+    {
+      "name": "Sol Ring",
+      "count": 1,
+      "type": "Artifact",
+      "manaCost": "{1}",
+      "text": "{T}: Add {C}{C}.",
+      "colors": [],
+      "colorIdentity": [],
+      "identifiers": { "scryfallId": "CCCCCCCC-CCCC-4CCC-8CCC-CCCCCCCCCCCC" }
+    },
+    {
+      "name": "Island",
+      "count": 2,
+      "type": "Basic Land — Island",
+      "colors": [],
+      "colorIdentity": ["U"],
+      "identifiers": { "scryfallId": "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD" }
+    },
+    {
+      "name": "Island",
+      "count": 3,
+      "type": "Basic Land — Island",
+      "colors": [],
+      "colorIdentity": ["U"],
+      "identifiers": { "scryfallId": "DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD" }
+    }
+  ]
+}

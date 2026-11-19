@@ -27,7 +27,7 @@ import type {
  * anything else is unexpected and actions show a generic message instead.
  */
 
-export type DeckScope = "mine" | "friends" | "public";
+export type DeckScope = "mine" | "friends" | "public" | "precons";
 
 export interface DeckInput {
   name: string;
