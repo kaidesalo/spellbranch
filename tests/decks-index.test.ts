@@ -110,4 +110,13 @@ describe("old my cards decks URL", () => {
       "REDIRECT /decks",
     );
   });
+
+  it("redirects the old in-decks and trade views to binders", async () => {
+    await expect(
+      MyCardsPage({ searchParams: Promise.resolve({ section: "collection", view: "decks" }) }),
+    ).rejects.toThrow("REDIRECT /my-cards?section=collection&view=binders");
+    await expect(
+      MyCardsPage({ searchParams: Promise.resolve({ section: "collection", view: "trade", q: "bolt" }) }),
+    ).rejects.toThrow("REDIRECT /my-cards?section=collection&view=binders&q=bolt");
+  });
 });

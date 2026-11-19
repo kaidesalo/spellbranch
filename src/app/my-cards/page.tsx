@@ -25,9 +25,19 @@ export default async function MyCardsPage({
   const section = myCardsSection(Array.isArray(sectionParam) ? sectionParam[0] : sectionParam);
   // The decks list moved to /decks. Collection and branches stay here.
   if (section === "decks") redirect("/decks");
+  const rawView = Array.isArray(viewParam) ? viewParam[0] : viewParam;
+  // In decks and Trade binder are one Binders page now.
+  if (section === "collection" && (rawView === "decks" || rawView === "trade")) {
+    const q = oneParam(queryParam);
+    redirect(
+      q
+        ? `/my-cards?section=collection&view=binders&q=${encodeURIComponent(q)}`
+        : "/my-cards?section=collection&view=binders",
+    );
+  }
   const user = await requireUser();
   const initialQuery = section === "collection" ? oneParam(queryParam) : "";
-  const view = collectionView(Array.isArray(viewParam) ? viewParam[0] : viewParam);
+  const view = collectionView(rawView);
   const repo = getRepository();
   const [decks, branches, cards, visibility] = await Promise.all([
     listVisibleDecks("mine"),
@@ -138,6 +148,7 @@ export default async function MyCardsPage({
             initialQuery={initialQuery}
             view={view}
             memberships={memberships}
+            decks={[...decks, ...branches].map((deck) => ({ id: deck.id, name: deck.name }))}
           />
         )}
       </div>

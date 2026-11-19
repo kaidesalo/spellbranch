@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fullCollection, inDecks, tradeBinder, type DeckCardRef } from "@/lib/collection-views";
+import { deckBinders, fullCollection, inDecks, tradeBinder, type DeckCardRef } from "@/lib/collection-views";
 import type { CollectionCard } from "@/lib/types";
 
 function pile(over: Partial<CollectionCard> & Pick<CollectionCard, "id" | "cardName">): CollectionCard {
@@ -79,5 +79,33 @@ describe("collection views", () => {
     expect(groups[0]!.quantity).toBe(2);
     expect(groups[0]!.piles.map((pile) => pile.id)).toEqual(["foil"]);
     expect(groups[0]!.piles[0]!.forTrade).toBe(true);
+  });
+
+  it("builds one binder per owned deck and includes the commander", () => {
+    const atraxa = pile({
+      id: "atraxa",
+      scryfallId: "atraxa-showcase",
+      cardName: "Atraxa, Praetors' Voice",
+      typeLine: "Legendary Creature — Phyrexian Angel",
+    });
+    const refs: DeckCardRef[] = [
+      ...decks,
+      { deckId: "d1", deckName: "Burn", scryfallId: "sol-ring-other", cardName: "Sol Ring" },
+      { deckId: "d3", deckName: "Atraxa", scryfallId: "atraxa-original", cardName: "Atraxa, Praetors' Voice" },
+    ];
+    const binders = deckBinders([ring, boltFoil, boltPaper, atraxa], refs, [
+      { id: "d1", name: "Burn" },
+      { id: "d2", name: "Squirrels" },
+      { id: "d3", name: "Atraxa" },
+      { id: "d4", name: "Empty" },
+    ]);
+
+    expect(binders.map((binder) => binder.name)).toEqual(["Atraxa", "Burn", "Empty", "Squirrels"]);
+    expect(binders[0]!.groups.map((group) => group.name)).toEqual(["Atraxa, Praetors' Voice"]);
+    expect(binders[0]!.groups[0]!.piles.map((pile) => pile.id)).toEqual(["atraxa"]);
+    expect(binders[1]!.groups.map((group) => group.name)).toEqual(["Lightning Bolt", "Sol Ring"]);
+    expect(binders[2]!.groups).toEqual([]);
+    expect(binders[3]!.groups.map((group) => group.name)).toEqual(["Lightning Bolt"]);
+    expect(binders[1]!.groups[0]!.piles.map((pile) => pile.id)).toEqual(["foil", "paper"]);
   });
 });

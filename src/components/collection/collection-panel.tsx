@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Loader2, Plus, Search, Trash2 } from "lucide-react";
@@ -26,11 +26,12 @@ import {
   type CollectionView,
 } from "@/lib/collection";
 import {
+  deckBinders,
   fullCollection,
-  inDecks,
   tradeBinder,
   type CollectionGroup,
   type DeckCardRef,
+  type OwnedDeck,
 } from "@/lib/collection-views";
 import { cn } from "@/lib/utils";
 import type { CollectionCard, Visibility } from "@/lib/types";
@@ -40,8 +41,7 @@ import type { ScryfallCard } from "@/lib/scryfall/client";
 
 const VIEWS: { id: CollectionView; label: string }[] = [
   { id: "full", label: "Full collection" },
-  { id: "decks", label: "In decks" },
-  { id: "trade", label: "Trade binder" },
+  { id: "binders", label: "Binders" },
 ];
 
 function viewHref(id: CollectionView): string {
@@ -54,26 +54,32 @@ export function CollectionPanel({
   initialQuery = "",
   view = "full",
   memberships = [],
+  decks = [],
 }: {
   cards: CollectionCard[];
   visibility: Visibility;
   initialQuery?: string;
   view?: CollectionView;
   memberships?: DeckCardRef[];
+  decks?: OwnedDeck[];
 }) {
   const totals = collectionTotals(cards);
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
-  const groups = (
-    view === "decks" ? inDecks(cards, memberships) : view === "trade" ? tradeBinder(cards, memberships) : fullCollection(cards, memberships)
-  ).filter((group) => !needle || group.name.toLowerCase().includes(needle));
+  const matches = (group: CollectionGroup) => !needle || group.name.toLowerCase().includes(needle);
+  const groups = fullCollection(cards, memberships).filter(matches);
+  const binders = deckBinders(cards, memberships, decks).map((binder) => ({
+    ...binder,
+    groups: binder.groups.filter(matches),
+  }));
+  const tradeGroups = tradeBinder(cards, memberships).filter(matches);
 
   return (
     <div className="min-w-0 space-y-6" data-testid="collection-panel">
       <nav
         aria-label="Collection views"
         data-testid="collection-views"
-        className="grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
+        className="grid min-w-0 grid-cols-2 gap-1 rounded-xl border border-border/80 bg-card/70 p-1"
       >
         {VIEWS.map((item) => (
           <Link
@@ -98,18 +104,6 @@ export function CollectionPanel({
         </p>
       )}
 
-      {view === "trade" && (
-        <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border/80 bg-card/70 p-4 sm:flex-row sm:items-end sm:justify-between">
-          <p className="min-w-0 text-sm text-muted-foreground">
-            Other people only see piles you mark for trade, and only when you allow it here.
-          </p>
-          <label className="flex min-w-0 flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">Who can see cards for trade</span>
-            <VisibilitySelect visibility={visibility} />
-          </label>
-        </div>
-      )}
-
       <AddCard initialQuery={initialQuery} />
 
       <Input
@@ -120,16 +114,66 @@ export function CollectionPanel({
         className="min-w-0 sm:max-w-sm"
       />
 
-      {groups.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-          {emptyCopy(view, cards.length === 0, needle.length > 0)}
-        </p>
-      ) : (
-        <ul className="min-w-0 space-y-4">
-          {groups.map((group) => (
-            <CollectionGroupBlock key={group.name.toLowerCase()} group={group} showDecks={view === "decks"} />
+      {view === "full" &&
+        (groups.length === 0 ? (
+          <EmptyNote>
+            {cards.length === 0 && !needle ? "No cards in your collection yet." : "Nothing matches that filter."}
+          </EmptyNote>
+        ) : (
+          <ul className="min-w-0 space-y-4">
+            {groups.map((group) => (
+              <CollectionGroupBlock key={group.name.toLowerCase()} group={group} />
+            ))}
+          </ul>
+        ))}
+
+      {view === "binders" && (
+        <div className="min-w-0 space-y-8">
+          {binders.map((binder) => (
+            <section key={binder.id} data-testid="deck-binder" className="min-w-0 space-y-3">
+              <h2 className="min-w-0 text-lg font-semibold">
+                <Link
+                  href={`/decks/${binder.id}`}
+                  className="break-words text-primary underline-offset-4 hover:underline"
+                >
+                  {binder.name}
+                </Link>
+              </h2>
+              {binder.groups.length === 0 ? (
+                <EmptyNote>
+                  {needle ? "Nothing matches that filter." : "None of the cards you own are in this deck."}
+                </EmptyNote>
+              ) : (
+                <ul className="min-w-0 space-y-4">
+                  {binder.groups.map((group) => (
+                    <CollectionGroupBlock key={group.name.toLowerCase()} group={group} />
+                  ))}
+                </ul>
+              )}
+            </section>
           ))}
-        </ul>
+          <section data-testid="trade-binder" className="min-w-0 space-y-3">
+            <h2 className="text-lg font-semibold">Trade binder</h2>
+            <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border/80 bg-card/70 p-4 sm:flex-row sm:items-end sm:justify-between">
+              <p className="min-w-0 text-sm text-muted-foreground">
+                Other people only see piles you mark for trade, and only when you allow it here.
+              </p>
+              <label className="flex min-w-0 flex-col gap-1 text-sm">
+                <span className="text-muted-foreground">Who can see cards for trade</span>
+                <VisibilitySelect visibility={visibility} />
+              </label>
+            </div>
+            {tradeGroups.length === 0 ? (
+              <EmptyNote>{needle ? "Nothing matches that filter." : "No cards marked for trade."}</EmptyNote>
+            ) : (
+              <ul className="min-w-0 space-y-4">
+                {tradeGroups.map((group) => (
+                  <CollectionGroupBlock key={group.name.toLowerCase()} group={group} />
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       )}
 
       {view === "full" && <PasteList />}
@@ -137,35 +181,23 @@ export function CollectionPanel({
   );
 }
 
-function emptyCopy(view: CollectionView, noneOwned: boolean, filtered: boolean): string {
-  if (filtered) return "Nothing matches that filter.";
-  if (view === "decks") return "None of the cards you own are in your decks.";
-  if (view === "trade") return "No cards marked for trade.";
-  return noneOwned ? "No cards in your collection yet." : "Nothing matches that filter.";
+function EmptyNote({ children }: { children: ReactNode }) {
+  return (
+    <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+      {children}
+    </p>
+  );
 }
 
-function CollectionGroupBlock({ group, showDecks }: { group: CollectionGroup; showDecks: boolean }) {
+function CollectionGroupBlock({ group }: { group: CollectionGroup }) {
   return (
     <li className="min-w-0 overflow-hidden rounded-xl border border-border/70 bg-background/50">
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2 border-b border-border/70 px-3 py-3">
-        <h2 className="min-w-0 break-words text-base font-semibold">{group.name}</h2>
+        <h3 className="min-w-0 break-words text-base font-semibold">{group.name}</h3>
         <p className="text-sm tabular-nums text-muted-foreground">
           {group.quantity} {group.quantity === 1 ? "copy" : "copies"}
         </p>
       </div>
-      {showDecks && group.decks.length > 0 && (
-        <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 px-3 pt-3 text-sm">
-          {group.decks.map((deck) => (
-            <Link
-              key={deck.id}
-              href={`/decks/${deck.id}`}
-              className="min-h-11 break-words text-primary underline-offset-4 hover:underline"
-            >
-              {deck.name}
-            </Link>
-          ))}
-        </p>
-      )}
       <ul className="divide-y divide-border/70">
         {group.piles.map((card) => (
           <CollectionRow key={`${card.id}-${card.updatedAt}`} card={card} />
