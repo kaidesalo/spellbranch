@@ -83,10 +83,12 @@ export default async function MyCardsPage({
             <Import data-icon="inline-start" />
             Import
           </Button>
-          <Button render={<Link href="/decks/new" />}>
-            <Plus data-icon="inline-start" />
-            New deck
-          </Button>
+          {section !== "collection" && (
+            <Button render={<Link href="/decks/new" />}>
+              <Plus data-icon="inline-start" />
+              New deck
+            </Button>
+          )}
         </div>
       </div>
 
