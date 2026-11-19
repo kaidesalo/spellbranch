@@ -4,7 +4,7 @@ import { Compass, Import, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/require-user";
 import { getRepository } from "@/lib/data";
 import { listMyBranches, listVisibleDecks } from "@/lib/queries/decks";
-import { myCardsSection } from "@/lib/collection";
+import { collectionView, myCardsSection } from "@/lib/collection";
 import { Button } from "@/components/ui/button";
 import { BranchBadge, DeckEmpty, DeckGrid } from "@/components/decks/deck-grid";
 import { CollectionPanel } from "@/components/collection/collection-panel";
@@ -19,14 +19,15 @@ function oneParam(value: string | string[] | undefined) {
 export default async function MyCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ section?: string | string[]; q?: string | string[] }>;
+  searchParams: Promise<{ section?: string | string[]; q?: string | string[]; view?: string | string[] }>;
 }) {
-  const { section: sectionParam, q: queryParam } = await searchParams;
+  const { section: sectionParam, q: queryParam, view: viewParam } = await searchParams;
   const section = myCardsSection(Array.isArray(sectionParam) ? sectionParam[0] : sectionParam);
   // The decks list moved to /decks. Collection and branches stay here.
   if (section === "decks") redirect("/decks");
   const user = await requireUser();
   const initialQuery = section === "collection" ? oneParam(queryParam) : "";
+  const view = collectionView(Array.isArray(viewParam) ? viewParam[0] : viewParam);
   const repo = getRepository();
   const [decks, branches, cards, visibility] = await Promise.all([
     listVisibleDecks("mine"),
@@ -34,6 +35,29 @@ export default async function MyCardsPage({
     repo.listMyCollection(user.id),
     repo.getCollectionVisibility(user.id),
   ]);
+  const memberships =
+    section === "collection"
+      ? (
+          await Promise.all([...decks, ...branches].map((deck) => repo.getDeck(user.id, deck.id)))
+        ).flatMap((deck) => {
+          if (!deck) return [];
+          const rows = (deck.cards ?? []).map((card) => ({
+            deckId: deck.id,
+            deckName: deck.name,
+            scryfallId: card.scryfallId,
+            cardName: card.cardName,
+          }));
+          if (deck.commander) {
+            rows.push({
+              deckId: deck.id,
+              deckName: deck.name,
+              scryfallId: deck.commander.scryfallId,
+              cardName: deck.commander.cardName,
+            });
+          }
+          return rows;
+        })
+      : [];
 
   const tabs = [
     { id: "decks" as const, label: "Decks", count: decks.length, href: "/decks" },
@@ -108,7 +132,13 @@ export default async function MyCardsPage({
             <DeckGrid decks={branches} badge={<BranchBadge />} showSource />
           ))}
         {section === "collection" && (
-          <CollectionPanel cards={cards} visibility={visibility} initialQuery={initialQuery} />
+          <CollectionPanel
+            cards={cards}
+            visibility={visibility}
+            initialQuery={initialQuery}
+            view={view}
+            memberships={memberships}
+          />
         )}
       </div>
     </div>
