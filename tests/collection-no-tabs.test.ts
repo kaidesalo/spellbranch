@@ -46,7 +46,7 @@ describe("collection page tabs", () => {
     expect(html).toContain("Decks you made, branches you forked, and the cards you own.");
     expect(html).toContain("Browse");
     expect(html).toContain("Import");
-    expect(html).toContain("New deck");
+    expect(html).not.toContain('href="/decks/new"');
     expect(html).toContain('data-testid="collection-views"');
     expect(html).toContain("Full collection");
     expect(html).not.toContain('data-testid="my-cards-switcher"');
