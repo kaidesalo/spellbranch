@@ -20,7 +20,7 @@ export function userMessage(err: unknown, fallback: string): string {
 /** Shown for every commander write the rules refuse (both adapters). */
 export const COMMANDER_MESSAGES = {
   notCommanderFormat: "Only Commander decks have a commander",
-  notLegendaryCreature: "Your commander must be a legendary creature",
+  notLegendaryCreature: "Your commander must be a legendary creature, planeswalker, or spacecraft",
 } as const;
 
 /**

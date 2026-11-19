@@ -80,7 +80,7 @@ describe("setCommanderAction", () => {
   });
 
   it("rejects a card that isn't a legendary creature, whatever the client claims", async () => {
-    for (const type_line of ["Legendary Artifact", "Creature — Elf", "Legendary Planeswalker — Teferi"]) {
+    for (const type_line of ["Legendary Artifact", "Legendary Artifact — Vehicle", "Creature — Elf"]) {
       scryfall = async () => legend({ type_line });
       expect(await setCommanderAction(DECK, CARD_ID)).toEqual({ error: COMMANDER_MESSAGES.notLegendaryCreature });
     }

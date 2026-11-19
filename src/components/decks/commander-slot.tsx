@@ -183,7 +183,7 @@ export function CommanderSlot({
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {canEdit
-                ? "No commander yet. Choose a legendary creature to lead this deck."
+                ? "No commander yet. Choose a legendary creature, planeswalker, or spacecraft."
                 : "No commander chosen yet."}
             </p>
           </div>
@@ -309,7 +309,7 @@ function CommanderPicker({
     const card = visibleSelected;
     startTransition(async () => {
       // Only the id goes to the server; it fetches the card from Scryfall
-      // and checks it is a legendary creature itself.
+      // and checks the commander type line itself.
       const result = await setCommanderAction(deckId, card.id);
       if (result.error) {
         toast.error(result.error);
@@ -326,8 +326,8 @@ function CommanderPicker({
         <DialogHeader>
           <DialogTitle>Choose commander</DialogTitle>
           <DialogDescription>
-            Legendary creatures only. Partners, backgrounds and planeswalker
-            commanders aren&apos;t supported yet.{" "}
+            A legendary creature, planeswalker, or spacecraft. Partners and
+            backgrounds aren&apos;t supported yet.{" "}
             {deckColors === null
               ? "This deck has no colors yet: it takes your commander's color identity."
               : "Your commander's color identity must fit the deck's colors."}
@@ -338,9 +338,9 @@ function CommanderPicker({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search legendary creatures…"
+            placeholder="Search commanders…"
             className="pl-9"
-            aria-label="Search legendary creatures"
+            aria-label="Search commanders"
             autoFocus
           />
         </div>
@@ -351,7 +351,7 @@ function CommanderPicker({
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         {showEmptyHint && (
-          <p className="text-sm text-muted-foreground">No legendary creatures found.</p>
+          <p className="text-sm text-muted-foreground">No commanders found.</p>
         )}
         <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
           <ul className="max-h-[360px] space-y-1 overflow-y-auto pr-1" aria-label="Legendary creatures">

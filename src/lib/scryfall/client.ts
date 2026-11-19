@@ -80,11 +80,14 @@ const SCRYFALL_HEADERS = {
   "User-Agent": "Spellbranch/0.1 (https://github.com/spellbranch; mtg deck builder)",
 };
 
-/** What a search is for: any card, or a commander pick (legendary creatures). */
+/** What a search is for: any card, or a commander pick. */
 export type SearchKind = "card" | "commander";
 
-/** Scryfall filter appended to commander searches. */
-export const COMMANDER_SEARCH_FILTER = "t:legendary t:creature";
+/**
+ * Scryfall filter appended to commander searches. The route still drops
+ * anything isLegalCommanderTypeLine would reject.
+ */
+export const COMMANDER_SEARCH_FILTER = "t:legendary (t:creature OR t:planeswalker OR t:spacecraft)";
 
 /**
  * Optional predicate applied to commander results after the search, so the

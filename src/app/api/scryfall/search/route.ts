@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isLegendaryCreatureCard } from "@/lib/commander";
+import { isLegalCommanderCard } from "@/lib/commander";
 import { SORT_DIRECTIONS, SORT_ORDERS, validateSearchInput } from "@/lib/advanced-search";
 import { limit, limitError, requestIp } from "@/lib/rate-limit";
 import { searchScryfallAutocomplete, searchScryfallCards, searchScryfallCatalog } from "@/lib/scryfall/client";
@@ -37,8 +37,8 @@ export async function GET(request: Request) {
   if (uniqueRaw != null && uniqueRaw !== "cards" && uniqueRaw !== "prints") {
     return NextResponse.json({ error: "Search query is invalid" }, { status: 400 });
   }
-  // kind=commander: legendary creatures only (Scryfall filter + the same
-  // front-face check the server uses when the commander is saved).
+  // kind=commander: legendary creature, planeswalker, or spacecraft
+  // (Scryfall filter + the same front-face check used when saving).
   const commander = searchParams.get("kind") === "commander";
   const scope = searchParams.get("scope");
   const catalog = scope === "sets" || scope === "precons" ? scope : null;
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
       dir: dirRaw ?? undefined,
     };
     const result = commander
-      ? await searchScryfallCards(q, page, "commander", isLegendaryCreatureCard, extra)
+      ? await searchScryfallCards(q, page, "commander", isLegalCommanderCard, extra)
       : await searchScryfallCards(q, page, "card", undefined, extra);
     if (result.error) {
       return NextResponse.json({ error: publicSearchError(result.error) }, { status: 502 });

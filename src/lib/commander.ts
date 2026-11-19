@@ -1,3 +1,4 @@
+import { isLegalCommanderTypeLine } from "@/lib/commander-legality";
 import { LIMITS } from "@/lib/data/limits";
 import { normalizeDeckColors } from "@/lib/deck-colors";
 import { isUuid, scryfallImageOrNull } from "@/lib/data/validation";
@@ -9,8 +10,8 @@ import type { DeckCommander } from "@/lib/types";
  * Scryfall search filter and the UI. Plain module (no "server-only"): the
  * checks are pure, and the client only uses them for display.
  *
- * Scope: a single legendary creature. Partner, Background and "can be your
- * commander" planeswalkers are out of scope for now.
+ * A commander is one legendary creature, planeswalker, or spacecraft on the
+ * front face. Partner and Background stay out of scope.
  */
 
 /** The front face of a type line ("A // B" -> "A"). */
@@ -26,23 +27,24 @@ export function frontFaceTypeLine(typeLine: string): string {
  * on PG17 here), so either could accept what the other rejects (Cipher I2).
  */
 const PG_SPACE = "[ \\t\\n\\r\\f\\v]";
-const LEGENDARY = new RegExp(`(^|${PG_SPACE})Legendary(${PG_SPACE}|$)`);
-const CREATURE = new RegExp(`(^|${PG_SPACE})Creature(${PG_SPACE}|$)`);
 const NOT_BLANK = /[^ \t\n\r\f\v]/;
 
+function typeWord(token: string): RegExp {
+  return new RegExp(`(^|${PG_SPACE})${token}(${PG_SPACE}|$)`);
+}
+
 /**
- * True when the front face's card types (the part before the em dash) include
- * both the Legendary supertype and the Creature type. Whole words and
- * case-sensitive, like Oracle text: "Legendary Enchantment Creature — God"
- * passes; "Legendary Artifact", "Creature — Legendary" and "legendary
- * creature" do not. Same rule as the decks_commander_legendary_creature
- * CHECK (supabase/migrations/007_deck_commander_hardening.sql).
+ * True when the front face's card types include both Legendary and Creature.
+ * Whole words and case-sensitive. Kept for the creature-only cases in
+ * migration 006; saving a commander uses isLegalCommanderTypeLine.
  */
 export function isLegendaryCreatureTypeLine(typeLine: string | null | undefined): boolean {
   if (typeof typeLine !== "string") return false;
   const types = typeLine.split("//")[0]!.split("—")[0]!;
-  return LEGENDARY.test(types) && CREATURE.test(types);
+  return typeWord("Legendary").test(types) && typeWord("Creature").test(types);
 }
+
+export { isLegalCommanderTypeLine };
 
 /** A name with at least one non-whitespace character (decks_commander_name_not_blank). */
 export function isNonBlankName(name: string | null | undefined): boolean {
@@ -55,7 +57,7 @@ export function isNonBlankName(name: string | null | undefined): boolean {
  * Scryfall, but the repository doesn't trust its caller either).
  */
 export function commanderProblem(c: DeckCommander): "notLegendaryCreature" | null {
-  if (!isLegendaryCreatureTypeLine(c.typeLine) || !isNonBlankName(c.cardName)) {
+  if (!isLegalCommanderTypeLine(c.typeLine) || !isNonBlankName(c.cardName)) {
     return "notLegendaryCreature";
   }
   return null;
@@ -80,6 +82,11 @@ export function isLegendaryCreatureCard(card: ScryfallCard): boolean {
   return isLegendaryCreatureTypeLine(scryfallFrontTypeLine(card));
 }
 
+/** True when the server would store this card as a commander. */
+export function isLegalCommanderCard(card: ScryfallCard): boolean {
+  return isLegalCommanderTypeLine(scryfallFrontTypeLine(card));
+}
+
 /**
  * W/U/B/R/G only, once each, in WUBRG order. (Flattens, because a 2-D array
  * from a direct API write reads back nested.) Same as deck colors.
@@ -94,13 +101,13 @@ function artCrop(card: ScryfallCard): string | null {
 
 /**
  * Builds the stored commander from a card fetched from Scryfall on the
- * server. Returns null if the card can't be a commander (not a legendary
- * creature) or doesn't fit the column limits.
+ * server. Returns null if the card can't be a commander or doesn't fit
+ * the column limits.
  */
 export function commanderFromScryfall(card: ScryfallCard): DeckCommander | null {
   if (!isUuid(card.id) || !isNonBlankName(card.name)) return null;
   const typeLine = scryfallFrontTypeLine(card);
-  if (!isLegendaryCreatureTypeLine(typeLine)) return null;
+  if (!isLegalCommanderTypeLine(typeLine)) return null;
   const manaCost = getCardManaCost(card);
   if (
     card.name.length > LIMITS.cardName ||

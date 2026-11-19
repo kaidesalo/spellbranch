@@ -1,4 +1,5 @@
 import { v5 as uuidv5 } from "uuid";
+import { isLegalCommanderTypeLine } from "../commander-legality.ts";
 
 /**
  * Official Commander precons. MTGJSON is the only source of card lists.
@@ -80,15 +81,9 @@ export function selectCommanderDecks(
     .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || a.fileName.localeCompare(b.fileName));
 }
 
-/** Front face may be a legendary creature, planeswalker, or spacecraft. */
+/** Same rule as isLegalCommanderTypeLine and migration 019's commander CHECK. */
 export function officialCommanderTypeLine(typeLine: string): boolean {
-  const front = typeLine.split("//")[0] ?? "";
-  const types = front.split("—")[0] ?? "";
-  const subtypes = front.split("—")[1] ?? "";
-  const word = (part: string, token: string) => new RegExp(`(^|\\s)${token}(\\s|$)`).test(part);
-  if (!word(types, "Legendary")) return false;
-  if (word(types, "Creature") || word(types, "Planeswalker")) return true;
-  return word(types, "Artifact") && word(subtypes, "Spacecraft");
+  return isLegalCommanderTypeLine(typeLine);
 }
 
 export function scryfallImage(scryfallId: string, kind: "normal" | "art_crop" = "normal"): string {
