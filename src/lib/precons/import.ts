@@ -81,7 +81,7 @@ export function selectCommanderDecks(
     .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || a.fileName.localeCompare(b.fileName));
 }
 
-/** Same rule as isLegalCommanderTypeLine and migration 018's commander CHECK. */
+/** Same rule as isLegalCommanderTypeLine and migration 019's commander CHECK. */
 export function officialCommanderTypeLine(typeLine: string): boolean {
   return isLegalCommanderTypeLine(typeLine);
 }

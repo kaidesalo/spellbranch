@@ -1,6 +1,6 @@
 /**
  * Front-face commander type line. Same shape as
- * decks_commander_legendary_creature in supabase/migrations/018_precons.sql.
+ * decks_commander_legendary_creature after supabase/migrations/019_commander_types.sql.
  *
  * Whitespace is the six ASCII characters, not `\s`: JavaScript's `\s` matches
  * NBSP, and Postgres's `\s` depends on the locale. Either could accept what

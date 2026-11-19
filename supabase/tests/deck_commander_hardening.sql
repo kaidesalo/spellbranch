@@ -107,9 +107,9 @@ select lives_ok($$update public.decks set commander_type_line = 'Legendary Encha
   '006 rules still hold: Legendary Enchantment Creature');
 select throws_ok($$update public.decks set commander_type_line = 'Legendary Artifact' where name = 'fine'$$,
   '23514', null, '006 rules still hold: Legendary Artifact is rejected');
--- This file reapplies 006, whose CHECK is still creature-only. Migration 018
--- later allows a front-face planeswalker or spacecraft; deck_commander.sql
--- covers that on the fully migrated database.
+-- This file reapplies 006, whose CHECK is still creature-only. Migration 019
+-- later allows a front-face planeswalker or spacecraft on every deck;
+-- deck_commander.sql covers that on the fully migrated database.
 select throws_ok($$update public.decks set commander_type_line = 'Legendary Planeswalker — X // Legendary Creature — Y' where name = 'fine'$$,
   '23514', null, '006 rules still hold: back-face creature is rejected');
 select throws_ok($$update public.decks set format = 'modern' where name = 'fine'$$,
