@@ -40,6 +40,12 @@ describe("L5 security headers", () => {
       csp.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
     expect(directive("script-src")).toBe("script-src 'self' 'nonce-abc123' 'strict-dynamic'");
     expect(directive("img-src")).toContain("https://cards.scryfall.io");
+    expect(directive("img-src")).toContain("https://images.ctfassets.net");
+    expect(directive("img-src")).not.toContain("https://*.ctfassets.net");
+    const imageHosts = nextConfig.images?.remotePatterns?.map((pattern) =>
+      "hostname" in pattern ? pattern.hostname : "",
+    );
+    expect(imageHosts).toContain("images.ctfassets.net");
     expect(directive("connect-src")).toBe("connect-src 'self'");
     expect(directive("frame-ancestors")).toBe("frame-ancestors 'none'");
     expect(directive("object-src")).toBe("object-src 'none'");

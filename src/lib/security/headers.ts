@@ -16,6 +16,9 @@ export const SCRYFALL_IMAGE_SOURCES = [
   "https://*.scryfall.com",
 ] as const;
 
+/** Daily MTG article art. Exact host only; no wildcard. */
+export const MTG_NEWS_IMAGE_SOURCES = ["https://images.ctfassets.net"] as const;
+
 export function generateNonce(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -34,7 +37,7 @@ export function buildCsp(nonce: string, env: Env = process.env): string {
     // Inline styles stay allowed: UI components and toasts set style
     // attributes, which nonces can't cover. Script injection is what matters.
     "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:", ...SCRYFALL_IMAGE_SOURCES],
+    "img-src": ["'self'", "data:", "blob:", ...SCRYFALL_IMAGE_SOURCES, ...MTG_NEWS_IMAGE_SOURCES],
     "font-src": ["'self'"],
     // The browser only talks to this origin (Scryfall and Supabase are called
     // from the server). Dev adds the HMR websocket.
