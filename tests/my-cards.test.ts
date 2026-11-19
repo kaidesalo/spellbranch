@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DataStore, LocalUser } from "@/lib/data/store";
-import { browseScope, collectionTotals, myCardsSection } from "@/lib/collection";
+import { browseScope, collectionTotals, collectionView, myCardsSection } from "@/lib/collection";
 
 let db: DataStore;
 vi.mock("@/lib/data/store", () => ({
@@ -61,6 +61,11 @@ describe("my cards sections", () => {
     expect(myCardsSection("branches")).toBe("branches");
     expect(myCardsSection("collection")).toBe("collection");
     expect(myCardsSection("public")).toBe("decks");
+    expect(collectionView(undefined)).toBe("full");
+    expect(collectionView("full")).toBe("full");
+    expect(collectionView("binders")).toBe("binders");
+    expect(collectionView("decks")).toBe("full");
+    expect(collectionView("trade")).toBe("full");
     expect(browseScope("public")).toBe("public");
     expect(browseScope("on-mine")).toBe("on-mine");
     expect(browseScope("nope")).toBe("friends");

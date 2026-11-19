@@ -87,6 +87,43 @@ export function inDecks(
   return groupPiles(used, refs);
 }
 
+export type OwnedDeck = { id: string; name: string };
+
+/** One section per owned deck. Groups are the owned piles in that deck, commander included. */
+export type DeckBinder = {
+  id: string;
+  name: string;
+  groups: CollectionGroup[];
+};
+
+/**
+ * One binder per deck the user owns. A pile is included when its printing or
+ * card name matches a deck card or the commander slot. The same owned pile
+ * can sit in more than one binder.
+ */
+export function deckBinders(
+  cards: readonly CollectionCard[],
+  refs: readonly DeckCardRef[],
+  decks: readonly OwnedDeck[] = [],
+): DeckBinder[] {
+  const byId = new Map<string, OwnedDeck>();
+  for (const deck of decks) {
+    if (!byId.has(deck.id)) byId.set(deck.id, { id: deck.id, name: deck.name });
+  }
+  for (const ref of refs) {
+    if (!byId.has(ref.deckId)) byId.set(ref.deckId, { id: ref.deckId, name: ref.deckName });
+  }
+
+  const binders: DeckBinder[] = [];
+  for (const deck of byId.values()) {
+    const deckRefs = refs.filter((ref) => ref.deckId === deck.id);
+    const piles = cards.filter((pile) => deckRefs.some((ref) => sameCard(pile, ref)));
+    binders.push({ id: deck.id, name: deck.name, groups: groupPiles(piles, deckRefs) });
+  }
+  binders.sort((a, b) => a.name.localeCompare(b.name, "en") || a.id.localeCompare(b.id));
+  return binders;
+}
+
 /** Piles with for_trade set. The flag is on the pile, not a separate binder table. */
 export function tradeBinder(
   cards: readonly CollectionCard[],
