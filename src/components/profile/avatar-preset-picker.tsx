@@ -1,6 +1,6 @@
 "use client";
 
-import { AVATAR_PRESETS, type AvatarPresetKey } from "@/lib/avatar-presets";
+import { AVATAR_PRESETS, avatarCreditName, type AvatarPresetKey } from "@/lib/avatar-presets";
 import { cn } from "@/lib/utils";
 
 const tileClass =
@@ -42,17 +42,21 @@ export function AvatarPresetPicker({ current }: { current: string | null }) {
               name="avatarPreset"
               value={preset.key}
               defaultChecked={selected === preset.key}
-              aria-label={preset.label}
+              aria-label={avatarCreditName(preset)}
               className="sr-only"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={preset.src256}
-              alt={preset.label}
+              alt=""
               width={64}
               height={64}
               className="size-16 rounded-full object-cover"
             />
+            <span className="max-w-full break-words">{preset.label}</span>
+            <span className="max-w-full break-words text-[11px] font-normal text-muted-foreground">
+              art by {preset.artist}
+            </span>
           </label>
         ))}
       </div>

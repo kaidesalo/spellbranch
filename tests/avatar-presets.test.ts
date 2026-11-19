@@ -25,8 +25,16 @@ describe("avatar presets", () => {
     for (const preset of AVATAR_PRESETS) {
       expect(preset.src256).toBe(`/avatars/${preset.key}-256.webp`);
       expect(preset.src512).toBe(`/avatars/${preset.key}-512.webp`);
+      expect(preset.artist.trim().length).toBeGreaterThan(0);
       expect(isAvatarPresetKey(preset.key)).toBe(true);
     }
+    expect(AVATAR_PRESETS.map((preset) => preset.artist)).toEqual([
+      "Raph Lomotan",
+      "Zoltan Boros",
+      "Miguel Mercado",
+      "Bryan Sola",
+      "Johannes Voss",
+    ]);
     expect(isAvatarPresetKey("atraxa")).toBe(false);
     expect(isAvatarPresetKey("https://cdn.example/a.png")).toBe(false);
     expect(avatarPresetByKey("nope")).toBeNull();
@@ -38,9 +46,11 @@ describe("avatar presets", () => {
       src: "/avatars/giada-256.webp",
       alt: "Giada, Font of Hope",
     });
-    expect(resolveAvatar({ avatarPreset: "giada", avatarUrl: url }, 512)?.src).toBe(
-      "/avatars/giada-512.webp",
-    );
+    expect(resolveAvatar({ avatarPreset: "giada", avatarUrl: url }, 512)).toEqual({
+      src: "/avatars/giada-512.webp",
+      alt: "Giada, Font of Hope (art by Johannes Voss)",
+      title: "Giada, Font of Hope (art by Johannes Voss)",
+    });
     expect(resolveAvatar({ avatarPreset: "not-a-card", avatarUrl: url })).toEqual({ src: url, alt: "" });
     expect(resolveAvatar({ avatarPreset: null, avatarUrl: "http://cdn.example/a.png" })).toBeNull();
     expect(resolveAvatar({ avatarPreset: "", avatarUrl: null })).toBeNull();

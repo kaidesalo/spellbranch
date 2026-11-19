@@ -47,6 +47,7 @@ export function ProfileAvatar({
         <img
           src={picture.src}
           alt={picture.alt}
+          title={picture.title}
           referrerPolicy={AVATAR_REFERRER_POLICY}
           className="size-full object-cover"
           onError={() => setBroken(true)}

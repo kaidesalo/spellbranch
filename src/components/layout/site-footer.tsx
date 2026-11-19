@@ -34,14 +34,13 @@ export function SiteFooter({ revision }: { revision?: string | null }) {
     <footer data-testid="site-footer" className="border-t border-border/70 bg-background">
       <div className="mx-auto min-w-0 max-w-7xl space-y-3 px-4 py-8 text-xs leading-relaxed text-muted-foreground sm:px-6">
         <p>Spellbranch is currently in beta testing. Features may change and data may be reset.</p>
-        <p>
+        <p data-testid="fan-content-disclaimer" className="max-w-full break-words">
           Spellbranch is unofficial Fan Content permitted under the{" "}
           <FooterLink href="https://company.wizards.com/en/legal/fancontentpolicy" newTab>
             Fan Content Policy
           </FooterLink>
           . Not approved/endorsed by Wizards. Portions of the materials used are property of
-          Wizards of the Coast. ©Wizards of the Coast LLC. Magic: The Gathering and its logos are
-          trademarks of Wizards of the Coast LLC.
+          Wizards of the Coast. ©Wizards of the Coast LLC.
         </p>
         <p>
           Card images and card data are provided by{" "}
