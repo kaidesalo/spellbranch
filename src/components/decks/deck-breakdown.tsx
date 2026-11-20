@@ -23,9 +23,9 @@ export function DeckBreakdownPanel({ breakdown }: { breakdown: DeckBreakdown }) 
           of the player.
         </p>
       </div>
-      {breakdown.status === "insufficient" || !breakdown.overview || !breakdown.primer || !breakdown.weaknesses ? (
+      {breakdown.status !== "ready" || !breakdown.overview || !breakdown.primer || !breakdown.weaknesses ? (
         <p
-          data-testid="deck-breakdown-empty"
+          data-testid={breakdown.status === "skipped" ? "deck-breakdown-skipped" : "deck-breakdown-empty"}
           className="max-w-3xl rounded-2xl border border-border/80 bg-card/70 p-4 text-sm leading-relaxed text-muted-foreground"
         >
           {breakdown.emptyMessage}

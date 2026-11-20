@@ -2,8 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DeckBreakdownPanel } from "@/components/decks/deck-breakdown";
+import { LIMITS } from "@/lib/data/limits";
 import {
   BENCHMARKS,
+  BREAKDOWN_MAX_CARDS,
   GAME_CHANGER_NAMES,
   LIST_WEIGHT_MAX,
   MIN_COUNTED_CARDS,
@@ -539,5 +541,97 @@ describe("deck breakdown panel", () => {
 
     const blob = `${filled}\n${empty}\n${JSON.stringify(ready(baseInput(preconCards())))}`;
     for (const banned of BANNED) expect(blob).not.toContain(banned);
+  });
+
+  it("shows a note when the list is over the card cap", () => {
+    const html = renderToStaticMarkup(
+      createElement(DeckBreakdownPanel, {
+        breakdown: analyzeDeck(baseInput(Array.from({ length: BREAKDOWN_MAX_CARDS + 1 }, () => card("Forest", null, "Basic Land — Forest", "")), { commander: null, isPrecon: false })),
+      }),
+    );
+    expect(html).toContain("deck-breakdown-skipped");
+    expect(html).toContain(`stops at ${BREAKDOWN_MAX_CARDS} cards`);
+    expect(html).not.toContain("List weight");
+  });
+});
+
+describe("card cap", () => {
+  function many(count: number, oracle = ""): BreakdownCard[] {
+    return Array.from({ length: count }, (_, index) =>
+      card(`Card ${index}`, "{G}", "Creature", oracle),
+    );
+  }
+
+  it("still analyzes a list at the cap", () => {
+    expect(BREAKDOWN_MAX_CARDS).toBe(250);
+    const atCap = ready(baseInput(many(BREAKDOWN_MAX_CARDS), { commander: null, isPrecon: false, name: "At cap" }));
+    expect(atCap.counted).toBe(BREAKDOWN_MAX_CARDS);
+    expect(atCap.score).not.toBeNull();
+
+    const withCommander = ready(
+      baseInput(many(BREAKDOWN_MAX_CARDS - 1), { isPrecon: false, name: "At cap with commander" }),
+    );
+    expect(withCommander.status).toBe("ready");
+    expect(withCommander.keyCards[0]?.cardName).toBe("Grove Titan");
+  });
+
+  it("skips a larger list without reading rows or running detectors", () => {
+    let reads = 0;
+    function boom(): never {
+      reads += 1;
+      throw new Error("a card row was read");
+    }
+    const sealed = (index: number): BreakdownCard => {
+      void index;
+      return {
+        get cardName() {
+          return boom();
+        },
+        get typeLine() {
+          return boom();
+        },
+        get oracleText() {
+          return boom();
+        },
+        get manaCost() {
+          return boom();
+        },
+        get quantity() {
+          return boom();
+        },
+        get board() {
+          return boom();
+        },
+      } as BreakdownCard;
+    };
+    const cards = Array.from({ length: 5000 }, (_, index) => sealed(index));
+    const started = performance.now();
+    const result = analyzeDeck(
+      baseInput(cards, {
+        commander: { get cardName() { return boom(); } } as unknown as BreakdownCard,
+        isPrecon: false,
+      }),
+    );
+    const elapsed = performance.now() - started;
+    expect(result.status).toBe("skipped");
+    expect(result.score).toBeNull();
+    expect(result.bracket).toBeNull();
+    expect(result.benchmarks).toEqual([]);
+    expect(result.signals).toBeNull();
+    expect(result.emptyMessage).toContain(String(BREAKDOWN_MAX_CARDS));
+    expect(reads).toBe(0);
+    expect(elapsed).toBeLessThan(50);
+
+    const justOver = analyzeDeck(baseInput(many(BREAKDOWN_MAX_CARDS + 1), { commander: null, isPrecon: false }));
+    expect(justOver.status).toBe("skipped");
+    expect(justOver.counted).toBe(BREAKDOWN_MAX_CARDS + 1);
+  });
+
+  it("ignores oracle text past the stored length cap", () => {
+    const pad = "x".repeat(LIMITS.oracleText);
+    const buried = classifyCard(card("Buried Draw", "{1}", "Sorcery", `${pad}Draw a card.`));
+    expect(buried.draw).toBe(false);
+    const leading = classifyCard(card("Leading Draw", "{1}", "Sorcery", `Draw a card. ${pad}`));
+    expect(leading.draw).toBe(true);
   });
 });

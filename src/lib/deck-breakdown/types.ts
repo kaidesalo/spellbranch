@@ -123,7 +123,8 @@ export interface KeyCard {
 }
 
 export interface DeckBreakdown {
-  status: "ready" | "insufficient";
+  /** "skipped" means the list is over BREAKDOWN_MAX_CARDS and was not read. */
+  status: "ready" | "insufficient" | "skipped";
   counted: number;
   minimum: number;
   emptyMessage: string | null;

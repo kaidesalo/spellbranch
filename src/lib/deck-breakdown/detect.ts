@@ -1,4 +1,5 @@
 import { getPrimaryType } from "@/lib/card-types";
+import { LIMITS } from "@/lib/data/limits";
 import { isMainBoard } from "@/lib/deck-boards";
 import { manaValueOfCost } from "@/lib/deck-stats";
 import {
@@ -219,17 +220,24 @@ function keywordThreat(text: string): boolean {
   return /\b(flying|trample|menace|lifelink|haste)\b/i.test(text);
 }
 
+/** Stored cards are already capped. A longer string handed in is cut before any regex. */
+function clip(value: string | null | undefined, max: number): string {
+  if (typeof value !== "string" || value.length === 0) return "";
+  return value.length > max ? value.slice(0, max) : value;
+}
+
 export function classifyCard(card: BreakdownCard): ClassifiedCard {
   const quantity = positiveQuantity(card.quantity);
-  const text = rulesText(card.oracleText);
-  const typeLine = card.typeLine ?? "";
+  const cardName = clip(card.cardName, LIMITS.cardName);
+  const text = rulesText(clip(card.oracleText, LIMITS.oracleText));
+  const typeLine = clip(card.typeLine, LIMITS.typeLine);
   const primary = getPrimaryType(typeLine);
   const land = primary === "Land";
   const rampInfo = rampOf(text, typeLine, land);
   const ramp = rampInfo?.kind ?? null;
   const creature = primary === "Creature";
   const planeswalker = primary === "Planeswalker";
-  const manaValue = manaValueOfCost(card.manaCost);
+  const manaValue = manaValueOfCost(clip(card.manaCost, LIMITS.manaCost));
   const earlyThreat =
     ramp === null &&
     (creature || planeswalker || primary === "Battle") &&
@@ -239,7 +247,7 @@ export function classifyCard(card: BreakdownCard): ClassifiedCard {
     (planeswalker || (creature && keywordThreat(text))) &&
     manaValue <= 6;
   return {
-    cardName: card.cardName,
+    cardName,
     quantity,
     manaValue,
     primary,
@@ -253,8 +261,8 @@ export function classifyCard(card: BreakdownCard): ClassifiedCard {
     shield: isShield(text, land),
     recursion: isRecursion(text),
     extraTurn: /\btakes? an extra turn\b/i.test(text),
-    massLandDenial: isMassLandDenialName(card.cardName) || oracleIsMassLandDenial(text),
-    gameChanger: isGameChangerName(card.cardName),
+    massLandDenial: isMassLandDenialName(cardName) || oracleIsMassLandDenial(text),
+    gameChanger: isGameChangerName(cardName),
     earlyThreat,
     standalone,
     winsGame: /\byou win the game\b/i.test(text),

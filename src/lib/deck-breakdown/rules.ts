@@ -28,6 +28,18 @@ import type { BenchmarkGroup, Letter } from "@/lib/deck-breakdown/types";
 /** Below this many counted cards the panel shows the empty state. */
 export const MIN_COUNTED_CARDS = 20;
 
+/**
+ * Most cards the breakdown will open. A normal Commander list is about 100
+ * rows. The review probe of 5,000 rows with long oracle text took seconds
+ * on the server render, which blocks the process, so anything past this
+ * is skipped before a row is read or a detector runs.
+ *
+ * The count is `cards.length` plus one when a commander slot is passed.
+ * It is not a quantity sum, and it does not look at names, boards, or
+ * oracle text. 250 still analyzes. 251 skips.
+ */
+export const BREAKDOWN_MAX_CARDS = 250;
+
 /** A role "repeats" at this many copies per 100 cards. */
 export const ROLE_REPEAT_PER_HUNDRED = 6;
 

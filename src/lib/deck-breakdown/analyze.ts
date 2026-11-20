@@ -12,6 +12,7 @@ import {
   EARLY_COMBO_MANA_VALUE,
   EXTRA_TURNS_BEFORE_CHAINING,
   GAME_CHANGERS_IN_UPGRADED,
+  BREAKDOWN_MAX_CARDS,
   LIST_WEIGHT_MAX,
   MIN_COUNTED_CARDS,
   ROLE_REPEAT_PER_HUNDRED,
@@ -420,6 +421,34 @@ function keyCards(cards: readonly ClassifiedCard[], commanderName: string | null
   return keyCardLines(candidates);
 }
 
+/**
+ * Rows passed in, plus the commander slot when it is its own object.
+ * Does not read a row. Callers use this to refuse before classifyDeck.
+ */
+export function breakdownRowCount(input: Pick<BreakdownInput, "cards" | "commander">): number {
+  return input.cards.length + (input.commander ? 1 : 0);
+}
+
+function skippedBreakdown(rows: number): DeckBreakdown {
+  return {
+    status: "skipped",
+    counted: rows,
+    minimum: MIN_COUNTED_CARDS,
+    emptyMessage: `This list is too big to break down here. The read stops at ${BREAKDOWN_MAX_CARDS} cards, and the commander slot counts as one, so a huge list does not stall the page.`,
+    overview: null,
+    primer: null,
+    weaknesses: null,
+    keyCards: [],
+    score: null,
+    maxScore: LIST_WEIGHT_MAX,
+    bracket: null,
+    archetype: null,
+    speed: null,
+    benchmarks: [],
+    signals: null,
+  };
+}
+
 function emptyBreakdown(counted: number): DeckBreakdown {
   return {
     status: "insufficient",
@@ -441,6 +470,8 @@ function emptyBreakdown(counted: number): DeckBreakdown {
 }
 
 export function analyzeDeck(input: BreakdownInput): DeckBreakdown {
+  const rows = breakdownRowCount(input);
+  if (rows > BREAKDOWN_MAX_CARDS) return skippedBreakdown(rows);
   const cards = classifyDeck(input);
   const counted = sumQuantity(cards, () => true);
   if (counted < MIN_COUNTED_CARDS) return emptyBreakdown(counted);
