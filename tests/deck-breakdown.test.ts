@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { DeckBreakdownPanel } from "@/components/decks/deck-breakdown";
+import { DeckBreakdownPanel, breakdownSummaryLine } from "@/components/decks/deck-breakdown";
 import { LIMITS } from "@/lib/data/limits";
 import {
   BENCHMARKS,
@@ -513,7 +513,12 @@ describe("what the read ignores", () => {
 
 describe("deck breakdown panel", () => {
   it("renders the precon read and the empty state without another product's words", () => {
-    const filled = renderToStaticMarkup(createElement(DeckBreakdownPanel, { breakdown: ready(baseInput(preconCards())) }));
+    const precon = ready(baseInput(preconCards()));
+    const filled = renderToStaticMarkup(createElement(DeckBreakdownPanel, { breakdown: precon }));
+    expect(filled.startsWith("<details")).toBe(true);
+    expect(filled).not.toMatch(/<details[^>]*\sopen[=\s>]/);
+    expect(filled).toContain(breakdownSummaryLine(precon));
+    expect(breakdownSummaryLine(precon)).toBe("Deck breakdown · List weight 28 · Bracket 2 · Midrange");
     expect(filled).toContain("Deck breakdown");
     expect(filled).toContain("Overview");
     expect(filled).toContain("Primer");
@@ -537,7 +542,9 @@ describe("deck breakdown panel", () => {
     );
     expect(empty).toContain("deck-breakdown-empty");
     expect(empty).toContain("Not enough cards");
+    expect(empty).toContain("Deck breakdown · not enough cards");
     expect(empty).not.toContain("List weight");
+    expect(empty).not.toMatch(/<details[^>]*\sopen[=\s>]/);
 
     const blob = `${filled}\n${empty}\n${JSON.stringify(ready(baseInput(preconCards())))}`;
     for (const banned of BANNED) expect(blob).not.toContain(banned);
@@ -551,7 +558,28 @@ describe("deck breakdown panel", () => {
     );
     expect(html).toContain("deck-breakdown-skipped");
     expect(html).toContain(`stops at ${BREAKDOWN_MAX_CARDS} cards`);
+    expect(html).toContain("Deck breakdown · too large to analyze");
     expect(html).not.toContain("List weight");
+    expect(html).not.toMatch(/<details[^>]*\sopen[=\s>]/);
+  });
+
+  it("leaves the bracket off the summary outside Commander", () => {
+    const modern = ready(
+      baseInput(
+        [
+          card("Island", null, "Basic Land — Island", "", 24),
+          card("Think Twice", "{1}{U}", "Instant", "Draw a card.", 16),
+        ],
+        { format: "modern", formatLabel: "Modern", commander: null, colors: ["U"], isPrecon: false, name: "Blue Tempo" },
+      ),
+    );
+    const line = breakdownSummaryLine(modern);
+    expect(line.startsWith("Deck breakdown · List weight ")).toBe(true);
+    expect(line).not.toContain("Bracket");
+    expect(line).toContain(modern.archetype ?? "");
+    const html = renderToStaticMarkup(createElement(DeckBreakdownPanel, { breakdown: modern }));
+    expect(html).toContain(line);
+    expect(html).not.toMatch(/<details[^>]*\sopen[=\s>]/);
   });
 });
 

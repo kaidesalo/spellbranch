@@ -1,54 +1,76 @@
+import { ChevronDown } from "lucide-react";
 import { BENCHMARK_GROUPS } from "@/lib/deck-breakdown";
 import type { BenchmarkScore, DeckBreakdown, Letter } from "@/lib/deck-breakdown";
 
 /**
+ * One line for the closed dropdown. The analysis itself is unchanged.
+ * Bracket is omitted outside Commander. A short list and an oversized list
+ * each get their own phrase instead of a score.
+ */
+export function breakdownSummaryLine(breakdown: DeckBreakdown): string {
+  if (breakdown.status === "skipped") return "Deck breakdown · too large to analyze";
+  if (breakdown.status !== "ready" || breakdown.score === null) return "Deck breakdown · not enough cards";
+  const parts = ["Deck breakdown", `List weight ${breakdown.score}`];
+  if (breakdown.bracket) parts.push(`Bracket ${breakdown.bracket.value}`);
+  if (breakdown.archetype) parts.push(breakdown.archetype);
+  return parts.join(" · ");
+}
+
+/**
  * Deck breakdown for a list the viewer can already see. The numbers come
  * from analyzeDeck. This component does not fetch or store anything.
+ * Closed until the reader opens it, so the deck page stays the list.
  */
 export function DeckBreakdownPanel({ breakdown }: { breakdown: DeckBreakdown }) {
+  const summary = breakdownSummaryLine(breakdown);
   return (
-    <section
-      className="mt-4 min-w-0 space-y-4"
+    <details
+      className="mt-4 min-w-0 rounded-2xl border border-border/80 bg-card/70 [&[open]_summary_svg]:rotate-180"
       data-testid="deck-breakdown"
       data-status={breakdown.status}
-      aria-labelledby="deck-breakdown-heading"
     >
-      <div className="min-w-0">
-        <h2 id="deck-breakdown-heading" className="text-xl font-semibold">
-          Deck breakdown
+      <summary
+        data-testid="deck-breakdown-summary"
+        className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-2xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
+      >
+        <h2 id="deck-breakdown-heading" className="min-w-0 flex-1 break-words text-base font-semibold">
+          {summary}
         </h2>
-        <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+        <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground transition-[rotate] duration-200" />
+      </summary>
+      <div className="min-w-0 space-y-4 border-t border-border/70 px-3 py-4 sm:px-4">
+        <p className="max-w-3xl text-xs leading-relaxed text-muted-foreground">
           This is a fixed set of rules on the cards in the list. It can miss unusual wording, combos of
           more than two cards, and cards whose text has changed. It is a note about the list, not a judgment
           of the player.
         </p>
+        {breakdown.status === "ready" && breakdown.overview && breakdown.primer && breakdown.weaknesses ? (
+          <>
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+              <ScoreCard breakdown={breakdown} />
+              <section className="min-w-0 rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5" aria-labelledby="breakdown-overview-heading">
+                <h3 id="breakdown-overview-heading" className="text-base font-semibold">
+                  Overview
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-foreground/90">{breakdown.overview}</p>
+              </section>
+            </div>
+            <Primer primer={breakdown.primer} />
+            <Weaknesses weaknesses={breakdown.weaknesses} />
+            <KeyCards cards={breakdown.keyCards} />
+            <Benchmarks rows={breakdown.benchmarks} />
+            <HowToRead />
+          </>
+        ) : (
+          <p
+            data-testid={breakdown.status === "skipped" ? "deck-breakdown-skipped" : "deck-breakdown-empty"}
+            className="max-w-3xl text-sm leading-relaxed text-muted-foreground"
+          >
+            {breakdown.emptyMessage}
+          </p>
+        )}
       </div>
-      {breakdown.status !== "ready" || !breakdown.overview || !breakdown.primer || !breakdown.weaknesses ? (
-        <p
-          data-testid={breakdown.status === "skipped" ? "deck-breakdown-skipped" : "deck-breakdown-empty"}
-          className="max-w-3xl rounded-2xl border border-border/80 bg-card/70 p-4 text-sm leading-relaxed text-muted-foreground"
-        >
-          {breakdown.emptyMessage}
-        </p>
-      ) : (
-        <>
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-            <ScoreCard breakdown={breakdown} />
-            <section className="min-w-0 rounded-2xl border border-border/80 bg-card/70 p-4 sm:p-5" aria-labelledby="breakdown-overview-heading">
-              <h3 id="breakdown-overview-heading" className="text-base font-semibold">
-                Overview
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-foreground/90">{breakdown.overview}</p>
-            </section>
-          </div>
-          <Primer primer={breakdown.primer} />
-          <Weaknesses weaknesses={breakdown.weaknesses} />
-          <KeyCards cards={breakdown.keyCards} />
-          <Benchmarks rows={breakdown.benchmarks} />
-          <HowToRead />
-        </>
-      )}
-    </section>
+    </details>
   );
 }
 
