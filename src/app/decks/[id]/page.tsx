@@ -24,6 +24,8 @@ import { CommentSection } from "@/components/comments/comment-section";
 import { BranchSwitcher } from "@/components/decks/branch-switcher";
 import { DeckColorsBadge } from "@/components/decks/deck-colors";
 import { DeckStatistics } from "@/components/decks/deck-stats";
+import { DeckBreakdownPanel } from "@/components/decks/deck-breakdown";
+import { analyzeDeck } from "@/lib/deck-breakdown";
 import { PreconBadge } from "@/components/decks/deck-grid";
 import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 import { ForkDeckForm } from "@/components/decks/fork-deck-form";
@@ -97,6 +99,33 @@ export default async function DeckDetailPage({
     userId: user?.id ?? null,
   });
   const formatLabel = DECK_FORMATS.find((format) => format.value === deck.format)?.label ?? deck.format;
+  // Stored cards only. The same list always produces the same breakdown.
+  // Private decks never reach this: getDeckById already applied visibility.
+  const breakdown = analyzeDeck({
+    name: deck.name,
+    format: deck.format,
+    formatLabel,
+    isPrecon: Boolean(deck.isPrecon),
+    colors: deck.colors,
+    commander: commander
+      ? {
+          cardName: commander.cardName,
+          manaCost: commander.manaCost,
+          typeLine: commander.typeLine,
+          oracleText: null,
+          quantity: 1,
+          board: "main",
+        }
+      : null,
+    cards: allCards.map((card) => ({
+      cardName: card.cardName,
+      manaCost: card.manaCost,
+      typeLine: card.typeLine,
+      oracleText: card.oracleText,
+      quantity: card.quantity,
+      board: card.board,
+    })),
+  });
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
@@ -286,6 +315,8 @@ export default async function DeckDetailPage({
         scryfallUnavailable={stats.scryfallUnavailable}
         includesCommander={stats.includesCommander}
       />
+
+      <DeckBreakdownPanel breakdown={breakdown} />
 
       {switcher && (
         <BranchSwitcher
