@@ -3,7 +3,7 @@ import { commanderFromScryfall } from "@/lib/commander";
 import type { CardInput } from "@/lib/data/types";
 import { normalizeDeckColors } from "@/lib/deck-colors";
 import { MAX_CARD_QUANTITY } from "@/lib/deck-quantity";
-import { cardLookupKey } from "@/lib/decklist/names";
+import { cardLookupKey, cardNameMatchKey, printedFaceNames } from "@/lib/decklist/names";
 import type { DecklistCard, ParsedDecklist } from "@/lib/decklist/parse";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import type { DeckCommander, DeckFormat } from "@/lib/types";
@@ -47,7 +47,7 @@ export function buildImportedDeck(input: {
   let commander: DeckCommander | null = null;
 
   for (const entry of commanderEntries) {
-    const found = index.get(cardLookupKey(entry.name));
+    const found = lookupImportedCard(index, entry.name);
     if (!found) {
       warnings.push(`Couldn't find ${entry.name} on Scryfall.`);
       continue;
@@ -74,7 +74,7 @@ export function buildImportedDeck(input: {
   }
 
   for (const entry of listEntries) {
-    const found = index.get(cardLookupKey(entry.name));
+    const found = lookupImportedCard(index, entry.name);
     if (!found) {
       warnings.push(`Couldn't find ${entry.name} on Scryfall.`);
       continue;
@@ -109,11 +109,55 @@ function indexScryfall(cards: readonly ScryfallCard[]): Map<string, ScryfallCard
       ...(card.card_faces ?? []).flatMap((face) => (face.name ? [face.name] : [])),
     ];
     for (const name of names) {
-      const key = cardLookupKey(name);
+      const key = cardNameMatchKey(name);
       if (key && !map.has(key)) map.set(key, card);
     }
   }
   return map;
+}
+
+/**
+ * The Scryfall card for one pasted line. The printed name and each face
+ * are indexed with punctuation folded, so "A // B", "A / B", "a//b", and
+ * a comma-stripped face all meet the card search would return.
+ *
+ * Meld cards are not named "A // B". A line written that way still
+ * resolves to the front part when every other face is one of that card's
+ * parts. A made-up back face does not, so "Sol Ring // Not a Card" is
+ * not stored as Sol Ring.
+ */
+function lookupImportedCard(index: Map<string, ScryfallCard>, name: string): ScryfallCard | undefined {
+  const direct = index.get(cardNameMatchKey(name));
+  if (direct) return direct;
+  const faces = printedFaceNames(name);
+  if (faces.length < 2) return undefined;
+
+  const seen = new Set<string>();
+  const viable: ScryfallCard[] = [];
+  for (const face of faces) {
+    const card = index.get(cardNameMatchKey(face));
+    if (!card || seen.has(card.id)) continue;
+    const namedFace = faces.some((part) => cardNameMatchKey(card.name) === cardNameMatchKey(part));
+    const covers = faces.every(
+      (part) => cardNameMatchKey(card.name) === cardNameMatchKey(part) || cardMentions(card, part),
+    );
+    if (!namedFace || !covers) continue;
+    seen.add(card.id);
+    viable.push(card);
+  }
+  return viable.find((card) => cardNameMatchKey(card.name) === cardNameMatchKey(faces[0])) ?? viable[0];
+}
+
+function cardMentions(card: ScryfallCard, face: string): boolean {
+  const key = cardNameMatchKey(face);
+  if (!key) return false;
+  for (const part of card.card_faces ?? []) {
+    if (part.name && cardNameMatchKey(part.name) === key) return true;
+  }
+  for (const part of card.all_parts ?? []) {
+    if (part.name && cardNameMatchKey(part.name) === key) return true;
+  }
+  return false;
 }
 
 function pushCard(cards: CardInput[], card: CardInput, warnings: string[]) {

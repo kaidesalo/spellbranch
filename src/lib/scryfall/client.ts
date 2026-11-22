@@ -1,4 +1,4 @@
-import { cardLookupKey } from "@/lib/decklist/names";
+import { cardLookupKey, cardNameMatchKey, collectionLookupNames } from "@/lib/decklist/names";
 import { isUuid } from "@/lib/data/validation";
 import { filterCatalog, isSetCode, type CatalogSet } from "@/lib/header-search";
 import { offeredFinishes } from "@/lib/printing";
@@ -30,6 +30,11 @@ export interface ScryfallCard {
       art_crop?: string;
     };
   }>;
+  /**
+   * Meld parts and tokens. The meld result is its own card; the part's
+   * `name` is only the front face, and the other half is listed here.
+   */
+  all_parts?: Array<{ name?: string; component?: string }>;
   oracle_id?: string;
   set?: string;
   set_name?: string;
@@ -423,9 +428,25 @@ export const SCRYFALL_COLLECTION_GAP_MS = 100;
 export const SCRYFALL_NAME_LOOKUP_MAX = 500;
 
 /**
+ * How many collection identifiers one name lookup may send. Each pasted
+ * name counts against SCRYFALL_NAME_LOOKUP_MAX; a multi-face line also
+ * needs its faces, so the identifier list can be longer than the name
+ * list. Still bounded (two per name is enough: the printed line plus the
+ * front face).
+ */
+const SCRYFALL_NAME_IDENTIFIER_MAX = SCRYFALL_NAME_LOOKUP_MAX * 2;
+
+/**
  * Exact card names, via Scryfall's collection endpoint (batches of 75).
  * Returns one entry per found card. A name Scryfall doesn't know is simply
  * absent — callers match on the card name (and double-faced face names).
+ *
+ * Collection indexes each face of a multi-face card, not the combined
+ * "A // B" string (card search's /cards/search query does match that
+ * string, which is why search can find a card import misses). Each line
+ * is therefore sent as written and, when it has faces, as those face
+ * names too. The written line stays: some cards are indexed only that
+ * way ("Who // What // When // Where // Why", "SP//dr, Piloted by Peni").
  *
  * Sandbox: only https://api.scryfall.com/cards/collection. Timeout, body
  * cap, `redirect: "error"` (no hop to another host), `credentials: "omit"`
@@ -451,13 +472,47 @@ export async function getScryfallCardsByName(
   if (unique.length > SCRYFALL_NAME_LOOKUP_MAX) {
     throw new ScryfallLookupError("unavailable", "Too many card names");
   }
+  const identifiers = collectionIdentifiers(unique);
   const found: ScryfallCard[] = [];
-  for (let i = 0; i < unique.length; i += SCRYFALL_COLLECTION_LIMIT) {
+  const seenCards = new Set<string>();
+  for (let i = 0; i < identifiers.length; i += SCRYFALL_COLLECTION_LIMIT) {
     if (i > 0 && gapMs > 0) await new Promise((resolve) => setTimeout(resolve, gapMs));
-    const chunk = unique.slice(i, i + SCRYFALL_COLLECTION_LIMIT);
-    found.push(...(await fetchCollection(chunk.map((name) => ({ name })), timeoutMs, maxBytes, "throw")));
+    const chunk = identifiers.slice(i, i + SCRYFALL_COLLECTION_LIMIT);
+    for (const card of await fetchCollection(chunk.map((name) => ({ name })), timeoutMs, maxBytes, "throw")) {
+      const name = typeof card?.name === "string" ? card.name : "";
+      const id = typeof card?.id === "string" ? card.id : "";
+      const key = `${id}\n${cardNameMatchKey(name)}`;
+      if (seenCards.has(key)) continue;
+      seenCards.add(key);
+      found.push(card);
+    }
   }
   return found;
+}
+
+/**
+ * Printed lines first, then front faces, then any other faces, deduped,
+ * capped at SCRYFALL_NAME_IDENTIFIER_MAX. Front faces are ahead of back
+ * faces so a full list of double-faced cards still resolves when the
+ * cap drops the extras.
+ */
+function collectionIdentifiers(names: readonly string[]): string[] {
+  const groups = names.map((name) => collectionLookupNames(name));
+  const identifiers: string[] = [];
+  const seen = new Set<string>();
+  const add = (lookupName: string | undefined) => {
+    if (!lookupName || identifiers.length >= SCRYFALL_NAME_IDENTIFIER_MAX) return;
+    const key = cardLookupKey(lookupName);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    identifiers.push(lookupName);
+  };
+  for (const group of groups) add(group[0]);
+  for (const group of groups) add(group[1]);
+  for (const group of groups) {
+    for (const extra of group.slice(2)) add(extra);
+  }
+  return identifiers;
 }
 
 /**
