@@ -2,12 +2,19 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SiteFooter, footerRevision } from "@/components/layout/site-footer";
+import type { ReleaseEnv } from "@/lib/release-label";
+
+function footerHtml(revision: string | null, env: ReleaseEnv = {}) {
+  return renderToStaticMarkup(createElement(SiteFooter, { revision, env }));
+}
 
 describe("SiteFooter", () => {
   it("shows the beta notice and links vulpibyte.dev in a new tab", () => {
-    const html = renderToStaticMarkup(createElement(SiteFooter, { revision: "abc1234" }));
+    const html = footerHtml("abc1234");
     expect(html).toContain("Spellbranch is currently in beta testing.");
     expect(html).toContain("Features may change and data may be reset.");
+    expect(html).toContain("· Beta · abc1234");
+    expect(html).not.toContain("v1.0");
     expect(html).toContain('href="https://vulpibyte.dev"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
@@ -27,10 +34,31 @@ describe("SiteFooter", () => {
   });
 
   it("omits the commit id when the build does not provide one", () => {
-    const html = renderToStaticMarkup(createElement(SiteFooter, { revision: null }));
+    const html = footerHtml(null);
     expect(html).toContain("· Beta");
     expect(html).not.toContain("abc1234");
     expect(footerRevision({})).toBeNull();
     expect(footerRevision({ VERCEL_GIT_COMMIT_SHA: "0123456789abcdef" })).toBe("0123456");
+  });
+
+  it("shows v1.0 and hides the beta disclaimer on production, and keeps the commit id", () => {
+    const html = footerHtml("cfd27e3", { VERCEL_ENV: "production" });
+    const text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+    expect(text).toContain("© 2026 Spellbranch · Created by vulpibyte.dev · v1.0 · cfd27e3");
+    expect(html).not.toContain("beta testing");
+    expect(html).not.toContain("Features may change and data may be reset.");
+    expect(html).not.toContain("· Beta");
+    expect(html).toContain('href="https://vulpibyte.dev"');
+    expect(html).toContain('href="https://scryfall.com"');
+  });
+
+  it("keeps the beta wording for preview, development, and an unset environment", () => {
+    const envs: ReleaseEnv[] = [{ VERCEL_ENV: "preview" }, { VERCEL_ENV: "development" }, {}];
+    for (const env of envs) {
+      const html = footerHtml("cfd27e3", env);
+      expect(html).toContain("Spellbranch is currently in beta testing.");
+      expect(html).toContain("· Beta · cfd27e3");
+      expect(html).not.toContain("v1.0");
+    }
   });
 });
