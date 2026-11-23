@@ -6,8 +6,9 @@ import "server-only";
  * `VERCEL_ENV` from the Node process. No hostname check, and nothing has to
  * be added in the Vercel dashboard.
  *
- * Production shows "v1.0" and hides the beta disclaimer. Preview,
- * development, and an unset environment keep "Beta" and the disclaimer.
+ * Production shows "v1.0", hides the beta disclaimer, and omits the commit
+ * hash. Preview, development, and an unset environment keep "Beta", the
+ * disclaimer, and the commit hash when the build has one.
  * `NEXT_PUBLIC_VERCEL_ENV` is only a fallback when `VERCEL_ENV` is empty.
  * These are read off the env object on purpose: a direct
  * `process.env.NEXT_PUBLIC_*` reference is inlined at build time, and this
@@ -58,4 +59,13 @@ export function releaseLabel(env: ReleaseEnv = process.env): string {
  */
 export function releaseDisclaimer(env: ReleaseEnv = process.env): string | null {
   return isBeta(env) ? BETA_DISCLAIMER : null;
+}
+
+/**
+ * Whether the footer appends the commit id. False on production, so the line
+ * ends at the release label with no trailing separator. The optional label
+ * override does not change this.
+ */
+export function showCommit(env: ReleaseEnv = process.env): boolean {
+  return !isProductionRelease(env);
 }

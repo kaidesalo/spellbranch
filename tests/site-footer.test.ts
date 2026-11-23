@@ -41,10 +41,12 @@ describe("SiteFooter", () => {
     expect(footerRevision({ VERCEL_GIT_COMMIT_SHA: "0123456789abcdef" })).toBe("0123456");
   });
 
-  it("shows v1.0 and hides the beta disclaimer on production, and keeps the commit id", () => {
+  it("shows v1.0 on production with no commit hash and no trailing separator", () => {
     const html = footerHtml("cfd27e3", { VERCEL_ENV: "production" });
-    const text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
-    expect(text).toContain("© 2026 Spellbranch · Created by vulpibyte.dev · v1.0 · cfd27e3");
+    const text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    expect(text).toMatch(/© 2026 Spellbranch · Created by vulpibyte\.dev · v1\.0$/);
+    expect(text).not.toContain("cfd27e3");
+    expect(text).not.toMatch(/v1\.0\s*·/);
     expect(html).not.toContain("beta testing");
     expect(html).not.toContain("Features may change and data may be reset.");
     expect(html).not.toContain("· Beta");
@@ -52,12 +54,13 @@ describe("SiteFooter", () => {
     expect(html).toContain('href="https://scryfall.com"');
   });
 
-  it("keeps the beta wording for preview, development, and an unset environment", () => {
+  it("keeps Beta and the commit hash for preview, development, and an unset environment", () => {
     const envs: ReleaseEnv[] = [{ VERCEL_ENV: "preview" }, { VERCEL_ENV: "development" }, {}];
     for (const env of envs) {
       const html = footerHtml("cfd27e3", env);
+      const text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
       expect(html).toContain("Spellbranch is currently in beta testing.");
-      expect(html).toContain("· Beta · cfd27e3");
+      expect(text).toMatch(/© 2026 Spellbranch · Created by vulpibyte\.dev · Beta · cfd27e3$/);
       expect(html).not.toContain("v1.0");
     }
   });

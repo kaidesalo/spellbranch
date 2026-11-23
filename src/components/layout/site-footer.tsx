@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { releaseDisclaimer, releaseLabel, type ReleaseEnv } from "@/lib/release-label";
+import { releaseDisclaimer, releaseLabel, showCommit, type ReleaseEnv } from "@/lib/release-label";
 
 // TODO: Kaide does not have Terms of Service, Privacy Policy, or social
 // accounts for Spellbranch yet. Do not add those links or icons until the
@@ -29,9 +29,10 @@ function FooterLink({
  * Site-wide footer. `revision` is a short commit id when the host provides
  * one (VERCEL_GIT_COMMIT_SHA). Omitted in local dev.
  *
- * The release label and the beta disclaimer both come from
- * `@/lib/release-label`. Production shows "v1.0" and drops the disclaimer.
- * Every other environment keeps "Beta" and the disclaimer.
+ * The release label, the beta disclaimer, and whether to show the commit id
+ * all come from `@/lib/release-label`. Production shows "v1.0", drops the
+ * disclaimer, and omits the commit id. Every other environment keeps "Beta",
+ * the disclaimer, and the commit id when one is present.
  */
 export function SiteFooter({
   revision,
@@ -43,6 +44,7 @@ export function SiteFooter({
   const build = revision?.trim();
   const label = releaseLabel(env);
   const disclaimer = releaseDisclaimer(env);
+  const commit = showCommit(env) && build ? ` · ${build}` : "";
   return (
     <footer data-testid="site-footer" className="border-t border-border/70 bg-background">
       <div className="mx-auto min-w-0 max-w-7xl space-y-3 px-4 py-8 text-xs leading-relaxed text-muted-foreground sm:px-6">
@@ -68,7 +70,7 @@ export function SiteFooter({
             vulpibyte.dev
           </FooterLink>{" "}
           · {label}
-          {build ? ` · ${build}` : ""}
+          {commit}
         </p>
       </div>
     </footer>
