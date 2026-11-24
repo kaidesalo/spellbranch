@@ -85,6 +85,68 @@ describe("supabase adapter: decks", () => {
     expect(JSON.stringify(decks)).not.toMatch(/email/i);
   });
 
+  it("signed-out precons lists public precon roots and still skips mine and friends", async () => {
+    const PRECON = "a4313e99-e815-5163-b69d-d4201904719b";
+    const OTHER = "3d4f0f62-2980-50f7-9eea-1b0380dac4c1";
+    const row = (id: string, name: string, updatedAt: string) =>
+      deckRow({
+        id,
+        owner_id: null,
+        name,
+        format: "commander",
+        visibility: "public",
+        allow_forks: true,
+        is_precon: true,
+        forked_from_id: null,
+        updated_at: updatedAt,
+      });
+    const { repo, calls } = repoWith((c) => {
+      if (isTable(c, "decks") && eqValue(c, "is_precon") === true) {
+        return ok([
+          row(OTHER, "Federation Fleet", "2026-11-01T00:00:00.000Z"),
+          row(PRECON, "Counter Blitz Collector's Edition (FINAL FANTASY X)", "2026-11-13T00:00:00.000Z"),
+        ]);
+      }
+      if (isTable(c, "deck_cards")) {
+        return ok([
+          { deck_id: PRECON, quantity: 99, board: "main" },
+          { deck_id: OTHER, quantity: 100, board: "main" },
+        ]);
+      }
+      if (isTable(c, "decks")) return ok([]);
+      return undefined;
+    });
+
+    expect(await repo.listDecks(null, "mine")).toEqual([]);
+    expect(await repo.listDecks(null, "friends")).toEqual([]);
+    expect(calls).toHaveLength(0);
+
+    const decks = await repo.listDecks(null, "precons");
+    expect(decks.map((deck) => [deck.id, deck.name, deck.cardCount])).toEqual([
+      [PRECON, "Counter Blitz Collector's Edition (FINAL FANTASY X)", 99],
+      [OTHER, "Federation Fleet", 100],
+    ]);
+    expect(decks[0]).toMatchObject({
+      ownerId: null,
+      isPrecon: true,
+      visibility: "public",
+      forkedFromId: null,
+      format: "commander",
+    });
+    expect(calls[0]).toMatchObject({ table: "decks", op: "select" });
+    expect(calls[0].filters).toEqual([
+      ["eq", "is_precon", true],
+      ["eq", "visibility", "public"],
+      ["is", "forked_from_id", null],
+    ]);
+    expect(calls[0].order).toEqual(["updated_at", { ascending: false }]);
+    expect(calls[0].columns).toContain("is_precon");
+
+    const signedInAt = calls.length;
+    await repo.listDecks(ME, "precons");
+    expect(calls[signedInAt].filters).toEqual(calls[0].filters);
+  });
+
   it("mine/friends need a viewer and filter on the caller", async () => {
     const { repo, calls } = repoWith((c) => (isTable(c, "decks") ? ok([]) : undefined));
     expect(await repo.listDecks(null, "mine")).toEqual([]);
