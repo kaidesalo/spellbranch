@@ -18,6 +18,7 @@ import {
   normalizeCollectionVisibility,
 } from "@/lib/collection";
 import { commanderProblem, normalizeCommander } from "@/lib/commander";
+import { FORK_IMPORT_DENIED, FORK_IMPORT_NOT_A_FORK, preparedForkCards } from "@/lib/fork-import";
 import {
   FRIEND_MESSAGES,
   canRemove,
@@ -515,6 +516,45 @@ export const localRepository: Repository = {
         card.quantity = quantity;
       }
       deck.updatedAt = new Date().toISOString();
+    });
+  },
+
+  async replaceForkList(userId, deckId, input) {
+    await updateStore((store) => {
+      const deck = editableDeck(store, deckId, userId, FORK_IMPORT_DENIED);
+      if (!deck.forkedFromId) throw new DataError(FORK_IMPORT_NOT_A_FORK);
+      const commander =
+        deck.format === "commander" && input.commander ? normalizeCommander(input.commander) : null;
+      if (commander) {
+        const problem = commanderProblem(commander);
+        if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
+      }
+      const cards = preparedForkCards(input.cards);
+      const colors = normalizeDeckColors(input.colors);
+      assertColorsFitDeck(colors, cards, commander);
+      const now = new Date().toISOString();
+      store.deckCards = store.deckCards.filter((card) => card.deckId !== deckId);
+      for (const card of cards) {
+        store.deckCards.push({
+          id: uuidv4(),
+          deckId,
+          scryfallId: card.scryfallId,
+          cardName: card.cardName,
+          imageUri: scryfallImageOrNull(card.imageUri),
+          manaCost: card.manaCost,
+          typeLine: card.typeLine,
+          colors: card.colors,
+          colorIdentity: card.colorIdentity,
+          oracleText: card.oracleText,
+          quantity: card.quantity,
+          board: normalizeBoard(card.board),
+          categoryId: null,
+          createdAt: now,
+        });
+      }
+      if (deck.format === "commander") deck.commander = commander;
+      deck.colors = colors;
+      deck.updatedAt = now;
     });
   },
 
