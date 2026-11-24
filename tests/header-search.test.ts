@@ -175,6 +175,29 @@ describe("Scryfall catalog", () => {
   });
 });
 
+describe("signed-out header search", () => {
+  it("opens the same dialog from the icon beside sign in and returns focus there", async () => {
+    navState.pathname = "/";
+    render(createElement(SiteHeader, { user: null }));
+    const search = screen.getByRole("button", { name: "Search" });
+    const signIn = screen.getByRole("link", { name: "Sign in" });
+    expect(search.parentElement).toBe(signIn.parentElement);
+    expect(search.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(screen.getAllByRole("button", { name: "Search" })).toEqual([search]);
+
+    search.focus();
+    fireEvent.click(search);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Search Spellbranch")).toBeTruthy();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.activeElement).toBe(search);
+  });
+});
+
 describe("search dialog", () => {
   it("opens from the mobile icon and the desktop Search item, and closes with Esc back to that control", async () => {
     render(createElement(SiteHeader, { user }));
