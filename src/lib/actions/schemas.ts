@@ -68,6 +68,15 @@ export const deckSchema = z.object({
  * client: import derives them from the Scryfall identities of the cards it
  * keeps, so a forged color list can't sneak a card in.
  */
+/** A pasted list applied to a fork the caller already owns. */
+export const forkImportListSchema = z.object({
+  list: z
+    .string()
+    .trim()
+    .min(1, "Paste a deck list.")
+    .max(DECKLIST_MAX_CHARS, "That list is too long to import."),
+});
+
 export const importDeckSchema = z.object({
   name: z
     .string()

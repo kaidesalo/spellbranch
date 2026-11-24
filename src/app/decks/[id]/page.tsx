@@ -30,6 +30,7 @@ import { PreconBadge } from "@/components/decks/deck-grid";
 import { DeleteDeckButton } from "@/components/decks/delete-deck-button";
 import { ForkDeckForm } from "@/components/decks/fork-deck-form";
 import { CopyDeckForm } from "@/components/decks/copy-deck-form";
+import { ImportForkListForm } from "@/components/decks/import-fork-list-form";
 
 export default async function DeckDetailPage({
   params,
@@ -248,6 +249,9 @@ export default async function DeckDetailPage({
               <GitCompareArrows data-icon="inline-start" />
               Compare
             </Button>
+          )}
+          {canEdit && deck.forkedFromId && deck.sourceDeck && (
+            <ImportForkListForm deckId={deck.id} originalName={deck.sourceDeck.name} />
           )}
           {deck.copiedFromDeck && (
             <Button

@@ -19,6 +19,7 @@ import {
 } from "@/lib/collection";
 import { isMissingAvatarPresetColumn } from "@/lib/avatar-presets";
 import { commanderProblem, normalizeColorIdentity, normalizeCommander } from "@/lib/commander";
+import { FORK_IMPORT_DENIED, FORK_IMPORT_NOT_A_FORK, preparedForkCards } from "@/lib/fork-import";
 import { RATE_LIMITED_MESSAGE } from "@/lib/rate-limit/messages";
 import {
   FRIEND_MESSAGES,
@@ -1070,6 +1071,65 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
             .select("id"),
         ) as { id: string }[] | null;
         if (!rows?.length) throw new DataError("Card not found in deck");
+      }
+      await touchDeck(client, deckId);
+    },
+
+    async replaceForkList(userId, deckId, input) {
+      if (!isUuid(deckId)) throw new DataError(FORK_IMPORT_DENIED);
+      const client = await getClient();
+      const deck = await requireOwnDeck(client, userId, deckId, FORK_IMPORT_DENIED);
+      if (deck.isPrecon) throw new DataError(FORK_IMPORT_DENIED);
+      if (!deck.forkedFromId) throw new DataError(FORK_IMPORT_NOT_A_FORK);
+      const commander =
+        deck.format === "commander" && input.commander ? normalizeCommander(input.commander) : null;
+      if (commander) {
+        const problem = commanderProblem(commander);
+        if (problem) throw new DataError(COMMANDER_MESSAGES[problem]);
+      }
+      const cards = preparedForkCards(input.cards);
+      const colors = normalizeDeckColors(input.colors);
+      assertColorsFitDeck(colors, cards, commander);
+
+      // Cards go first so a narrower color identity is not refused by the
+      // cards still on the fork. Each statement is its own request.
+      check(
+        "deck_cards replace delete",
+        await client.from("deck_cards").delete().eq("deck_id", deckId).select("id"),
+      );
+      const { data: updated, error } = await client
+        .from("decks")
+        .update({
+          colors,
+          ...(deck.format === "commander" ? commanderColumns(commander) : {}),
+        })
+        .eq("id", deckId)
+        .eq("owner_id", userId)
+        .select("id");
+      if (error) {
+        if (isColorConflict(error)) throw new DeckColorError(COLOR_CONFLICT);
+        throw new SupabaseDataError("decks replace fork", error.code);
+      }
+      if (!updated?.length) throw new DataError(FORK_IMPORT_DENIED);
+      if (cards.length > 0) {
+        cardColorWrite(
+          "deck_cards replace insert",
+          await client.from("deck_cards").insert(
+            cards.map((card) => ({
+              deck_id: deckId,
+              scryfall_id: card.scryfallId,
+              card_name: card.cardName,
+              image_uri: scryfallImageOrNull(card.imageUri),
+              mana_cost: card.manaCost,
+              type_line: card.typeLine,
+              colors: card.colors,
+              color_identity: card.colorIdentity,
+              oracle_text: card.oracleText,
+              quantity: card.quantity,
+              board: normalizeBoard(card.board),
+            })),
+          ),
+        );
       }
       await touchDeck(client, deckId);
     },

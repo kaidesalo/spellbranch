@@ -44,6 +44,15 @@ export interface DeckInput {
   colors?: string[] | null;
 }
 
+/** The list a fork import saves. Cards already come from Scryfall. */
+export interface ForkListReplacement {
+  cards: CardInput[];
+  /** Ignored unless the deck's format is commander. Null clears the commander. */
+  commander: DeckCommander | null;
+  /** WUBRG colors taken from the imported cards. [] is Colorless. */
+  colors: string[];
+}
+
 export interface CardInput {
   scryfallId: string;
   cardName: string;
@@ -178,6 +187,14 @@ export interface Repository {
    * maybeboard quantities are not color-checked.
    */
   setCardQuantity(userId: string, deckId: string, cardId: string, quantity: number): Promise<void>;
+  /**
+   * Owner only, and only when the deck is a fork. Replaces every card on
+   * that fork with `cards` and, on a Commander deck, sets or clears the
+   * commander. `colors` becomes the deck's colors so the new list fits.
+   * The original deck is not written. A non-owner is refused the same way
+   * as any other edit. A deck that is not a fork is refused.
+   */
+  replaceForkList(userId: string, deckId: string, input: ForkListReplacement): Promise<void>;
   /**
    * Owner only. Moves one row onto another board. The same printing already
    * on the destination is merged (quantity capped at 99) and that row's
