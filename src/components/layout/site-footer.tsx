@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { releaseDisclaimer, releaseLabel, showCommit, type ReleaseEnv } from "@/lib/release-label";
 
 // TODO: Kaide does not have Terms of Service, Privacy Policy, or social
 // accounts for Spellbranch yet. Do not add those links or icons until the
@@ -27,13 +28,27 @@ function FooterLink({
 /**
  * Site-wide footer. `revision` is a short commit id when the host provides
  * one (VERCEL_GIT_COMMIT_SHA). Omitted in local dev.
+ *
+ * The release label, the beta disclaimer, and whether to show the commit id
+ * all come from `@/lib/release-label`. Production shows "v1.0", drops the
+ * disclaimer, and omits the commit id. Every other environment keeps "Beta",
+ * the disclaimer, and the commit id when one is present.
  */
-export function SiteFooter({ revision }: { revision?: string | null }) {
+export function SiteFooter({
+  revision,
+  env = process.env,
+}: {
+  revision?: string | null;
+  env?: ReleaseEnv;
+}) {
   const build = revision?.trim();
+  const label = releaseLabel(env);
+  const disclaimer = releaseDisclaimer(env);
+  const commit = showCommit(env) && build ? ` · ${build}` : "";
   return (
     <footer data-testid="site-footer" className="border-t border-border/70 bg-background">
       <div className="mx-auto min-w-0 max-w-7xl space-y-3 px-4 py-8 text-xs leading-relaxed text-muted-foreground sm:px-6">
-        <p>Spellbranch is currently in beta testing. Features may change and data may be reset.</p>
+        {disclaimer ? <p>{disclaimer}</p> : null}
         <p data-testid="fan-content-disclaimer" className="max-w-full break-words">
           Spellbranch is unofficial Fan Content permitted under the{" "}
           <FooterLink href="https://company.wizards.com/en/legal/fancontentpolicy" newTab>
@@ -54,8 +69,8 @@ export function SiteFooter({ revision }: { revision?: string | null }) {
           <FooterLink href="https://vulpibyte.dev" newTab>
             vulpibyte.dev
           </FooterLink>{" "}
-          · Beta
-          {build ? ` · ${build}` : ""}
+          · {label}
+          {commit}
         </p>
       </div>
     </footer>
