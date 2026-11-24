@@ -94,6 +94,20 @@ describe("decks tabs", () => {
     expect(calls).toEqual(["mine", "public", "precons"]);
   });
 
+  it("shows the precon grid and count for a signed-out visitor", async () => {
+    session.user = null;
+    render(await DecksPage({ searchParams: Promise.resolve({ tab: "precons" }) }));
+    const precons = screen.getByTestId("decks-precons");
+    expect(precons.getAttribute("aria-current")).toBe("page");
+    expect(precons.textContent).toContain("Precons");
+    expect(precons.textContent).toContain("1");
+    expect(screen.getByText("Counter Intelligence public")).toBeTruthy();
+    expect(screen.queryByText("No precons yet")).toBeNull();
+    expect(calls).toEqual(["public", "precons"]);
+    expect(calls).not.toContain("mine");
+    expect(calls).not.toContain("friends");
+  });
+
   it("asks a signed-out visitor to sign in for my decks and only queries public decks", async () => {
     session.user = null;
     render(await DecksPage({ searchParams: Promise.resolve({ tab: "mine" }) }));

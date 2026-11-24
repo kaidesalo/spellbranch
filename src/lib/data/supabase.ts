@@ -698,7 +698,9 @@ async function fetchPair(client: Client, a: string, b: string): Promise<Friendsh
 export function createSupabaseRepository(getClient: ClientFactory): Repository {
   return {
     async listDecks(viewerId, scope) {
-      if (scope !== "public" && !viewerId) return [];
+      // Precons are a public catalog. Only mine and friends need a viewer,
+      // and those return nothing without querying when nobody is signed in.
+      if ((scope === "mine" || scope === "friends") && !viewerId) return [];
       const client = await getClient();
       let query = client.from("decks").select(DECK_COLS);
       if (scope === "mine") {
