@@ -1,7 +1,7 @@
 import { AuthForm } from "@/components/auth/auth-form";
 import { signInAction } from "@/lib/actions/auth";
 import { safeNextPath } from "@/lib/auth/redirect";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionLoad, PROFILE_UNAVAILABLE_MESSAGE } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -13,8 +13,9 @@ export default async function LoginPage({
   const params = await searchParams;
   const next = safeNextPath(typeof params.next === "string" ? params.next : null);
   const returning = typeof params.next === "string";
-  const user = await getSessionUser();
-  if (user) redirect(next);
+  const loaded = await getSessionLoad();
+  if (loaded.status === "ready") redirect(next);
+  const profileUnavailable = loaded.status === "profile-unavailable";
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12">
@@ -27,6 +28,11 @@ export default async function LoginPage({
           <p className="mt-3 text-sm text-muted-foreground">
             After you sign in, you&apos;ll continue to {next}.
           </p>
+        )}
+        {profileUnavailable && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{PROFILE_UNAVAILABLE_MESSAGE}</AlertDescription>
+          </Alert>
         )}
         {params.error === "confirm" && (
           <Alert variant="destructive" className="mt-4">

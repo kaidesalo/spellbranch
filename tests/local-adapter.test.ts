@@ -17,7 +17,11 @@ vi.mock("@/lib/data/store", () => ({
 }));
 
 let sessionUser: { id: string; email: string; username: string; displayName: string } | null = null;
-vi.mock("@/lib/auth/session", () => ({ getSessionUser: async () => sessionUser }));
+vi.mock("@/lib/auth/session", () => ({
+  getSessionUser: async () => sessionUser,
+  getSessionLoad: async () =>
+    sessionUser ? { status: "ready" as const, user: sessionUser } : { status: "anonymous" as const },
+}));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 // findProfileAction reads the client IP from the request headers (review M1).
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
