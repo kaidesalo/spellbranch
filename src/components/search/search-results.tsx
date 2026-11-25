@@ -16,6 +16,8 @@ import { AdvancedFiltersPanel } from "@/components/layout/advanced-filters";
 import { isUuid, scryfallImageOrNull } from "@/lib/data/validation";
 import { SearchCardTile, type SearchCardHit } from "@/components/search/search-card-tile";
 import type { CatalogSet } from "@/lib/header-search";
+import { PRECON_CATALOG } from "@/lib/precons/catalog";
+import { PRECON_PAGE_SIZE, searchPreconCatalog } from "@/lib/precons/browse";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { getCardImage } from "@/lib/scryfall/client";
 import {
@@ -134,6 +136,17 @@ export function SearchResults({
       });
     return () => controller.abort();
   }, [query.dir, query.order, query.q, query.type, query.unique, requestKey]);
+
+  const deckSearch =
+    query.type === "precons"
+      ? searchPreconCatalog(PRECON_CATALOG, query.q, Math.max(PRECON_CATALOG.length, 1))
+      : { matches: [], total: 0 };
+  const [visible, setVisible] = useState({ key: requestKey, sets: PRECON_PAGE_SIZE, decks: PRECON_PAGE_SIZE });
+  if (visible.key !== requestKey) {
+    setVisible({ key: requestKey, sets: PRECON_PAGE_SIZE, decks: PRECON_PAGE_SIZE });
+  }
+  const shownSets = visible.key === requestKey ? visible.sets : PRECON_PAGE_SIZE;
+  const shownDecks = visible.key === requestKey ? visible.decks : PRECON_PAGE_SIZE;
 
   const fresh = result.key === requestKey;
   const cards = fresh ? result.cards : [];
@@ -336,9 +349,41 @@ export function SearchResults({
         </ul>
       )}
 
+      {query.type === "precons" && deckSearch.total > 0 && (
+        <div className="mt-6 min-w-0" data-testid="search-precon-decks">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            {deckSearch.total} official {deckSearch.total === 1 ? "precon" : "precons"}
+          </h2>
+          <ul className="mt-2 flex flex-col gap-2">
+            {deckSearch.matches.slice(0, shownDecks).map((deck) => (
+              <li key={deck.id}>
+                <Link
+                  href={`/decks/${deck.id}`}
+                  className="flex min-h-11 flex-col justify-center rounded-lg border border-border/80 px-3 py-2 hover:bg-secondary"
+                >
+                  <span className="font-medium">{deck.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {deck.commanderName} · {deck.setCode} · {deck.releaseDate.slice(0, 4)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {shownDecks < deckSearch.total && (
+            <Button
+              type="button"
+              className="mt-4 h-11"
+              onClick={() => setVisible((current) => ({ ...current, decks: current.decks + PRECON_PAGE_SIZE }))}
+            >
+              Load more precons
+            </Button>
+          )}
+        </div>
+      )}
+
       {query.type !== "cards" && sets.length > 0 && (
         <ul className="mt-6 flex flex-col gap-2" data-testid="search-set-list">
-          {sets.map((set) => (
+          {sets.slice(0, shownSets).map((set) => (
             <li key={set.id}>
               <Link
                 href={searchPageHref({ q: `e:${set.code}`, type: "cards" })}
@@ -352,6 +397,15 @@ export function SearchResults({
             </li>
           ))}
         </ul>
+      )}
+      {query.type !== "cards" && shownSets < sets.length && (
+        <Button
+          type="button"
+          className="mt-4 h-11"
+          onClick={() => setVisible((current) => ({ ...current, sets: current.sets + PRECON_PAGE_SIZE }))}
+        >
+          Load more
+        </Button>
       )}
 
       {query.type === "cards" && canLoadMore(page, hasMore) && (

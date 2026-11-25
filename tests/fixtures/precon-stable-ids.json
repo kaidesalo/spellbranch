@@ -1,0 +1,303 @@
+[
+  {
+    "fileName": "CounterBlitzCollectorSEditionFinalFantasyX_FIC",
+    "name": "Counter Blitz Collector's Edition (FINAL FANTASY X)",
+    "id": "a4313e99-e815-5163-b69d-d4201904719b",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "CounterBlitzFinalFantasyX_FIC",
+    "name": "Counter Blitz (FINAL FANTASY X)",
+    "id": "dd1a6355-982c-5246-9d88-906fb0722321",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "LimitBreakCollectorSEditionFinalFantasyVii_FIC",
+    "name": "Limit Break Collector's Edition (FINAL FANTASY VII)",
+    "id": "a82b1250-bcd0-5be4-b87e-20567b80036a",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "LimitBreakFinalFantasyVii_FIC",
+    "name": "Limit Break (FINAL FANTASY VII)",
+    "id": "b3c89dad-6a35-583d-b8e8-eddf12c81036",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "RevivalTranceCollectorSEditionFinalFantasyVi_FIC",
+    "name": "Revival Trance Collector's Edition (FINAL FANTASY VI)",
+    "id": "b61bb1f2-6953-5cda-be27-50f6c2f7f47b",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "RevivalTranceFinalFantasyVi_FIC",
+    "name": "Revival Trance (FINAL FANTASY VI)",
+    "id": "04a570a2-5cf9-5706-b2e5-065c2f9477dc",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "ScionsSpellcraftCollectorSEditionFinalFantasyXiv_FIC",
+    "name": "Scions & Spellcraft Collector's Edition (FINAL FANTASY XIV)",
+    "id": "9b75777d-05c0-5f22-a380-c7d10d3b2e7b",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "ScionsSpellcraftFinalFantasyXiv_FIC",
+    "name": "Scions & Spellcraft (FINAL FANTASY XIV)",
+    "id": "fb7e70bc-834c-5b60-8ace-2a5c0452949c",
+    "releaseDate": "2025-06-13",
+    "setCode": "FIC"
+  },
+  {
+    "fileName": "CounterIntelligence_EOC",
+    "name": "Counter Intelligence",
+    "id": "dd4b5ec5-35bf-5311-87e1-d2d30dc09342",
+    "releaseDate": "2025-08-01",
+    "setCode": "EOC"
+  },
+  {
+    "fileName": "WorldShaper_EOC",
+    "name": "World Shaper",
+    "id": "0f7e8637-11d9-507a-b42b-685bbd2a2006",
+    "releaseDate": "2025-08-01",
+    "setCode": "EOC"
+  },
+  {
+    "fileName": "BlightCurse_ECC",
+    "name": "Blight Curse",
+    "id": "a3bbebd0-c09d-53e2-8d0c-ca8afc460b5a",
+    "releaseDate": "2026-01-23",
+    "setCode": "ECC"
+  },
+  {
+    "fileName": "DanceOfTheElements_ECC",
+    "name": "Dance of the Elements",
+    "id": "98cde813-f105-5d64-8004-84869f236012",
+    "releaseDate": "2026-01-23",
+    "setCode": "ECC"
+  },
+  {
+    "fileName": "TurtlePower_TMC",
+    "name": "Turtle Power!",
+    "id": "026efaeb-ecce-5ecd-abcb-b8e662e63531",
+    "releaseDate": "2026-03-06",
+    "setCode": "TMC"
+  },
+  {
+    "fileName": "LoreholdSpirit_SOC",
+    "name": "Lorehold Spirit",
+    "id": "bc9fa7dd-56e5-50fe-9a6d-8c858e18902f",
+    "releaseDate": "2026-04-24",
+    "setCode": "SOC"
+  },
+  {
+    "fileName": "PrismariArtistry_SOC",
+    "name": "Prismari Artistry",
+    "id": "ec1f27bf-89c9-599b-8db8-0cc312e9304f",
+    "releaseDate": "2026-04-24",
+    "setCode": "SOC"
+  },
+  {
+    "fileName": "QuandrixUnlimited_SOC",
+    "name": "Quandrix Unlimited",
+    "id": "b4a57a03-ed41-5e3b-b8e8-94883fd8306b",
+    "releaseDate": "2026-04-24",
+    "setCode": "SOC"
+  },
+  {
+    "fileName": "SilverquillInfluence_SOC",
+    "name": "Silverquill Influence",
+    "id": "ae3bc9cb-88d7-5942-a209-c7615eef7280",
+    "releaseDate": "2026-04-24",
+    "setCode": "SOC"
+  },
+  {
+    "fileName": "WitherbloomPestilence_SOC",
+    "name": "Witherbloom Pestilence",
+    "id": "9755769c-41ae-5582-a477-ec89249d7cbe",
+    "releaseDate": "2026-04-24",
+    "setCode": "SOC"
+  },
+  {
+    "fileName": "GoblinStorm_SLD",
+    "name": "Goblin Storm",
+    "id": "842b9991-6e21-5230-968c-1f520cd1e289",
+    "releaseDate": "2026-05-18",
+    "setCode": "SLD"
+  },
+  {
+    "fileName": "AvengersAssemble_MSC",
+    "name": "Avengers Assemble",
+    "id": "e509d094-4b1f-5dc2-88aa-d671a551f1f4",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "AvengersAssembleCollectorSEdition_MSC",
+    "name": "Avengers Assemble Collector's Edition",
+    "id": "208f2dfc-3c08-5536-ba96-46dbea2f4f35",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "DoomPrevails_MSC",
+    "name": "Doom Prevails",
+    "id": "2fed0531-4938-5daa-afd6-d7a89c774713",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "DoomPrevailsCollectorSEdition_MSC",
+    "name": "Doom Prevails Collector's Edition",
+    "id": "6065be11-0f99-5d5b-85d9-7f796d715a54",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "TheFantasticFour_MSC",
+    "name": "The Fantastic Four",
+    "id": "1b018570-34f3-5092-aee7-339e5d312eda",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "TheFantasticFourCollectorSEdition_MSC",
+    "name": "The Fantastic Four Collector's Edition",
+    "id": "de78806c-1d56-53ff-91fb-579259a31928",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "WakandaForever_MSC",
+    "name": "Wakanda Forever",
+    "id": "1701d1b0-04da-5ec8-95b0-5c338a2b7486",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "WakandaForeverCollectorSEdition_MSC",
+    "name": "Wakanda Forever Collector's Edition",
+    "id": "e4ae5c63-8f80-5d64-a0e9-4298285a95f5",
+    "releaseDate": "2026-06-26",
+    "setCode": "MSC"
+  },
+  {
+    "fileName": "HatsuneMiku_SLD",
+    "name": "Hatsune Miku",
+    "id": "d3603d58-b3d7-5352-8b5e-5c937c050d82",
+    "releaseDate": "2026-08-10",
+    "setCode": "SLD"
+  },
+  {
+    "fileName": "OddsAndEnds_SLD",
+    "name": "Odds and Ends",
+    "id": "0200a884-0256-531a-9528-dc335c72666b",
+    "releaseDate": "2026-09-28",
+    "setCode": "SLD"
+  },
+  {
+    "fileName": "CallingAllAngels_FDC",
+    "name": "Calling All Angels",
+    "id": "4cceb30c-dd4f-574d-993d-f24eb77e91c7",
+    "releaseDate": "2026-10-02",
+    "setCode": "FDC"
+  },
+  {
+    "fileName": "KeenEngineering_FDC",
+    "name": "Keen Engineering",
+    "id": "6b53a61e-0fe3-5ea4-b820-c9dbdf9d934c",
+    "releaseDate": "2026-10-02",
+    "setCode": "FDC"
+  },
+  {
+    "fileName": "MultiverseReforged_FRC",
+    "name": "Multiverse Reforged",
+    "id": "1a23b68f-6612-5ed1-bfb6-9de439e4a01c",
+    "releaseDate": "2026-10-02",
+    "setCode": "FRC"
+  },
+  {
+    "fileName": "ReignOfDragons_FDC",
+    "name": "Reign of Dragons",
+    "id": "4089a81e-7657-53fe-9020-0b8ddf35582b",
+    "releaseDate": "2026-10-02",
+    "setCode": "FDC"
+  },
+  {
+    "fileName": "TramplesaurusRex_FDC",
+    "name": "Tramplesaurus Rex",
+    "id": "e5eefc4b-e93c-5189-aeac-6c60354a7133",
+    "releaseDate": "2026-10-02",
+    "setCode": "FDC"
+  },
+  {
+    "fileName": "WretchedRanks_FDC",
+    "name": "Wretched Ranks",
+    "id": "1751cb51-6bef-5eba-a2ba-d8e173b00120",
+    "releaseDate": "2026-10-02",
+    "setCode": "FDC"
+  },
+  {
+    "fileName": "FederationFleet_TRC",
+    "name": "Federation Fleet",
+    "id": "3d4f0f62-2980-50f7-9eea-1b0380dac4c1",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "FederationFleetCollectorSEdition_TRC",
+    "name": "Federation Fleet Collector's Edition",
+    "id": "0f0f4f1e-84f4-5511-bb0a-0255e179e916",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "KlingonFury_TRC",
+    "name": "Klingon Fury",
+    "id": "8901f24a-baec-5e70-932b-265bd4e110e0",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "KlingonFuryCollectorSEdition_TRC",
+    "name": "Klingon Fury Collector's Edition",
+    "id": "a4b27e4b-df1d-56c8-8f82-83bff5613eaa",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "LandingParty_TRC",
+    "name": "Landing Party",
+    "id": "752f684b-e80e-50ec-bd2e-830949ff8cb8",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "LandingPartyCollectorSEdition_TRC",
+    "name": "Landing Party Collector's Edition",
+    "id": "82438815-e711-5f11-9ccd-6b8ad1c69b4c",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "WeAreTheBorg_TRC",
+    "name": "We Are the Borg",
+    "id": "5653507c-5035-55e5-b725-420cbb35eefd",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  },
+  {
+    "fileName": "WeAreTheBorgCollectorSEdition_TRC",
+    "name": "We Are the Borg Collector's Edition",
+    "id": "ae1ec0e5-698a-5138-98f5-d4b0ac11885c",
+    "releaseDate": "2026-11-13",
+    "setCode": "TRC"
+  }
+]

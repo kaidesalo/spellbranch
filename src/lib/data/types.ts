@@ -29,6 +29,29 @@ import type {
 
 export type DeckScope = "mine" | "friends" | "public" | "precons";
 
+/** Filters for the precon catalog page. Paging is 1-based. */
+export type PreconBrowseQuery = {
+  q?: string;
+  year?: string;
+  set?: string;
+  page?: number;
+  pageSize?: number;
+  /** Deck rows and facet lists only. Skips card and fork reads. */
+  summaryOnly?: boolean;
+};
+
+export type PreconBrowsePage = {
+  decks: DeckWithMeta[];
+  /** Decks that match the current filters. */
+  total: number;
+  /** Official precons before filters. */
+  catalogTotal: number;
+  page: number;
+  pageCount: number;
+  years: string[];
+  sets: string[];
+};
+
 export interface DeckInput {
   name: string;
   format: DeckFormat;
@@ -156,6 +179,11 @@ export interface DeckPermissions {
 export interface Repository {
   // Decks (reads)
   listDecks(viewerId: string | null, scope: DeckScope): Promise<DeckWithMeta[]>;
+  /**
+   * One page of official precons. Deck rows are filtered in memory; card
+   * counts are loaded only for that page. `summaryOnly` skips those counts.
+   */
+  listPreconPage(viewerId: string | null, query?: PreconBrowseQuery): Promise<PreconBrowsePage>;
   /** Forks this user created. Not forks other people made of their decks. */
   listMyBranches(userId: string): Promise<DeckWithMeta[]>;
   /**

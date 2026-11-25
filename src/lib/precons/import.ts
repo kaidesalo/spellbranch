@@ -4,13 +4,17 @@ import { isLegalCommanderTypeLine } from "../commander-legality.ts";
 /**
  * Official Commander precons. MTGJSON is the only source of card lists.
  * A stable id is uuid v5 of the MTGJSON file name, so re-running the
- * importer upserts the same rows.
+ * importer upserts the same rows. Every deck whose type is "Commander Deck"
+ * is in the catalog; there is no release-date window.
  */
 export const PRECON_NAMESPACE = "6f0e2c1a-9b4d-4e7a-8c3f-1d2e3f4a5b6c";
 
-/** 18 months before 18 Nov 2026, inclusive. */
-export const PRECON_RELEASED_FROM = "2025-05-18";
-export const PRECON_RELEASED_TO = "2026-11-18";
+/**
+ * Each seed file stays at or under this size. The previous single file of
+ * 43 decks was 1.9MB and was loaded in the SQL editor; batches stay smaller
+ * than that so each one still fits.
+ */
+export const PRECON_SEED_MAX_BYTES = 1_500_000;
 
 const WUBRG = ["W", "U", "B", "R", "G"] as const;
 const SCRYFALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -31,6 +35,8 @@ export type MtgjsonCard = {
   text?: string | null;
   colors?: string[];
   colorIdentity?: string[];
+  setCode?: string;
+  number?: string;
   identifiers?: { scryfallId?: string };
 };
 
@@ -71,13 +77,22 @@ export function preconId(fileName: string): string {
   return uuidv5(fileName, PRECON_NAMESPACE);
 }
 
+/**
+ * Official Commander precons. `from` and `to` (inclusive, YYYY-MM-DD) are
+ * optional. Omit them to take every Commander Deck MTGJSON lists.
+ */
 export function selectCommanderDecks(
   entries: readonly DeckListEntry[],
-  from = PRECON_RELEASED_FROM,
-  to = PRECON_RELEASED_TO,
+  from?: string,
+  to?: string,
 ): DeckListEntry[] {
   return entries
-    .filter((entry) => entry.type === "Commander Deck" && entry.releaseDate >= from && entry.releaseDate <= to)
+    .filter((entry) => {
+      if (entry.type !== "Commander Deck") return false;
+      if (from && entry.releaseDate < from) return false;
+      if (to && entry.releaseDate > to) return false;
+      return true;
+    })
     .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || a.fileName.localeCompare(b.fileName));
 }
 
@@ -96,25 +111,34 @@ function wubrg(values: readonly string[] | undefined): string[] {
   return WUBRG.filter((color) => present.has(color));
 }
 
-function mapCard(card: MtgjsonCard, where: string): PreconCard {
+function cardIssue(card: MtgjsonCard, where: string): string | null {
   const rawId = card.identifiers?.scryfallId?.trim().toLowerCase() ?? "";
-  if (!SCRYFALL_ID.test(rawId)) {
-    throw new Error(`${where} has no Scryfall id (${card.name ?? "unnamed"})`);
-  }
+  const label = card.name?.trim() || rawId || "unnamed";
+  if (!SCRYFALL_ID.test(rawId)) return `${where} has no Scryfall id (${label})`;
   const quantity = card.count ?? 1;
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-    throw new Error(`${where} quantity ${quantity} is outside 1–99 (${card.name ?? rawId})`);
+    return `${where} quantity ${quantity} is outside 1–99 (${label})`;
   }
   const typeLine = (card.type ?? "").trim();
-  if (!typeLine || typeLine.length > 200) {
-    throw new Error(`${where} type line is missing or too long (${card.name ?? rawId})`);
-  }
+  if (!typeLine || typeLine.length > 200) return `${where} type line is missing or too long (${label})`;
   const name = (card.name ?? "").trim();
-  if (!name || name.length > 200) throw new Error(`${where} card name is missing or too long`);
+  if (!name || name.length > 200) return `${where} card name is missing or too long`;
   const text = card.text?.trim() ? card.text.trim() : null;
-  if (text && text.length > 4000) throw new Error(`${where} oracle text is too long (${name})`);
+  if (text && text.length > 4000) return `${where} oracle text is too long (${name})`;
   const mana = card.manaCost?.trim() ? card.manaCost.trim() : null;
-  if (mana && mana.length > 100) throw new Error(`${where} mana cost is too long (${name})`);
+  if (mana && mana.length > 100) return `${where} mana cost is too long (${name})`;
+  return null;
+}
+
+function mapCard(card: MtgjsonCard, where: string): PreconCard {
+  const issue = cardIssue(card, where);
+  if (issue) throw new Error(issue);
+  const rawId = card.identifiers!.scryfallId!.trim().toLowerCase();
+  const quantity = card.count ?? 1;
+  const typeLine = (card.type ?? "").trim();
+  const name = (card.name ?? "").trim();
+  const text = card.text?.trim() ? card.text.trim() : null;
+  const mana = card.manaCost?.trim() ? card.manaCost.trim() : null;
   return {
     scryfallId: rawId,
     cardName: name,
@@ -173,6 +197,250 @@ export function mapPrecon(entry: DeckListEntry, file: MtgjsonDeckFile): PreconDe
   };
 }
 
+export type PrintingHit = {
+  scryfallId: string;
+  typeLine: string | null;
+  /** How the printing was found. Shown in the import report. */
+  via: "set-number" | "name-set" | "exact-name";
+};
+
+export type PrintingLookup = (card: {
+  name: string;
+  setCode: string;
+  number: string;
+}) => Promise<PrintingHit | null>;
+
+export type PreconResolution = {
+  fileName: string;
+  cardName: string;
+  where: string;
+  scryfallId: string;
+  via: string;
+};
+
+export type PreconCardSkip = {
+  where: string;
+  name: string;
+  reason: string;
+};
+
+export type PreconSkip = {
+  fileName: string;
+  name: string;
+  setCode: string;
+  releaseDate: string;
+  reason: string;
+  cards: PreconCardSkip[];
+};
+
+function scryfallIdOf(card: MtgjsonCard): string {
+  return card.identifiers?.scryfallId?.trim().toLowerCase() ?? "";
+}
+
+function cardLabel(card: MtgjsonCard): string {
+  return card.name?.trim() || scryfallIdOf(card) || "unnamed";
+}
+
+/**
+ * Fill missing Scryfall ids and illegal commander type lines when a lookup
+ * can, then map the deck. A deck is skipped whole when any card is still
+ * unusable, and every such card is listed. Nothing is dropped quietly.
+ */
+export async function importOnePrecon(
+  entry: DeckListEntry,
+  source: MtgjsonDeckFile,
+  lookup: PrintingLookup,
+): Promise<{ ok: true; deck: PreconDeck; resolutions: PreconResolution[] } | { ok: false; skip: PreconSkip }> {
+  const slim = (card: MtgjsonCard): MtgjsonCard => ({
+    name: card.name,
+    count: card.count,
+    type: card.type,
+    manaCost: card.manaCost,
+    text: card.text,
+    colors: card.colors ? [...card.colors] : undefined,
+    colorIdentity: card.colorIdentity ? [...card.colorIdentity] : undefined,
+    setCode: card.setCode,
+    number: card.number,
+    identifiers: card.identifiers?.scryfallId ? { scryfallId: card.identifiers.scryfallId } : undefined,
+  });
+  const file: MtgjsonDeckFile = {
+    name: source.name,
+    code: source.code,
+    type: source.type,
+    releaseDate: source.releaseDate,
+    commander: (source.commander ?? []).map(slim),
+    mainBoard: (source.mainBoard ?? []).map(slim),
+  };
+  const resolutions: PreconResolution[] = [];
+  const commanders = file.commander ?? [];
+  const main = file.mainBoard ?? [];
+
+  async function resolve(card: MtgjsonCard, where: string, needsType: boolean) {
+    const idOk = SCRYFALL_ID.test(scryfallIdOf(card));
+    const typeOk = !needsType || officialCommanderTypeLine((card.type ?? "").trim());
+    if (idOk && typeOk) return;
+    let hit: PrintingHit | null = null;
+    try {
+      hit = await lookup({
+        name: (card.name ?? "").trim(),
+        setCode: (card.setCode ?? entry.code ?? "").trim(),
+        number: (card.number ?? "").trim(),
+      });
+    } catch {
+      hit = null;
+    }
+    if (!idOk) {
+      const id = hit?.scryfallId.trim().toLowerCase() ?? "";
+      if (SCRYFALL_ID.test(id)) {
+        card.identifiers = { ...card.identifiers, scryfallId: id };
+        resolutions.push({
+          fileName: entry.fileName,
+          cardName: cardLabel(card),
+          where,
+          scryfallId: id,
+          via: hit?.via ?? "name-set",
+        });
+      }
+    }
+    if (needsType && !officialCommanderTypeLine((card.type ?? "").trim())) {
+      const typeLine = hit?.typeLine?.trim() ?? "";
+      if (typeLine && typeLine.length <= 200 && officialCommanderTypeLine(typeLine)) {
+        card.type = typeLine;
+        resolutions.push({
+          fileName: entry.fileName,
+          cardName: cardLabel(card),
+          where,
+          scryfallId: scryfallIdOf(card),
+          via: "scryfall type line",
+        });
+      }
+    }
+  }
+
+  for (let index = 0; index < commanders.length; index += 1) {
+    const where = index === 0 ? `${entry.fileName} commander` : `${entry.fileName} commander ${index + 1}`;
+    await resolve(commanders[index]!, where, true);
+  }
+  for (let index = 0; index < main.length; index += 1) {
+    await resolve(main[index]!, `${entry.fileName} mainboard ${index + 1}`, false);
+  }
+
+  const legalIndex = commanders.findIndex((card) => officialCommanderTypeLine((card.type ?? "").trim()));
+  if (legalIndex > 0) {
+    const [chosen] = commanders.splice(legalIndex, 1);
+    commanders.unshift(chosen!);
+    file.commander = commanders;
+    resolutions.push({
+      fileName: entry.fileName,
+      cardName: cardLabel(chosen!),
+      where: `${entry.fileName} commander`,
+      scryfallId: scryfallIdOf(chosen!),
+      via: "legal commander",
+    });
+  }
+
+  const cards: PreconCardSkip[] = [];
+  const positioned: { card: MtgjsonCard; where: string }[] = [
+    ...commanders.map((card, index) => ({
+      card,
+      where: index === 0 ? `${entry.fileName} commander` : `${entry.fileName} commander ${index + 1}`,
+    })),
+    ...main.map((card, index) => ({ card, where: `${entry.fileName} mainboard ${index + 1}` })),
+  ];
+  for (const { card, where } of positioned) {
+    const issue = cardIssue(card, where);
+    if (issue) cards.push({ where, name: cardLabel(card), reason: issue });
+  }
+  if (commanders.length === 0) {
+    cards.push({ where: `${entry.fileName} commander`, name: entry.name, reason: `${entry.fileName} has no commander` });
+  }
+  const stillIllegal =
+    commanders.length > 0 && !commanders.some((card) => officialCommanderTypeLine((card.type ?? "").trim()));
+  if (commanders.length > 0 && stillIllegal) {
+    for (const card of commanders) {
+      const typeLine = (card.type ?? "").trim() || "missing type line";
+      cards.push({
+        where: `${entry.fileName} commander`,
+        name: cardLabel(card),
+        reason: `${entry.fileName} commander is not a legal official type (${typeLine})`,
+      });
+    }
+  }
+
+  const skipBase = {
+    fileName: entry.fileName,
+    name: (file.name ?? entry.name).trim() || entry.fileName,
+    setCode: entry.code,
+    releaseDate: entry.releaseDate,
+  };
+  if (cards.length > 0) {
+    return {
+      ok: false,
+      skip: {
+        ...skipBase,
+        reason: cards.map((card) => card.reason).join("; "),
+        cards,
+      },
+    };
+  }
+
+  try {
+    return { ok: true, deck: mapPrecon(entry, file), resolutions };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "could not map deck";
+    return { ok: false, skip: { ...skipBase, reason, cards: [{ where: entry.fileName, name: skipBase.name, reason }] } };
+  }
+}
+
+export type PreconImportReport = {
+  considered: number;
+  decks: readonly PreconDeck[];
+  skipped: readonly PreconSkip[];
+  resolutions: readonly PreconResolution[];
+};
+
+/** Human-readable account of every skipped deck and every lookup that filled a gap. */
+export function renderPreconReport(report: PreconImportReport): string {
+  const lines = [
+    "# Precon import report",
+    "",
+    "Generated by scripts/import-precons.ts. Not SQL. Do not run this file.",
+    "",
+    `- Commander decks considered: ${report.considered}`,
+    `- Imported: ${report.decks.length}`,
+    `- Skipped decks: ${report.skipped.length}`,
+    `- Cards or commanders filled in by a lookup: ${report.resolutions.length}`,
+    "",
+    "## Skipped decks",
+    "",
+  ];
+  if (report.skipped.length === 0) {
+    lines.push("None.", "");
+  } else {
+    for (const skip of report.skipped) {
+      lines.push(`### ${skip.name} (${skip.fileName})`, "");
+      lines.push(`- Set: ${skip.setCode}`, `- Released: ${skip.releaseDate}`, `- Why: ${skip.reason}`, "");
+      if (skip.cards.length > 0) {
+        lines.push("Cards:", "");
+        for (const card of skip.cards) {
+          lines.push(`- ${card.name} (${card.where}): ${card.reason}`);
+        }
+        lines.push("");
+      }
+    }
+  }
+  lines.push("## Resolved by lookup", "");
+  if (report.resolutions.length === 0) {
+    lines.push("None.", "");
+  } else {
+    for (const row of report.resolutions) {
+      lines.push(`- ${row.fileName} / ${row.cardName} (${row.where}): ${row.via} → ${row.scryfallId}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
 function sqlText(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -191,11 +459,19 @@ function sqlCard(deckId: string, card: PreconCard): string {
 const PRECON_ROW = "(d.is_precon or d.owner_id is null)";
 
 /** Idempotent seed. Refuses to overwrite a deck a person already owns. */
-export function renderPreconSeed(decks: readonly PreconDeck[]): string {
+export function renderPreconSeed(
+  decks: readonly PreconDeck[],
+  batch?: { batch: number; batches: number },
+): string {
   const lines: string[] = [
     "-- Generated by scripts/import-precons.ts. Do not edit by hand.",
-    "-- Run after supabase/checks/precon_preflight.sql and supabase/migrations/018_precons.sql,",
-    "-- as the database owner (SQL editor). Do not run it as anon or authenticated.",
+    "-- Idempotent. Re-running refreshes these official precons and leaves every other deck alone.",
+    "-- Forks are their own rows (a new id, with an owner) and are not modified.",
+    batch
+      ? `-- Batch ${batch.batch} of ${batch.batches}. Load the numbered seed files in order after the preflight.`
+      : "-- Load this file after supabase/checks/precon_preflight.sql.",
+    "-- If migrations 018 and 019 are not already applied, apply them first. 011 is reserved.",
+    "-- Run as the database owner (SQL editor). Do not run it as anon or authenticated.",
     "begin;",
     "",
     "do $precon_seed$",
@@ -294,13 +570,51 @@ export function renderPreconSeed(decks: readonly PreconDeck[]): string {
   return lines.join("\n");
 }
 
+/**
+ * Split a catalog into numbered, independently idempotent seed files.
+ * A single deck that is already over the cap is still written on its own.
+ */
+export function renderPreconSeedBatches(
+  decks: readonly PreconDeck[],
+  maxBytes = PRECON_SEED_MAX_BYTES,
+): { fileName: string; sql: string }[] {
+  const groups: PreconDeck[][] = [];
+  let current: PreconDeck[] = [];
+  for (const deck of decks) {
+    if (current.length === 0) {
+      current = [deck];
+      continue;
+    }
+    const trial = renderPreconSeed([...current, deck], { batch: 1, batches: 1 });
+    if (Buffer.byteLength(trial, "utf8") > maxBytes) {
+      groups.push(current);
+      current = [deck];
+    } else {
+      current.push(deck);
+    }
+  }
+  if (current.length > 0) groups.push(current);
+  const batches = groups.length;
+  return groups.map((group, index) => {
+    const n = index + 1;
+    return {
+      fileName: `precons-${String(n).padStart(2, "0")}.sql`,
+      sql: renderPreconSeed(group, { batch: n, batches }),
+    };
+  });
+}
+
 /** Read-only check for hosted, before migration 018. Zero id rows means the ids are free. */
 export function renderPreconPreflight(decks: readonly PreconDeck[]): string {
   return [
-    "-- Read-only. Run on the hosted database BEFORE migration 018.",
-    "-- The first query lists decks that already use a precon id. Zero rows means those ids are free.",
+    "-- Read-only. Run on the hosted database before the precon seed files.",
+    "-- The first query lists decks that already use a precon id.",
+    "-- Zero rows means those ids are free (a fresh database, before migration 018).",
+    "-- A row with owner_id null is an official precon already loaded; the seed refreshes it in place.",
+    "-- A row with owner_id set is a person's deck. Stop and do not load the seed.",
     "-- The second query counts decks whose owner_id is null. Expect 0 before 018.",
-    "-- SELECT only. No writes and no temporary tables.",
+    "-- After the original catalog is loaded, that count includes those official precons.",
+    "-- SELECT only. No writes.",
     "",
     "select d.id, d.name, d.owner_id",
     "from public.decks d",

@@ -21,6 +21,7 @@ export interface Call {
   filters: Filter[];
   single?: "single" | "maybeSingle";
   order?: unknown[];
+  range?: unknown[];
 }
 
 export type Reply = { data: unknown; error: { code?: string; message?: string; hint?: string } | null };
@@ -95,6 +96,7 @@ export function createMockClient(respond: Responder) {
       is: (...a: unknown[]) => (call.filters.push(["is", ...a]), builder),
       not: (...a: unknown[]) => (call.filters.push(["not", ...a]), builder),
       order: (...a: unknown[]) => ((call.order = a), builder),
+      range: (...a: unknown[]) => ((call.range = a), builder),
       single: () => ((call.single = "single"), builder),
       maybeSingle: () => ((call.single = "maybeSingle"), builder),
       then<T>(resolve: (r: Reply) => T, reject?: (e: unknown) => T) {

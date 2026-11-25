@@ -30,6 +30,7 @@ import {
 } from "@/lib/data/friend-rules";
 import type { CollectionCard } from "@/lib/types";
 import type { FriendRow, Repository } from "@/lib/data/types";
+import { browsePreconDecks } from "@/lib/precons/browse";
 import { USERNAME_RE, isUuid, scryfallImageOrNull } from "@/lib/data/validation";
 import { LIMITS } from "@/lib/data/limits";
 import {
@@ -367,6 +368,21 @@ class SupabaseDataError extends Error {
 function check<T>(op: string, res: { data: T; error: PgError }): T {
   if (res.error) throw new SupabaseDataError(op, res.error.code);
   return res.data;
+}
+
+/** PostgREST caps a response at 1000 rows. Page until a short page comes back. */
+async function eachPage<T>(
+  run: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: PgError }>,
+  op: string,
+): Promise<T[]> {
+  const size = 1000;
+  const all: T[] = [];
+  for (let from = 0; from < 100_000; from += size) {
+    const batch = check(op, await run(from, from + size - 1)) ?? [];
+    all.push(...batch);
+    if (batch.length < size) break;
+  }
+  return all;
 }
 
 /** merge_*_printing RPCs: one transaction for the quantity update and the delete. */
@@ -718,6 +734,74 @@ export function createSupabaseRepository(getClient: ClientFactory): Repository {
         | null;
       const decks = await decorate(client, (rows ?? []).map(toDeck), false);
       return decks.sort(byUpdatedDesc);
+    },
+
+    async listPreconPage(_viewerId, query) {
+      const client = await getClient();
+      const rows = await eachPage<DeckRow>(
+        (from, to) =>
+          client
+            .from("decks")
+            .select(DECK_COLS)
+            .eq("is_precon", true)
+            .eq("visibility", "public")
+            .is("forked_from_id", null)
+            .order("id", { ascending: true })
+            .range(from, to),
+        "precon decks",
+      );
+      const browsed = browsePreconDecks(rows.map(toDeck), query);
+      const meta = {
+        total: browsed.total,
+        catalogTotal: browsed.catalogTotal,
+        page: browsed.page,
+        pageCount: browsed.pageCount,
+        years: browsed.years,
+        sets: browsed.sets,
+      };
+      if (query?.summaryOnly) return { decks: [], ...meta };
+      const ids = browsed.items.map((deck) => deck.id);
+      if (ids.length === 0) return { decks: [], ...meta };
+      const [cardRows, forkRows] = await Promise.all([
+        eachPage<{ deck_id: string; quantity: number; board: string | null }>(
+          (from, to) =>
+            client
+              .from("deck_cards")
+              .select("id, deck_id, quantity, board")
+              .in("deck_id", ids)
+              .order("id", { ascending: true })
+              .range(from, to),
+          "precon card counts",
+        ),
+        eachPage<{ forked_from_id: string | null }>(
+          (from, to) =>
+            client
+              .from("decks")
+              .select("id, forked_from_id")
+              .in("forked_from_id", ids)
+              .order("id", { ascending: true })
+              .range(from, to),
+          "precon forks",
+        ),
+      ]);
+      const cardCount = new Map<string, number>();
+      for (const card of cardRows) {
+        if (!isMainBoard(card.board)) continue;
+        cardCount.set(card.deck_id, (cardCount.get(card.deck_id) ?? 0) + card.quantity);
+      }
+      const forkCount = new Map<string, number>();
+      for (const fork of forkRows) {
+        if (!fork.forked_from_id) continue;
+        forkCount.set(fork.forked_from_id, (forkCount.get(fork.forked_from_id) ?? 0) + 1);
+      }
+      return {
+        decks: browsed.items.map((deck) => ({
+          ...deck,
+          cardCount: cardCount.get(deck.id) ?? 0,
+          forkCount: forkCount.get(deck.id) ?? 0,
+        })),
+        ...meta,
+      };
     },
 
     async listMyBranches(userId) {

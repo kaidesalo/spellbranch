@@ -20,6 +20,8 @@ import {
 } from "@/lib/advanced-search";
 import { AdvancedFiltersPanel } from "@/components/layout/advanced-filters";
 import { HEADER_SEARCH_DEBOUNCE_MS, HEADER_SEARCH_MIN_QUERY } from "@/lib/header-search";
+import { PRECON_CATALOG } from "@/lib/precons/catalog";
+import { preconListHref, searchPreconCatalog } from "@/lib/precons/browse";
 import { buildSuggestions, searchPageHref } from "@/lib/search-results";
 
 function useNameSuggestions(query: string) {
@@ -81,6 +83,7 @@ function SearchDialogBody() {
   const [active, setActive] = useState(0);
   const { suggestions, loading, error } = useNameSuggestions(query);
   const compiled = compileAdvancedQuery(query, filters);
+  const preconHits = searchPreconCatalog(PRECON_CATALOG, query);
   const cardsHref = [...query.trim()].length >= HEADER_SEARCH_MIN_QUERY
     ? searchPageHref({ q: query.trim(), type: "cards" })
     : "";
@@ -231,6 +234,50 @@ function SearchDialogBody() {
         </p>
         {loading && <p className="text-sm text-muted-foreground">Searching names…</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {preconHits.total > 0 && (
+          <div data-testid="header-precon-hits">
+            <p className="text-xs font-medium text-muted-foreground">
+              Precons
+              {preconHits.total > preconHits.matches.length
+                ? ` · showing ${preconHits.matches.length} of ${preconHits.total}`
+                : ` · ${preconHits.total}`}
+            </p>
+            <ul className="mt-1 flex flex-col gap-1">
+              {preconHits.matches.map((deck) => (
+                <li key={deck.id}>
+                  <DialogClose
+                    nativeButton={false}
+                    render={
+                      <Link
+                        href={`/decks/${deck.id}`}
+                        className="flex min-h-11 flex-col justify-center rounded-lg px-3 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    }
+                  >
+                    <span className="truncate text-sm font-medium">{deck.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {deck.commanderName} · {deck.setCode} · {deck.releaseDate.slice(0, 4)}
+                    </span>
+                  </DialogClose>
+                </li>
+              ))}
+            </ul>
+            {preconHits.total > preconHits.matches.length && (
+              <DialogClose
+                nativeButton={false}
+                render={
+                  <Link
+                    href={preconListHref({ q: query.trim() })}
+                    className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                }
+              >
+                See all {preconHits.total} precons
+              </DialogClose>
+            )}
+          </div>
+        )}
 
         <Link
           href="/browse"

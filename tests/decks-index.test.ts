@@ -10,6 +10,7 @@ const session = vi.hoisted(() => ({
     | null,
 }));
 const calls = vi.hoisted(() => [] as string[]);
+const preconCalls = vi.hoisted(() => [] as string[]);
 
 vi.mock("next/link", () => ({
   default: ({
@@ -40,6 +41,20 @@ vi.mock("@/lib/queries/decks", () => ({
     if (scope === "mine") return [{ id: "mine", name: "Secret List", visibility: "private" }];
     throw new Error(`unexpected scope ${scope}`);
   },
+  listPreconPage: async (query: { summaryOnly?: boolean }) => {
+    preconCalls.push(query?.summaryOnly ? "summary" : "page");
+    return {
+      decks: query?.summaryOnly
+        ? []
+        : [{ id: "pre", name: "Counter Intelligence", visibility: "public", isPrecon: true }],
+      total: 1,
+      catalogTotal: 1,
+      page: 1,
+      pageCount: 1,
+      years: ["2025"],
+      sets: ["EOC"],
+    };
+  },
 }));
 
 vi.mock("@/components/decks/deck-grid", () => ({
@@ -59,6 +74,7 @@ const { default: MyCardsPage } = await import("@/app/my-cards/page");
 beforeEach(() => {
   session.user = { id: "me", email: "me@example.test", username: "me", displayName: "Me" };
   calls.length = 0;
+  preconCalls.length = 0;
 });
 
 afterEach(() => {
@@ -83,15 +99,18 @@ describe("decks tabs", () => {
     expect(screen.queryByText("Open List public")).toBeNull();
     expect(screen.queryByRole("link", { name: "Collection" })).toBeNull();
     expect(screen.queryByText(/collection/i)).toBeNull();
-    expect(calls).toEqual(["mine", "public", "precons"]);
+    expect(calls).toEqual(["mine", "public"]);
+    expect(preconCalls).toEqual(["summary"]);
 
     cleanup();
     calls.length = 0;
+    preconCalls.length = 0;
     render(await DecksPage({ searchParams: Promise.resolve({ tab: "public" }) }));
     expect(screen.getByRole("link", { name: /Public decks/ }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Open List public")).toBeTruthy();
     expect(screen.queryByText("Secret List private")).toBeNull();
-    expect(calls).toEqual(["mine", "public", "precons"]);
+    expect(calls).toEqual(["mine", "public"]);
+    expect(preconCalls).toEqual(["summary"]);
   });
 
   it("shows the precon grid and count for a signed-out visitor", async () => {
@@ -102,8 +121,12 @@ describe("decks tabs", () => {
     expect(precons.textContent).toContain("Precons");
     expect(precons.textContent).toContain("1");
     expect(screen.getByText("Counter Intelligence public")).toBeTruthy();
+    expect(screen.getByTestId("precon-filters")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Filter precons by year" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Filter precons by set" })).toBeTruthy();
     expect(screen.queryByText("No precons yet")).toBeNull();
-    expect(calls).toEqual(["public", "precons"]);
+    expect(calls).toEqual(["public"]);
+    expect(preconCalls).toEqual(["page"]);
     expect(calls).not.toContain("mine");
     expect(calls).not.toContain("friends");
   });
@@ -115,7 +138,8 @@ describe("decks tabs", () => {
     const next = decodeURIComponent(link.getAttribute("href")?.split("next=")[1] ?? "");
     expect(next).toBe("/decks");
     expect(screen.getByRole("heading", { name: "Sign in to see your decks" })).toBeTruthy();
-    expect(calls).toEqual(["public", "precons"]);
+    expect(calls).toEqual(["public"]);
+    expect(preconCalls).toEqual(["summary"]);
     expect(calls).not.toContain("mine");
     expect(calls).not.toContain("friends");
   });

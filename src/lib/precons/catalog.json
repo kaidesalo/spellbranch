@@ -1,0 +1,1650 @@
+[
+  {
+    "id": "2d5e9293-8f9b-58f3-856b-76bda45cad80",
+    "slug": "Counterpunch_CMD",
+    "name": "Counterpunch",
+    "setCode": "CMD",
+    "releaseDate": "2011-06-17",
+    "commanderName": "Ghave, Guru of Spores"
+  },
+  {
+    "id": "5c681987-4d93-5268-8373-fce913ab6047",
+    "slug": "DevourForPower_CMD",
+    "name": "Devour for Power",
+    "setCode": "CMD",
+    "releaseDate": "2011-06-17",
+    "commanderName": "The Mimeoplasm"
+  },
+  {
+    "id": "f239449b-ee4c-512c-a5bc-8d53c44baee9",
+    "slug": "HeavenlyInferno_CMD",
+    "name": "Heavenly Inferno",
+    "setCode": "CMD",
+    "releaseDate": "2011-06-17",
+    "commanderName": "Kaalia of the Vast"
+  },
+  {
+    "id": "b7b89131-ac39-5813-bb16-ad79b5034ef5",
+    "slug": "MirrorMastery_CMD",
+    "name": "Mirror Mastery",
+    "setCode": "CMD",
+    "releaseDate": "2011-06-17",
+    "commanderName": "Riku of Two Reflections"
+  },
+  {
+    "id": "98da2356-03a5-5dc5-91cf-eeb2c9288981",
+    "slug": "PoliticalPuppets_CMD",
+    "name": "Political Puppets",
+    "setCode": "CMD",
+    "releaseDate": "2011-06-17",
+    "commanderName": "Zedruu the Greathearted"
+  },
+  {
+    "id": "d6d61201-1838-5b50-8a94-6795d965a86f",
+    "slug": "EternalBargain_C13",
+    "name": "Eternal Bargain",
+    "setCode": "C13",
+    "releaseDate": "2013-11-01",
+    "commanderName": "Oloro, Ageless Ascetic"
+  },
+  {
+    "id": "184b0c11-d25c-5884-9203-306f14c2aa5b",
+    "slug": "EvasiveManeuvers_C13",
+    "name": "Evasive Maneuvers",
+    "setCode": "C13",
+    "releaseDate": "2013-11-01",
+    "commanderName": "Derevi, Empyrial Tactician"
+  },
+  {
+    "id": "32051bf9-f11c-50df-a477-863729395f9f",
+    "slug": "MindSeize_C13",
+    "name": "Mind Seize",
+    "setCode": "C13",
+    "releaseDate": "2013-11-01",
+    "commanderName": "Jeleva, Nephalia's Scourge"
+  },
+  {
+    "id": "210c15cc-3051-56d3-9537-e37876bc2669",
+    "slug": "NatureOfTheBeast_C13",
+    "name": "Nature of the Beast",
+    "setCode": "C13",
+    "releaseDate": "2013-11-01",
+    "commanderName": "Marath, Will of the Wild"
+  },
+  {
+    "id": "8c5c76c5-20a2-5764-98f4-c42395eaaa34",
+    "slug": "PowerHungry_C13",
+    "name": "Power Hungry",
+    "setCode": "C13",
+    "releaseDate": "2013-11-01",
+    "commanderName": "Prossh, Skyraider of Kher"
+  },
+  {
+    "id": "42e9ff6e-cadb-575f-ad80-ab5eb8e7f6c1",
+    "slug": "BuiltFromScratch_C14",
+    "name": "Built From Scratch",
+    "setCode": "C14",
+    "releaseDate": "2014-11-07",
+    "commanderName": "Daretti, Scrap Savant"
+  },
+  {
+    "id": "d5a3578f-c360-5083-aae0-22624ba3aa9c",
+    "slug": "ForgedInStone_C14",
+    "name": "Forged In Stone",
+    "setCode": "C14",
+    "releaseDate": "2014-11-07",
+    "commanderName": "Nahiri, the Lithomancer"
+  },
+  {
+    "id": "4002a208-b0dd-5f67-a838-3508448e41fb",
+    "slug": "GuidedByNature_C14",
+    "name": "Guided By Nature",
+    "setCode": "C14",
+    "releaseDate": "2014-11-07",
+    "commanderName": "Freyalise, Llanowar's Fury"
+  },
+  {
+    "id": "c35a81dc-24eb-5907-8c51-a0850a7667d6",
+    "slug": "PeerThroughTime_C14",
+    "name": "Peer Through Time",
+    "setCode": "C14",
+    "releaseDate": "2014-11-07",
+    "commanderName": "Teferi, Temporal Archmage"
+  },
+  {
+    "id": "a616253f-5ac8-5407-baa5-89a207aa4bfd",
+    "slug": "SwornToDarkness_C14",
+    "name": "Sworn To Darkness",
+    "setCode": "C14",
+    "releaseDate": "2014-11-07",
+    "commanderName": "Ob Nixilis of the Black Oath"
+  },
+  {
+    "id": "18598448-453f-5a2d-bd94-2af13812bf9d",
+    "slug": "CallTheSpirits_C15",
+    "name": "Call the Spirits",
+    "setCode": "C15",
+    "releaseDate": "2015-11-13",
+    "commanderName": "Daxos the Returned"
+  },
+  {
+    "id": "deea9346-8b67-5354-9db3-78cdfd5d1687",
+    "slug": "PlunderTheGraves_C15",
+    "name": "Plunder the Graves",
+    "setCode": "C15",
+    "releaseDate": "2015-11-13",
+    "commanderName": "Meren of Clan Nel Toth"
+  },
+  {
+    "id": "37681b0d-4b74-50d2-9c5f-8e9a74cfb515",
+    "slug": "SeizeControl_C15",
+    "name": "Seize Control",
+    "setCode": "C15",
+    "releaseDate": "2015-11-13",
+    "commanderName": "Mizzix of the Izmagnus"
+  },
+  {
+    "id": "13745218-e10b-5053-9811-fab7a77f2df8",
+    "slug": "SwellTheHost_C15",
+    "name": "Swell the Host",
+    "setCode": "C15",
+    "releaseDate": "2015-11-13",
+    "commanderName": "Ezuri, Claw of Progress"
+  },
+  {
+    "id": "419a3def-c033-5282-99f7-483abbb724e3",
+    "slug": "WadeIntoBattle_C15",
+    "name": "Wade into Battle",
+    "setCode": "C15",
+    "releaseDate": "2015-11-13",
+    "commanderName": "Kalemne, Disciple of Iroas"
+  },
+  {
+    "id": "2c61d3ba-7f95-5a3e-bf3e-76a3b049e929",
+    "slug": "BreedLethality_C16",
+    "name": "Breed Lethality",
+    "setCode": "C16",
+    "releaseDate": "2016-11-11",
+    "commanderName": "Atraxa, Praetors' Voice"
+  },
+  {
+    "id": "dbc50188-2042-5a1d-a470-84fd05df8440",
+    "slug": "EntropicUprising_C16",
+    "name": "Entropic Uprising",
+    "setCode": "C16",
+    "releaseDate": "2016-11-11",
+    "commanderName": "Yidris, Maelstrom Wielder"
+  },
+  {
+    "id": "a5ac9466-1d8f-5d4f-b38e-2d6e82832e08",
+    "slug": "InventSuperiority_C16",
+    "name": "Invent Superiority",
+    "setCode": "C16",
+    "releaseDate": "2016-11-11",
+    "commanderName": "Breya, Etherium Shaper"
+  },
+  {
+    "id": "9632984b-aca9-5eca-ace5-ec63d93e018d",
+    "slug": "OpenHostility_C16",
+    "name": "Open Hostility",
+    "setCode": "C16",
+    "releaseDate": "2016-11-11",
+    "commanderName": "Saskia the Unyielding"
+  },
+  {
+    "id": "cad5c5a6-8f1a-5c8f-a029-975fc721d960",
+    "slug": "StalwartUnity_C16",
+    "name": "Stalwart Unity",
+    "setCode": "C16",
+    "releaseDate": "2016-11-11",
+    "commanderName": "Kynaios and Tiro of Meletis"
+  },
+  {
+    "id": "9503b2b8-9c07-503f-acf1-0a326f85149c",
+    "slug": "EvasiveManeuvers_CMA",
+    "name": "Evasive Maneuvers",
+    "setCode": "CMA",
+    "releaseDate": "2017-06-09",
+    "commanderName": "Derevi, Empyrial Tactician"
+  },
+  {
+    "id": "716f8b16-870d-59ab-8f2c-4c02a27d113e",
+    "slug": "GuidedByNature_CMA",
+    "name": "Guided by Nature",
+    "setCode": "CMA",
+    "releaseDate": "2017-06-09",
+    "commanderName": "Freyalise, Llanowar's Fury"
+  },
+  {
+    "id": "1a443f17-8a0b-522f-aaa6-513c20830e77",
+    "slug": "HeavenlyInferno_CMA",
+    "name": "Heavenly Inferno",
+    "setCode": "CMA",
+    "releaseDate": "2017-06-09",
+    "commanderName": "Kaalia of the Vast"
+  },
+  {
+    "id": "d0a03afd-6e46-5a77-acc2-e216a4f34659",
+    "slug": "PlunderTheGraves_CMA",
+    "name": "Plunder the Graves",
+    "setCode": "CMA",
+    "releaseDate": "2017-06-09",
+    "commanderName": "Meren of Clan Nel Toth"
+  },
+  {
+    "id": "77c7f7ec-5995-54b2-8e3d-82ecd573f557",
+    "slug": "ArcaneWizardry_C17",
+    "name": "Arcane Wizardry",
+    "setCode": "C17",
+    "releaseDate": "2017-08-25",
+    "commanderName": "Inalla, Archmage Ritualist"
+  },
+  {
+    "id": "6220af00-6c9f-50c4-be52-4182c22f1b7a",
+    "slug": "DraconicDomination_C17",
+    "name": "Draconic Domination",
+    "setCode": "C17",
+    "releaseDate": "2017-08-25",
+    "commanderName": "The Ur-Dragon"
+  },
+  {
+    "id": "edc778d6-ffcb-5f9b-b549-6a5e1be7a197",
+    "slug": "FelineFerocity_C17",
+    "name": "Feline Ferocity",
+    "setCode": "C17",
+    "releaseDate": "2017-08-25",
+    "commanderName": "Arahbo, Roar of the World"
+  },
+  {
+    "id": "467903a3-fbe4-5cdf-a7ed-e11d79f91fd3",
+    "slug": "VampiricBloodlust_C17",
+    "name": "Vampiric Bloodlust",
+    "setCode": "C17",
+    "releaseDate": "2017-08-25",
+    "commanderName": "Edgar Markov"
+  },
+  {
+    "id": "7b679133-3c8a-59b9-a0f6-7a01ef6bcb64",
+    "slug": "BreedLethality_CM2",
+    "name": "Breed Lethality",
+    "setCode": "CM2",
+    "releaseDate": "2018-06-08",
+    "commanderName": "Atraxa, Praetors' Voice"
+  },
+  {
+    "id": "dd8564ba-6e61-592f-a8cd-de6f3915e2d0",
+    "slug": "BuiltFromScratch_CM2",
+    "name": "Built From Scratch",
+    "setCode": "CM2",
+    "releaseDate": "2018-06-08",
+    "commanderName": "Daretti, Scrap Savant"
+  },
+  {
+    "id": "1bbaeca8-7050-5df9-9f52-954aba12b6e8",
+    "slug": "DevourForPower_CM2",
+    "name": "Devour for Power",
+    "setCode": "CM2",
+    "releaseDate": "2018-06-08",
+    "commanderName": "The Mimeoplasm"
+  },
+  {
+    "id": "bdb2eef5-2cbd-5b1f-9546-a9a199c6a62b",
+    "slug": "WadeIntoBattle_CM2",
+    "name": "Wade into Battle",
+    "setCode": "CM2",
+    "releaseDate": "2018-06-08",
+    "commanderName": "Kalemne, Disciple of Iroas"
+  },
+  {
+    "id": "82e5aa88-82c2-57ea-bb5f-ed534ef938f4",
+    "slug": "AdaptiveEnchantment_C18",
+    "name": "Adaptive Enchantment",
+    "setCode": "C18",
+    "releaseDate": "2018-08-10",
+    "commanderName": "Estrid, the Masked"
+  },
+  {
+    "id": "a3742993-a7e1-525b-a3be-1a129652ef94",
+    "slug": "ExquisiteInvention_C18",
+    "name": "Exquisite Invention",
+    "setCode": "C18",
+    "releaseDate": "2018-08-10",
+    "commanderName": "Saheeli, the Gifted"
+  },
+  {
+    "id": "de61c1bb-f577-535a-ab77-3577a331f79c",
+    "slug": "NatureSVengeance_C18",
+    "name": "Nature's Vengeance",
+    "setCode": "C18",
+    "releaseDate": "2018-08-10",
+    "commanderName": "Lord Windgrace"
+  },
+  {
+    "id": "2c9efd3d-9c10-5980-843e-6856c8135e37",
+    "slug": "SubjectiveReality_C18",
+    "name": "Subjective Reality",
+    "setCode": "C18",
+    "releaseDate": "2018-08-10",
+    "commanderName": "Aminatou, the Fateshifter"
+  },
+  {
+    "id": "25675818-649c-5f95-889e-3ea429623ff4",
+    "slug": "FacelessMenace_C19",
+    "name": "Faceless Menace",
+    "setCode": "C19",
+    "releaseDate": "2019-08-23",
+    "commanderName": "Kadena, Slinking Sorcerer"
+  },
+  {
+    "id": "960b60b6-c36a-5103-bbfc-ac4046c5205c",
+    "slug": "MercilessRage_C19",
+    "name": "Merciless Rage",
+    "setCode": "C19",
+    "releaseDate": "2019-08-23",
+    "commanderName": "Anje Falkenrath"
+  },
+  {
+    "id": "4c922a34-9b2b-51aa-a4db-815017a4132a",
+    "slug": "MysticIntellect_C19",
+    "name": "Mystic Intellect",
+    "setCode": "C19",
+    "releaseDate": "2019-08-23",
+    "commanderName": "Sevinne, the Chronoclasm"
+  },
+  {
+    "id": "ac8e3e01-b316-5a79-80ab-d796f4f5eff9",
+    "slug": "PrimalGenesis_C19",
+    "name": "Primal Genesis",
+    "setCode": "C19",
+    "releaseDate": "2019-08-23",
+    "commanderName": "Ghired, Conclave Exile"
+  },
+  {
+    "id": "64d2d119-877e-5347-9444-eb07a21adf58",
+    "slug": "ArcaneMaelstrom_C20",
+    "name": "Arcane Maelstrom",
+    "setCode": "C20",
+    "releaseDate": "2020-04-17",
+    "commanderName": "Kalamax, the Stormsire"
+  },
+  {
+    "id": "4d032a65-8670-55a4-b983-3757ed095ce2",
+    "slug": "EnhancedEvolution_C20",
+    "name": "Enhanced Evolution",
+    "setCode": "C20",
+    "releaseDate": "2020-04-17",
+    "commanderName": "Otrimi, the Ever-Playful"
+  },
+  {
+    "id": "4fd20b12-36ba-5679-97e6-3741deb0cfa5",
+    "slug": "RuthlessRegiment_C20",
+    "name": "Ruthless Regiment",
+    "setCode": "C20",
+    "releaseDate": "2020-04-17",
+    "commanderName": "Jirina Kudro"
+  },
+  {
+    "id": "bcf86842-257a-542f-93cc-08bf5ccf2ae7",
+    "slug": "SymbioticSwarm_C20",
+    "name": "Symbiotic Swarm",
+    "setCode": "C20",
+    "releaseDate": "2020-04-17",
+    "commanderName": "Kathril, Aspect Warper"
+  },
+  {
+    "id": "c939601e-eec7-54be-ae56-9744cb0cbde9",
+    "slug": "TimelessWisdom_C20",
+    "name": "Timeless Wisdom",
+    "setCode": "C20",
+    "releaseDate": "2020-04-17",
+    "commanderName": "Gavi, Nest Warden"
+  },
+  {
+    "id": "d7429e2f-3114-5739-b3c8-43f5749930a1",
+    "slug": "LandSWrath_ZNC",
+    "name": "Land's Wrath",
+    "setCode": "ZNC",
+    "releaseDate": "2020-09-25",
+    "commanderName": "Obuun, Mul Daya Ancestor"
+  },
+  {
+    "id": "0d87bfe8-66e1-5cf2-acd9-615fbbc93eaf",
+    "slug": "SneakAttack_ZNC",
+    "name": "Sneak Attack",
+    "setCode": "ZNC",
+    "releaseDate": "2020-09-25",
+    "commanderName": "Anowon, the Ruin Thief"
+  },
+  {
+    "id": "1179e3a4-76e5-5178-b49b-03887cf90a6b",
+    "slug": "ArmForBattle_CMR",
+    "name": "Arm for Battle",
+    "setCode": "CMR",
+    "releaseDate": "2020-11-20",
+    "commanderName": "Wyleth, Soul of Steel"
+  },
+  {
+    "id": "19ce7f39-1116-5992-9b32-f5ea4bd1d340",
+    "slug": "ReapTheTides_CMR",
+    "name": "Reap the Tides",
+    "setCode": "CMR",
+    "releaseDate": "2020-11-20",
+    "commanderName": "Aesi, Tyrant of Gyre Strait"
+  },
+  {
+    "id": "40219160-6b95-5c2f-81fd-89f329e73dbd",
+    "slug": "ElvenEmpire_KHC",
+    "name": "Elven Empire",
+    "setCode": "KHC",
+    "releaseDate": "2021-02-05",
+    "commanderName": "Lathril, Blade of the Elves"
+  },
+  {
+    "id": "cfadddca-8cb4-5c1d-a347-a2b063a23d48",
+    "slug": "PhantomPremonition_KHC",
+    "name": "Phantom Premonition",
+    "setCode": "KHC",
+    "releaseDate": "2021-02-05",
+    "commanderName": "Ranar the Ever-Watchful"
+  },
+  {
+    "id": "8f0077ba-2a3a-5802-95ba-14751b31f5b7",
+    "slug": "LoreholdLegacies_C21",
+    "name": "Lorehold Legacies",
+    "setCode": "C21",
+    "releaseDate": "2021-04-23",
+    "commanderName": "Osgir, the Reconstructor"
+  },
+  {
+    "id": "f2187526-4135-5bc5-b445-83bab6c1a526",
+    "slug": "PrismariPerformance_C21",
+    "name": "Prismari Performance",
+    "setCode": "C21",
+    "releaseDate": "2021-04-23",
+    "commanderName": "Zaffai, Thunder Conductor"
+  },
+  {
+    "id": "bba988d8-64e6-54d3-9303-499ac4cd5dd3",
+    "slug": "QuantumQuandrix_C21",
+    "name": "Quantum Quandrix",
+    "setCode": "C21",
+    "releaseDate": "2021-04-23",
+    "commanderName": "Adrix and Nev, Twincasters"
+  },
+  {
+    "id": "513812c5-1a80-589c-8506-76215a5aae7c",
+    "slug": "SilverquillStatement_C21",
+    "name": "Silverquill Statement",
+    "setCode": "C21",
+    "releaseDate": "2021-04-23",
+    "commanderName": "Breena, the Demagogue"
+  },
+  {
+    "id": "a57831f1-30ea-5282-a830-59abbce3363b",
+    "slug": "WitherbloomWitchcraft_C21",
+    "name": "Witherbloom Witchcraft",
+    "setCode": "C21",
+    "releaseDate": "2021-04-23",
+    "commanderName": "Willowdusk, Essence Seer"
+  },
+  {
+    "id": "3c629067-9eb2-5833-a6be-266e14452adc",
+    "slug": "AuraOfCourage_AFC",
+    "name": "Aura of Courage",
+    "setCode": "AFC",
+    "releaseDate": "2021-07-23",
+    "commanderName": "Galea, Kindler of Hope"
+  },
+  {
+    "id": "d3762f91-8a1f-51e5-820f-ef134aaac0c8",
+    "slug": "DraconicRage_AFC",
+    "name": "Draconic Rage",
+    "setCode": "AFC",
+    "releaseDate": "2021-07-23",
+    "commanderName": "Vrondiss, Rage of Ancients"
+  },
+  {
+    "id": "411d4d27-5bef-5af6-97ff-8ce3ab643a00",
+    "slug": "DungeonsOfDeath_AFC",
+    "name": "Dungeons of Death",
+    "setCode": "AFC",
+    "releaseDate": "2021-07-23",
+    "commanderName": "Sefris of the Hidden Ways"
+  },
+  {
+    "id": "45b041d4-7e49-5c6f-9e62-ffa98b2c9ca9",
+    "slug": "PlanarPortal_AFC",
+    "name": "Planar Portal",
+    "setCode": "AFC",
+    "releaseDate": "2021-07-23",
+    "commanderName": "Prosper, Tome-Bound"
+  },
+  {
+    "id": "e651b71d-addf-57f8-9ced-8af3f54e9058",
+    "slug": "CovenCounters_MIC",
+    "name": "Coven Counters",
+    "setCode": "MIC",
+    "releaseDate": "2021-09-24",
+    "commanderName": "Leinore, Autumn Sovereign"
+  },
+  {
+    "id": "231db3c4-1b14-5068-8bdd-64161a1afde0",
+    "slug": "UndeadUnleashed_MIC",
+    "name": "Undead Unleashed",
+    "setCode": "MIC",
+    "releaseDate": "2021-09-24",
+    "commanderName": "Wilhelt, the Rotcleaver"
+  },
+  {
+    "id": "b2fd8ad5-46f5-5b9c-8cf1-38fb62a97eae",
+    "slug": "SpiritSquadron_VOC",
+    "name": "Spirit Squadron",
+    "setCode": "VOC",
+    "releaseDate": "2021-11-19",
+    "commanderName": "Millicent, Restless Revenant"
+  },
+  {
+    "id": "6b26e6ba-1630-57df-8bc9-0ecdde861b4e",
+    "slug": "VampiricBloodline_VOC",
+    "name": "Vampiric Bloodline",
+    "setCode": "VOC",
+    "releaseDate": "2021-11-19",
+    "commanderName": "Strefan, Maurer Progenitor"
+  },
+  {
+    "id": "85aa981e-8f17-5278-ba22-ba3485dab487",
+    "slug": "BuckleUp_NEC",
+    "name": "Buckle Up",
+    "setCode": "NEC",
+    "releaseDate": "2022-02-18",
+    "commanderName": "Kotori, Pilot Prodigy"
+  },
+  {
+    "id": "f5e8dac2-34af-531a-8797-1d5ebabab768",
+    "slug": "UpgradesUnleashed_NEC",
+    "name": "Upgrades Unleashed",
+    "setCode": "NEC",
+    "releaseDate": "2022-02-18",
+    "commanderName": "Chishiro, the Shattered Blade"
+  },
+  {
+    "id": "4a3305c8-70ea-5d26-9fa1-11900c055878",
+    "slug": "HeadsIWinTailsYouLose_SLD",
+    "name": "Heads I Win, Tails You Lose",
+    "setCode": "SLD",
+    "releaseDate": "2022-04-22",
+    "commanderName": "Zndrsplt, Eye of Wisdom // Zndrsplt, Eye of Wisdom"
+  },
+  {
+    "id": "8a1f4c66-373d-5d1a-a805-b5101e03af6c",
+    "slug": "BedeckedBrokers_NCC",
+    "name": "Bedecked Brokers",
+    "setCode": "NCC",
+    "releaseDate": "2022-04-29",
+    "commanderName": "Perrie, the Pulverizer"
+  },
+  {
+    "id": "aa533278-7754-573a-971d-a15ab93162ae",
+    "slug": "CabarettiCacophony_NCC",
+    "name": "Cabaretti Cacophony",
+    "setCode": "NCC",
+    "releaseDate": "2022-04-29",
+    "commanderName": "Kitt Kanto, Mayhem Diva"
+  },
+  {
+    "id": "2186ef0b-01c5-5779-aa30-87eefc997cad",
+    "slug": "MaestrosMassacre_NCC",
+    "name": "Maestros Massacre",
+    "setCode": "NCC",
+    "releaseDate": "2022-04-29",
+    "commanderName": "Anhelo, the Painter"
+  },
+  {
+    "id": "de605c13-337a-53c1-9dae-21f7dfc1be5a",
+    "slug": "ObscuraOperation_NCC",
+    "name": "Obscura Operation",
+    "setCode": "NCC",
+    "releaseDate": "2022-04-29",
+    "commanderName": "Kamiz, Obscura Oculus"
+  },
+  {
+    "id": "36d84304-afb1-5458-9d5c-177fc158bb6e",
+    "slug": "RiveteersRampage_NCC",
+    "name": "Riveteers Rampage",
+    "setCode": "NCC",
+    "releaseDate": "2022-04-29",
+    "commanderName": "Henzie \"Toolbox\" Torre"
+  },
+  {
+    "id": "62a2b0dd-2a3a-5a6d-8708-475d3b7cb004",
+    "slug": "DraconicDissent_CLB",
+    "name": "Draconic Dissent",
+    "setCode": "CLB",
+    "releaseDate": "2022-06-10",
+    "commanderName": "Firkraag, Cunning Instigator"
+  },
+  {
+    "id": "da6b5f94-6d53-53bb-ab9a-0a147744c950",
+    "slug": "ExitFromExile_CLB",
+    "name": "Exit from Exile",
+    "setCode": "CLB",
+    "releaseDate": "2022-06-10",
+    "commanderName": "Faldorn, Dread Wolf Herald"
+  },
+  {
+    "id": "bb3b6e54-9b58-565a-80b1-9824dd793faa",
+    "slug": "MindFlayarrrs_CLB",
+    "name": "Mind Flayarrrs",
+    "setCode": "CLB",
+    "releaseDate": "2022-06-10",
+    "commanderName": "Captain N'ghathrod"
+  },
+  {
+    "id": "5feae231-c3b8-5397-9dd0-58dce0d91df4",
+    "slug": "PartyTime_CLB",
+    "name": "Party Time",
+    "setCode": "CLB",
+    "releaseDate": "2022-06-10",
+    "commanderName": "Nalia de'Arnise"
+  },
+  {
+    "id": "a348425d-907a-52f1-8cb2-821650679753",
+    "slug": "LegendsLegacy_DMC",
+    "name": "Legends' Legacy",
+    "setCode": "DMC",
+    "releaseDate": "2022-09-09",
+    "commanderName": "Dihada, Binder of Wills"
+  },
+  {
+    "id": "6b53590b-729b-55b5-8f1c-942d8c9d1e6e",
+    "slug": "Painbow_DMC",
+    "name": "Painbow",
+    "setCode": "DMC",
+    "releaseDate": "2022-09-09",
+    "commanderName": "Jared Carthalion"
+  },
+  {
+    "id": "1310863b-a97d-58f3-bb4c-74ab3e21de89",
+    "slug": "ForcesOfTheImperium_40K",
+    "name": "Forces of the Imperium",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "Inquisitor Greyfax"
+  },
+  {
+    "id": "82855868-7624-5dd3-b06e-4c0a34b85943",
+    "slug": "ForcesOfTheImperiumCollectorSEdition_40K",
+    "name": "Forces of the Imperium Collector's Edition",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "Inquisitor Greyfax"
+  },
+  {
+    "id": "46008ecf-e32b-5eec-b91f-59f7496d75fd",
+    "slug": "NecronDynasties_40K",
+    "name": "Necron Dynasties",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "Szarekh, the Silent King"
+  },
+  {
+    "id": "d1513cf3-561b-53db-9111-6691b243be5a",
+    "slug": "NecronDynastiesCollectorSEdition_40K",
+    "name": "Necron Dynasties Collector's Edition",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "Szarekh, the Silent King"
+  },
+  {
+    "id": "6dd913bb-d012-52f0-9469-b62bdf53ed06",
+    "slug": "TheRuinousPowers_40K",
+    "name": "The Ruinous Powers",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "Abaddon the Despoiler"
+  },
+  {
+    "id": "bc378ba5-ee14-5a59-911d-338d980b763e",
+    "slug": "TheRuinousPowersCollectorSEdition_40K",
+    "name": "The Ruinous Powers Collector's Edition",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "Abaddon the Despoiler"
+  },
+  {
+    "id": "20306688-6a98-50ed-978a-bd5746c266ee",
+    "slug": "TyranidSwarm_40K",
+    "name": "Tyranid Swarm",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "The Swarmlord"
+  },
+  {
+    "id": "5161c49c-7e27-5cad-aa9b-34cd1b6da5f1",
+    "slug": "TyranidSwarmCollectorSEdition_40K",
+    "name": "Tyranid Swarm Collector's Edition",
+    "setCode": "40K",
+    "releaseDate": "2022-10-07",
+    "commanderName": "The Swarmlord"
+  },
+  {
+    "id": "28d50ad9-4ddf-5a03-8c0d-b51e715a0a90",
+    "slug": "MishraSBurnishedBanner_BRC",
+    "name": "Mishra's Burnished Banner",
+    "setCode": "BRC",
+    "releaseDate": "2022-11-18",
+    "commanderName": "Mishra, Eminent One"
+  },
+  {
+    "id": "aaf8a49e-c078-5bca-8f73-79327425394c",
+    "slug": "UrzaSIronAlliance_BRC",
+    "name": "Urza's Iron Alliance",
+    "setCode": "BRC",
+    "releaseDate": "2022-11-18",
+    "commanderName": "Urza, Chief Artificer"
+  },
+  {
+    "id": "d3bdb0d8-b839-5337-9570-baf9f19aad08",
+    "slug": "ChaosIncarnate_SCD",
+    "name": "Chaos Incarnate",
+    "setCode": "SCD",
+    "releaseDate": "2022-12-02",
+    "commanderName": "Kardur, Doomscourge"
+  },
+  {
+    "id": "6a75ea3b-b303-5095-8bd0-b5a2b04792ac",
+    "slug": "DraconicDestruction_SCD",
+    "name": "Draconic Destruction",
+    "setCode": "SCD",
+    "releaseDate": "2022-12-02",
+    "commanderName": "Atarka, World Render"
+  },
+  {
+    "id": "19fd7d36-fecc-5a01-a63b-7d558dd6f0b8",
+    "slug": "FirstFlight_SCD",
+    "name": "First Flight",
+    "setCode": "SCD",
+    "releaseDate": "2022-12-02",
+    "commanderName": "Isperia, Supreme Judge"
+  },
+  {
+    "id": "ce19ede9-e641-5dc1-9af5-5caa2eef8f8b",
+    "slug": "GraveDanger_SCD",
+    "name": "Grave Danger",
+    "setCode": "SCD",
+    "releaseDate": "2022-12-02",
+    "commanderName": "Gisa and Geralf"
+  },
+  {
+    "id": "b929d7c7-651c-59b2-9a77-45b706d0e8ad",
+    "slug": "TokenTriumph_SCD",
+    "name": "Token Triumph",
+    "setCode": "SCD",
+    "releaseDate": "2022-12-02",
+    "commanderName": "Emmara, Soul of the Accord"
+  },
+  {
+    "id": "d054440c-3c6f-57b3-b927-b2a4213aae22",
+    "slug": "CorruptingInfluence_ONC",
+    "name": "Corrupting Influence",
+    "setCode": "ONC",
+    "releaseDate": "2023-02-10",
+    "commanderName": "Ixhel, Scion of Atraxa"
+  },
+  {
+    "id": "8ff6be2a-53cd-54e5-a4b4-1d458b0c5177",
+    "slug": "RebellionRising_ONC",
+    "name": "Rebellion Rising",
+    "setCode": "ONC",
+    "releaseDate": "2023-02-10",
+    "commanderName": "Neyali, Suns' Vanguard"
+  },
+  {
+    "id": "bca26fbf-856e-5dcc-ab4f-d3d6d7d1b761",
+    "slug": "CallForBackup_MOC",
+    "name": "Call for Backup",
+    "setCode": "MOC",
+    "releaseDate": "2023-04-21",
+    "commanderName": "Bright-Palm, Soul Awakener"
+  },
+  {
+    "id": "76f18117-dfce-5315-b2b4-4edc42dcc0aa",
+    "slug": "CavalryCharge_MOC",
+    "name": "Cavalry Charge",
+    "setCode": "MOC",
+    "releaseDate": "2023-04-21",
+    "commanderName": "Sidar Jabari of Zhalfir"
+  },
+  {
+    "id": "0dc5ad79-8383-5af4-9d33-f28deb9b41bc",
+    "slug": "DivineConvocation_MOC",
+    "name": "Divine Convocation",
+    "setCode": "MOC",
+    "releaseDate": "2023-04-21",
+    "commanderName": "Kasla, the Broken Halo"
+  },
+  {
+    "id": "285f4347-7f3e-5c19-a14e-c91f7c0a432a",
+    "slug": "GrowingThreat_MOC",
+    "name": "Growing Threat",
+    "setCode": "MOC",
+    "releaseDate": "2023-04-21",
+    "commanderName": "Brimaz, Blight of Oreskos"
+  },
+  {
+    "id": "db14dd47-9b8a-5101-9f10-4dbbd5c00833",
+    "slug": "TinkerTime_MOC",
+    "name": "Tinker Time",
+    "setCode": "MOC",
+    "releaseDate": "2023-04-21",
+    "commanderName": "Gimbal, Gremlin Prodigy"
+  },
+  {
+    "id": "aa6fdef7-a910-5216-909e-6685189bae23",
+    "slug": "FromCuteToBrute_SLD",
+    "name": "From Cute to Brute",
+    "setCode": "SLD",
+    "releaseDate": "2023-05-08",
+    "commanderName": "Esika, God of the Tree // The Prismatic Bridge"
+  },
+  {
+    "id": "795bff49-71db-54f5-9b8e-0af672270d05",
+    "slug": "ElvenCouncil_LTC",
+    "name": "Elven Council",
+    "setCode": "LTC",
+    "releaseDate": "2023-06-23",
+    "commanderName": "Galadriel, Elven-Queen"
+  },
+  {
+    "id": "48139454-4698-5c27-a221-87e5458f2e14",
+    "slug": "FoodAndFellowship_LTC",
+    "name": "Food and Fellowship",
+    "setCode": "LTC",
+    "releaseDate": "2023-06-23",
+    "commanderName": "Frodo, Adventurous Hobbit"
+  },
+  {
+    "id": "cba1a58f-1488-50f1-8eb8-9b34889243db",
+    "slug": "RidersOfRohan_LTC",
+    "name": "Riders of Rohan",
+    "setCode": "LTC",
+    "releaseDate": "2023-06-23",
+    "commanderName": "Éowyn, Shieldmaiden"
+  },
+  {
+    "id": "0d134679-ad13-5ed1-ac4f-1ba402476013",
+    "slug": "TheHostsOfMordor_LTC",
+    "name": "The Hosts of Mordor",
+    "setCode": "LTC",
+    "releaseDate": "2023-06-23",
+    "commanderName": "Sauron, Lord of the Rings"
+  },
+  {
+    "id": "5c729ab5-902a-5bbc-82bc-2df2cc85a6a3",
+    "slug": "EldraziUnbound_CMM",
+    "name": "Eldrazi Unbound",
+    "setCode": "CMM",
+    "releaseDate": "2023-08-04",
+    "commanderName": "Zhulodok, Void Gorger"
+  },
+  {
+    "id": "c3e2a6c7-24db-52b6-a358-0fb9a96b1f08",
+    "slug": "EnduringEnchantments_CMM",
+    "name": "Enduring Enchantments",
+    "setCode": "CMM",
+    "releaseDate": "2023-08-04",
+    "commanderName": "Anikthea, Hand of Erebos"
+  },
+  {
+    "id": "53712123-08f3-5120-adac-073c06281a81",
+    "slug": "PlaneswalkerParty_CMM",
+    "name": "Planeswalker Party",
+    "setCode": "CMM",
+    "releaseDate": "2023-08-04",
+    "commanderName": "Commodore Guff"
+  },
+  {
+    "id": "0c7c426d-ecac-5ea4-8eab-8a2a49d19946",
+    "slug": "SliverSwarm_CMM",
+    "name": "Sliver Swarm",
+    "setCode": "CMM",
+    "releaseDate": "2023-08-04",
+    "commanderName": "Sliver Gravemother"
+  },
+  {
+    "id": "7fcea7eb-a0d8-5f78-901f-4bb4c90650ae",
+    "slug": "AngelsTheyReJustLikeUsButCoolerAndWithWings_SLD",
+    "name": "Angels: They're Just Like Us but Cooler and with Wings",
+    "setCode": "SLD",
+    "releaseDate": "2023-08-14",
+    "commanderName": "Gisela, the Broken Blade // Brisela, Voice of Nightmares"
+  },
+  {
+    "id": "011c5bdf-a8c6-5fcf-930a-84eb6c946420",
+    "slug": "FaeDominion_WOC",
+    "name": "Fae Dominion",
+    "setCode": "WOC",
+    "releaseDate": "2023-09-08",
+    "commanderName": "Tegwyll, Duke of Splendor"
+  },
+  {
+    "id": "8b15442d-55c6-5db3-8cb4-305f27cfb54a",
+    "slug": "VirtueAndValor_WOC",
+    "name": "Virtue and Valor",
+    "setCode": "WOC",
+    "releaseDate": "2023-09-08",
+    "commanderName": "Ellivere of the Wild Court"
+  },
+  {
+    "id": "7ff8b508-5cb5-5da0-8269-4d48c42d9d74",
+    "slug": "BlastFromThePast_WHO",
+    "name": "Blast from the Past",
+    "setCode": "WHO",
+    "releaseDate": "2023-10-13",
+    "commanderName": "The Fourth Doctor"
+  },
+  {
+    "id": "54bf63de-cf3e-5c01-8c8e-883110fd0981",
+    "slug": "MastersOfEvil_WHO",
+    "name": "Masters of Evil",
+    "setCode": "WHO",
+    "releaseDate": "2023-10-13",
+    "commanderName": "Davros, Dalek Creator"
+  },
+  {
+    "id": "23b914ee-2f27-591f-b832-07284874897d",
+    "slug": "ParadoxPower_WHO",
+    "name": "Paradox Power",
+    "setCode": "WHO",
+    "releaseDate": "2023-10-13",
+    "commanderName": "The Thirteenth Doctor"
+  },
+  {
+    "id": "f4b62699-bb8f-5052-91a7-1866c2af2bb4",
+    "slug": "TimeyWimey_WHO",
+    "name": "Timey-Wimey",
+    "setCode": "WHO",
+    "releaseDate": "2023-10-13",
+    "commanderName": "The Tenth Doctor"
+  },
+  {
+    "id": "e3f5d3f8-0f9d-50aa-9b31-d3f9481600e1",
+    "slug": "AhoyMateys_LCC",
+    "name": "Ahoy Mateys",
+    "setCode": "LCC",
+    "releaseDate": "2023-11-17",
+    "commanderName": "Admiral Brass, Unsinkable"
+  },
+  {
+    "id": "768d2d69-511c-5045-b3e5-c757df0a56ba",
+    "slug": "BloodRites_LCC",
+    "name": "Blood Rites",
+    "setCode": "LCC",
+    "releaseDate": "2023-11-17",
+    "commanderName": "Clavileño, First of the Blessed"
+  },
+  {
+    "id": "e2f530e4-4b8a-521c-a3c4-b6982d1d7991",
+    "slug": "ExplorersOfTheDeep_LCC",
+    "name": "Explorers of the Deep",
+    "setCode": "LCC",
+    "releaseDate": "2023-11-17",
+    "commanderName": "Hakbal of the Surging Soul"
+  },
+  {
+    "id": "b459b14d-1ca2-5bb0-92ad-9648a7d10a7c",
+    "slug": "VelociRampTor_LCC",
+    "name": "Veloci-Ramp-Tor",
+    "setCode": "LCC",
+    "releaseDate": "2023-11-17",
+    "commanderName": "Pantlaza, Sun-Favored"
+  },
+  {
+    "id": "e1d2ee46-268b-5d13-bdff-b17fc33cd57a",
+    "slug": "RainingCatsAndDogs_SLD",
+    "name": "Raining Cats and Dogs",
+    "setCode": "SLD",
+    "releaseDate": "2024-01-22",
+    "commanderName": "Rin and Seri, Inseparable // Rin and Seri, Inseparable"
+  },
+  {
+    "id": "951185e7-c7f8-5f01-9bda-3202c72d54ca",
+    "slug": "BlameGame_MKC",
+    "name": "Blame Game",
+    "setCode": "MKC",
+    "releaseDate": "2024-02-09",
+    "commanderName": "Nelly Borca, Impulsive Accuser"
+  },
+  {
+    "id": "9dfae168-bff6-5097-8ab7-47f8b61ee92b",
+    "slug": "DeadlyDisguise_MKC",
+    "name": "Deadly Disguise",
+    "setCode": "MKC",
+    "releaseDate": "2024-02-09",
+    "commanderName": "Kaust, Eyes of the Glade"
+  },
+  {
+    "id": "f137f79c-7c12-5bd8-808d-2ca94ec1a732",
+    "slug": "DeepClueSea_MKC",
+    "name": "Deep Clue Sea",
+    "setCode": "MKC",
+    "releaseDate": "2024-02-09",
+    "commanderName": "Morska, Undersea Sleuth"
+  },
+  {
+    "id": "4c419385-4ccc-513e-a492-1d9bd17536c1",
+    "slug": "RevenantRecon_MKC",
+    "name": "Revenant Recon",
+    "setCode": "MKC",
+    "releaseDate": "2024-02-09",
+    "commanderName": "Mirko, Obsessive Theorist"
+  },
+  {
+    "id": "9c145f61-703d-5578-b480-6a553c273204",
+    "slug": "HailCaesar_PIP",
+    "name": "Hail, Caesar",
+    "setCode": "PIP",
+    "releaseDate": "2024-03-08",
+    "commanderName": "Caesar, Legion's Emperor"
+  },
+  {
+    "id": "71d07706-b567-5010-84ab-f2cc0bba6ea7",
+    "slug": "MutantMenace_PIP",
+    "name": "Mutant Menace",
+    "setCode": "PIP",
+    "releaseDate": "2024-03-08",
+    "commanderName": "The Wise Mothman"
+  },
+  {
+    "id": "92161f3a-15fc-5747-9d9b-4f87149e4812",
+    "slug": "Science_PIP",
+    "name": "Science!",
+    "setCode": "PIP",
+    "releaseDate": "2024-03-08",
+    "commanderName": "Dr. Madison Li"
+  },
+  {
+    "id": "fb1deea5-3a83-5cba-bb4d-32ffa4d942b5",
+    "slug": "ScrappySurvivors_PIP",
+    "name": "Scrappy Survivors",
+    "setCode": "PIP",
+    "releaseDate": "2024-03-08",
+    "commanderName": "Dogmeat, Ever Loyal"
+  },
+  {
+    "id": "73bf8980-4f36-57a1-aa2e-5af96bb25db8",
+    "slug": "DesertBloom_OTC",
+    "name": "Desert Bloom",
+    "setCode": "OTC",
+    "releaseDate": "2024-04-19",
+    "commanderName": "Yuma, Proud Protector"
+  },
+  {
+    "id": "a124e959-6852-5d7a-94a1-93e03dd47e86",
+    "slug": "GrandLarceny_OTC",
+    "name": "Grand Larceny",
+    "setCode": "OTC",
+    "releaseDate": "2024-04-19",
+    "commanderName": "Gonti, Canny Acquisitor"
+  },
+  {
+    "id": "a246f035-1e04-568b-bba9-3f429382abc9",
+    "slug": "MostWanted_OTC",
+    "name": "Most Wanted",
+    "setCode": "OTC",
+    "releaseDate": "2024-04-19",
+    "commanderName": "Olivia, Opulent Outlaw"
+  },
+  {
+    "id": "69908968-7b3e-5354-8d9d-37176447eafc",
+    "slug": "QuickDraw_OTC",
+    "name": "Quick Draw",
+    "setCode": "OTC",
+    "releaseDate": "2024-04-19",
+    "commanderName": "Stella Lee, Wild Card"
+  },
+  {
+    "id": "15c35342-5f92-5feb-bb15-6084837706c2",
+    "slug": "CreativeEnergy_M3C",
+    "name": "Creative Energy",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Satya, Aetherflux Genius"
+  },
+  {
+    "id": "c30141a1-f37e-532e-b49e-31b875e6eff2",
+    "slug": "CreativeEnergyCollectorSEdition_M3C",
+    "name": "Creative Energy Collector's Edition",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Satya, Aetherflux Genius"
+  },
+  {
+    "id": "0bb13725-a7c0-5a99-bee7-ccfb78be341a",
+    "slug": "EldraziIncursion_M3C",
+    "name": "Eldrazi Incursion",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Ulalek, Fused Atrocity"
+  },
+  {
+    "id": "7b62d100-c357-5bfd-a006-c0c3e5cdef71",
+    "slug": "EldraziIncursionCollectorSEdition_M3C",
+    "name": "Eldrazi Incursion Collector's Edition",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Ulalek, Fused Atrocity"
+  },
+  {
+    "id": "cf6c4ee5-6080-5a61-842e-e410c63b760c",
+    "slug": "GraveyardOverdrive_M3C",
+    "name": "Graveyard Overdrive",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Disa the Restless"
+  },
+  {
+    "id": "9e8178b5-644b-5f03-8836-b11aea0d1f61",
+    "slug": "GraveyardOverdriveCollectorSEdition_M3C",
+    "name": "Graveyard Overdrive Collector's Edition",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Disa the Restless"
+  },
+  {
+    "id": "103b09b7-fa5e-51d7-9178-e1384df63d1d",
+    "slug": "TrickyTerrain_M3C",
+    "name": "Tricky Terrain",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Omo, Queen of Vesuva"
+  },
+  {
+    "id": "e8089669-ee17-58d7-96a2-18c5afd383da",
+    "slug": "TrickyTerrainCollectorSEdition_M3C",
+    "name": "Tricky Terrain Collector's Edition",
+    "setCode": "M3C",
+    "releaseDate": "2024-06-14",
+    "commanderName": "Omo, Queen of Vesuva"
+  },
+  {
+    "id": "b851cc00-0943-5f53-a6c9-56664daf21dd",
+    "slug": "AnimatedArmy_BLC",
+    "name": "Animated Army",
+    "setCode": "BLC",
+    "releaseDate": "2024-08-02",
+    "commanderName": "Bello, Bard of the Brambles"
+  },
+  {
+    "id": "826c9390-2f42-5a24-bd9b-d776132206f1",
+    "slug": "FamilyMatters_BLC",
+    "name": "Family Matters",
+    "setCode": "BLC",
+    "releaseDate": "2024-08-02",
+    "commanderName": "Zinnia, Valley's Voice"
+  },
+  {
+    "id": "1a8b7187-1209-51c8-86a6-1e70add9b8a6",
+    "slug": "PeaceOffering_BLC",
+    "name": "Peace Offering",
+    "setCode": "BLC",
+    "releaseDate": "2024-08-02",
+    "commanderName": "Ms. Bumbleflower"
+  },
+  {
+    "id": "ab4c2307-eb48-54c3-9890-89b6ae9e7c18",
+    "slug": "SquirreledAway_BLC",
+    "name": "Squirreled Away",
+    "setCode": "BLC",
+    "releaseDate": "2024-08-02",
+    "commanderName": "Hazel of the Rootbloom"
+  },
+  {
+    "id": "7a8f791f-e5dc-5a11-b840-3b80805aa540",
+    "slug": "DeathToll_DSC",
+    "name": "Death Toll",
+    "setCode": "DSC",
+    "releaseDate": "2024-09-27",
+    "commanderName": "Winter, Cynical Opportunist"
+  },
+  {
+    "id": "b43e0463-8f5c-5200-93db-914f0afe8243",
+    "slug": "EndlessPunishment_DSC",
+    "name": "Endless Punishment",
+    "setCode": "DSC",
+    "releaseDate": "2024-09-27",
+    "commanderName": "Valgavoth, Harrower of Souls"
+  },
+  {
+    "id": "bc3ffd2a-809a-506c-bbd8-e3da1df309c2",
+    "slug": "JumpScare_DSC",
+    "name": "Jump Scare!",
+    "setCode": "DSC",
+    "releaseDate": "2024-09-27",
+    "commanderName": "Zimone, Mystery Unraveler"
+  },
+  {
+    "id": "4e17478b-b4af-504e-98c6-4c25fc00acf8",
+    "slug": "MiracleWorker_DSC",
+    "name": "Miracle Worker",
+    "setCode": "DSC",
+    "releaseDate": "2024-09-27",
+    "commanderName": "Aminatou, Veil Piercer"
+  },
+  {
+    "id": "55ae2802-29ec-512e-8964-de55b6a7ddad",
+    "slug": "20WaysToWin_SLD",
+    "name": "20 Ways to Win",
+    "setCode": "SLD",
+    "releaseDate": "2024-12-04",
+    "commanderName": "Go-Shintai of Life's Origin"
+  },
+  {
+    "id": "2e919386-cac8-597d-8dc1-e70a34ce8842",
+    "slug": "EternalMight_DRC",
+    "name": "Eternal Might",
+    "setCode": "DRC",
+    "releaseDate": "2025-02-14",
+    "commanderName": "Temmet, Naktamun's Will"
+  },
+  {
+    "id": "b2ba9b07-24e3-556a-9895-322d4f584079",
+    "slug": "LivingEnergy_DRC",
+    "name": "Living Energy",
+    "setCode": "DRC",
+    "releaseDate": "2025-02-14",
+    "commanderName": "Saheeli, Radiant Creator"
+  },
+  {
+    "id": "56be3f93-0a78-5177-8ea4-7b492f3099ca",
+    "slug": "AbzanArmor_TDC",
+    "name": "Abzan Armor",
+    "setCode": "TDC",
+    "releaseDate": "2025-04-11",
+    "commanderName": "Felothar the Steadfast"
+  },
+  {
+    "id": "7c37d6a9-dfdb-5a7e-8a56-b3be96ee06ef",
+    "slug": "JeskaiStriker_TDC",
+    "name": "Jeskai Striker",
+    "setCode": "TDC",
+    "releaseDate": "2025-04-11",
+    "commanderName": "Shiko and Narset, Unified"
+  },
+  {
+    "id": "047520f0-d352-5e36-ae07-6a5ecd545555",
+    "slug": "MarduSurge_TDC",
+    "name": "Mardu Surge",
+    "setCode": "TDC",
+    "releaseDate": "2025-04-11",
+    "commanderName": "Zurgo Stormrender"
+  },
+  {
+    "id": "46acbc22-402f-5c2b-9670-0a01169086cb",
+    "slug": "SultaiArisen_TDC",
+    "name": "Sultai Arisen",
+    "setCode": "TDC",
+    "releaseDate": "2025-04-11",
+    "commanderName": "Teval, the Balanced Scale"
+  },
+  {
+    "id": "9fe3cf55-7314-5890-8a3e-1c33322ecd69",
+    "slug": "TemurRoar_TDC",
+    "name": "Temur Roar",
+    "setCode": "TDC",
+    "releaseDate": "2025-04-11",
+    "commanderName": "Eshki, Temur's Roar"
+  },
+  {
+    "id": "c3c01723-aaf2-5e51-92e8-5c4144b49a92",
+    "slug": "EveryoneSInvited_SLD",
+    "name": "Everyone's Invited!",
+    "setCode": "SLD",
+    "releaseDate": "2025-05-12",
+    "commanderName": "Morophon, the Boundless"
+  },
+  {
+    "id": "a4313e99-e815-5163-b69d-d4201904719b",
+    "slug": "CounterBlitzCollectorSEditionFinalFantasyX_FIC",
+    "name": "Counter Blitz Collector's Edition (FINAL FANTASY X)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Tidus, Yuna's Guardian"
+  },
+  {
+    "id": "dd1a6355-982c-5246-9d88-906fb0722321",
+    "slug": "CounterBlitzFinalFantasyX_FIC",
+    "name": "Counter Blitz (FINAL FANTASY X)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Tidus, Yuna's Guardian"
+  },
+  {
+    "id": "a82b1250-bcd0-5be4-b87e-20567b80036a",
+    "slug": "LimitBreakCollectorSEditionFinalFantasyVii_FIC",
+    "name": "Limit Break Collector's Edition (FINAL FANTASY VII)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Cloud, Ex-SOLDIER"
+  },
+  {
+    "id": "b3c89dad-6a35-583d-b8e8-eddf12c81036",
+    "slug": "LimitBreakFinalFantasyVii_FIC",
+    "name": "Limit Break (FINAL FANTASY VII)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Cloud, Ex-SOLDIER"
+  },
+  {
+    "id": "b61bb1f2-6953-5cda-be27-50f6c2f7f47b",
+    "slug": "RevivalTranceCollectorSEditionFinalFantasyVi_FIC",
+    "name": "Revival Trance Collector's Edition (FINAL FANTASY VI)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Terra, Herald of Hope"
+  },
+  {
+    "id": "04a570a2-5cf9-5706-b2e5-065c2f9477dc",
+    "slug": "RevivalTranceFinalFantasyVi_FIC",
+    "name": "Revival Trance (FINAL FANTASY VI)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Terra, Herald of Hope"
+  },
+  {
+    "id": "9b75777d-05c0-5f22-a380-c7d10d3b2e7b",
+    "slug": "ScionsSpellcraftCollectorSEditionFinalFantasyXiv_FIC",
+    "name": "Scions & Spellcraft Collector's Edition (FINAL FANTASY XIV)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Y'shtola, Night's Blessed"
+  },
+  {
+    "id": "fb7e70bc-834c-5b60-8ace-2a5c0452949c",
+    "slug": "ScionsSpellcraftFinalFantasyXiv_FIC",
+    "name": "Scions & Spellcraft (FINAL FANTASY XIV)",
+    "setCode": "FIC",
+    "releaseDate": "2025-06-13",
+    "commanderName": "Y'shtola, Night's Blessed"
+  },
+  {
+    "id": "dd4b5ec5-35bf-5311-87e1-d2d30dc09342",
+    "slug": "CounterIntelligence_EOC",
+    "name": "Counter Intelligence",
+    "setCode": "EOC",
+    "releaseDate": "2025-08-01",
+    "commanderName": "Inspirit, Flagship Vessel"
+  },
+  {
+    "id": "0f7e8637-11d9-507a-b42b-685bbd2a2006",
+    "slug": "WorldShaper_EOC",
+    "name": "World Shaper",
+    "setCode": "EOC",
+    "releaseDate": "2025-08-01",
+    "commanderName": "Hearthhull, the Worldseed"
+  },
+  {
+    "id": "a3bbebd0-c09d-53e2-8d0c-ca8afc460b5a",
+    "slug": "BlightCurse_ECC",
+    "name": "Blight Curse",
+    "setCode": "ECC",
+    "releaseDate": "2026-01-23",
+    "commanderName": "Auntie Ool, Cursewretch"
+  },
+  {
+    "id": "98cde813-f105-5d64-8004-84869f236012",
+    "slug": "DanceOfTheElements_ECC",
+    "name": "Dance of the Elements",
+    "setCode": "ECC",
+    "releaseDate": "2026-01-23",
+    "commanderName": "Ashling, the Limitless"
+  },
+  {
+    "id": "026efaeb-ecce-5ecd-abcb-b8e662e63531",
+    "slug": "TurtlePower_TMC",
+    "name": "Turtle Power!",
+    "setCode": "TMC",
+    "releaseDate": "2026-03-06",
+    "commanderName": "Heroes in a Half Shell"
+  },
+  {
+    "id": "bc9fa7dd-56e5-50fe-9a6d-8c858e18902f",
+    "slug": "LoreholdSpirit_SOC",
+    "name": "Lorehold Spirit",
+    "setCode": "SOC",
+    "releaseDate": "2026-04-24",
+    "commanderName": "Quintorius, History Chaser"
+  },
+  {
+    "id": "ec1f27bf-89c9-599b-8db8-0cc312e9304f",
+    "slug": "PrismariArtistry_SOC",
+    "name": "Prismari Artistry",
+    "setCode": "SOC",
+    "releaseDate": "2026-04-24",
+    "commanderName": "Rootha, Mastering the Moment"
+  },
+  {
+    "id": "b4a57a03-ed41-5e3b-b8e8-94883fd8306b",
+    "slug": "QuandrixUnlimited_SOC",
+    "name": "Quandrix Unlimited",
+    "setCode": "SOC",
+    "releaseDate": "2026-04-24",
+    "commanderName": "Zimone, Infinite Analyst"
+  },
+  {
+    "id": "ae3bc9cb-88d7-5942-a209-c7615eef7280",
+    "slug": "SilverquillInfluence_SOC",
+    "name": "Silverquill Influence",
+    "setCode": "SOC",
+    "releaseDate": "2026-04-24",
+    "commanderName": "Killian, Decisive Mentor"
+  },
+  {
+    "id": "9755769c-41ae-5582-a477-ec89249d7cbe",
+    "slug": "WitherbloomPestilence_SOC",
+    "name": "Witherbloom Pestilence",
+    "setCode": "SOC",
+    "releaseDate": "2026-04-24",
+    "commanderName": "Dina, Essence Brewer"
+  },
+  {
+    "id": "842b9991-6e21-5230-968c-1f520cd1e289",
+    "slug": "GoblinStorm_SLD",
+    "name": "Goblin Storm",
+    "setCode": "SLD",
+    "releaseDate": "2026-05-18",
+    "commanderName": "Zada, Hedron Grinder"
+  },
+  {
+    "id": "e509d094-4b1f-5dc2-88aa-d671a551f1f4",
+    "slug": "AvengersAssemble_MSC",
+    "name": "Avengers Assemble",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "Captain America, Team Leader"
+  },
+  {
+    "id": "208f2dfc-3c08-5536-ba96-46dbea2f4f35",
+    "slug": "AvengersAssembleCollectorSEdition_MSC",
+    "name": "Avengers Assemble Collector's Edition",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "Captain America, Team Leader"
+  },
+  {
+    "id": "2fed0531-4938-5daa-afd6-d7a89c774713",
+    "slug": "DoomPrevails_MSC",
+    "name": "Doom Prevails",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "Doctor Doom, King of Latveria"
+  },
+  {
+    "id": "6065be11-0f99-5d5b-85d9-7f796d715a54",
+    "slug": "DoomPrevailsCollectorSEdition_MSC",
+    "name": "Doom Prevails Collector's Edition",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "Doctor Doom, King of Latveria"
+  },
+  {
+    "id": "1b018570-34f3-5092-aee7-339e5d312eda",
+    "slug": "TheFantasticFour_MSC",
+    "name": "The Fantastic Four",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "Invisible Woman"
+  },
+  {
+    "id": "de78806c-1d56-53ff-91fb-579259a31928",
+    "slug": "TheFantasticFourCollectorSEdition_MSC",
+    "name": "The Fantastic Four Collector's Edition",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "Invisible Woman"
+  },
+  {
+    "id": "1701d1b0-04da-5ec8-95b0-5c338a2b7486",
+    "slug": "WakandaForever_MSC",
+    "name": "Wakanda Forever",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "T'Challa, the Black Panther"
+  },
+  {
+    "id": "e4ae5c63-8f80-5d64-a0e9-4298285a95f5",
+    "slug": "WakandaForeverCollectorSEdition_MSC",
+    "name": "Wakanda Forever Collector's Edition",
+    "setCode": "MSC",
+    "releaseDate": "2026-06-26",
+    "commanderName": "T'Challa, the Black Panther"
+  },
+  {
+    "id": "d3603d58-b3d7-5352-8b5e-5c937c050d82",
+    "slug": "HatsuneMiku_SLD",
+    "name": "Hatsune Miku",
+    "setCode": "SLD",
+    "releaseDate": "2026-08-10",
+    "commanderName": "Trostani, Selesnya's Voice"
+  },
+  {
+    "id": "0200a884-0256-531a-9528-dc335c72666b",
+    "slug": "OddsAndEnds_SLD",
+    "name": "Odds and Ends",
+    "setCode": "SLD",
+    "releaseDate": "2026-09-28",
+    "commanderName": "Yennett, Cryptic Sovereign"
+  },
+  {
+    "id": "4cceb30c-dd4f-574d-993d-f24eb77e91c7",
+    "slug": "CallingAllAngels_FDC",
+    "name": "Calling All Angels",
+    "setCode": "FDC",
+    "releaseDate": "2026-10-02",
+    "commanderName": "Giada, Font of Hope"
+  },
+  {
+    "id": "6b53a61e-0fe3-5ea4-b820-c9dbdf9d934c",
+    "slug": "KeenEngineering_FDC",
+    "name": "Keen Engineering",
+    "setCode": "FDC",
+    "releaseDate": "2026-10-02",
+    "commanderName": "Sai, Master Thopterist"
+  },
+  {
+    "id": "1a23b68f-6612-5ed1-bfb6-9de439e4a01c",
+    "slug": "MultiverseReforged_FRC",
+    "name": "Multiverse Reforged",
+    "setCode": "FRC",
+    "releaseDate": "2026-10-02",
+    "commanderName": "Jace, Multiverse Architect"
+  },
+  {
+    "id": "4089a81e-7657-53fe-9020-0b8ddf35582b",
+    "slug": "ReignOfDragons_FDC",
+    "name": "Reign of Dragons",
+    "setCode": "FDC",
+    "releaseDate": "2026-10-02",
+    "commanderName": "Lathliss, Dragon Queen"
+  },
+  {
+    "id": "e5eefc4b-e93c-5189-aeac-6c60354a7133",
+    "slug": "TramplesaurusRex_FDC",
+    "name": "Tramplesaurus Rex",
+    "setCode": "FDC",
+    "releaseDate": "2026-10-02",
+    "commanderName": "Ghalta, Primal Hunger"
+  },
+  {
+    "id": "1751cb51-6bef-5eba-a2ba-d8e173b00120",
+    "slug": "WretchedRanks_FDC",
+    "name": "Wretched Ranks",
+    "setCode": "FDC",
+    "releaseDate": "2026-10-02",
+    "commanderName": "Ghoulcaller Gisa"
+  },
+  {
+    "id": "3d4f0f62-2980-50f7-9eea-1b0380dac4c1",
+    "slug": "FederationFleet_TRC",
+    "name": "Federation Fleet",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "Jean-Luc Picard, Luminary"
+  },
+  {
+    "id": "0f0f4f1e-84f4-5511-bb0a-0255e179e916",
+    "slug": "FederationFleetCollectorSEdition_TRC",
+    "name": "Federation Fleet Collector's Edition",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "Jean-Luc Picard, Luminary"
+  },
+  {
+    "id": "8901f24a-baec-5e70-932b-265bd4e110e0",
+    "slug": "KlingonFury_TRC",
+    "name": "Klingon Fury",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "Worf, Defiant Commander"
+  },
+  {
+    "id": "a4b27e4b-df1d-56c8-8f82-83bff5613eaa",
+    "slug": "KlingonFuryCollectorSEdition_TRC",
+    "name": "Klingon Fury Collector's Edition",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "Worf, Defiant Commander"
+  },
+  {
+    "id": "752f684b-e80e-50ec-bd2e-830949ff8cb8",
+    "slug": "LandingParty_TRC",
+    "name": "Landing Party",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "Commander Spock"
+  },
+  {
+    "id": "82438815-e711-5f11-9ccd-6b8ad1c69b4c",
+    "slug": "LandingPartyCollectorSEdition_TRC",
+    "name": "Landing Party Collector's Edition",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "Commander Spock"
+  },
+  {
+    "id": "5653507c-5035-55e5-b725-420cbb35eefd",
+    "slug": "WeAreTheBorg_TRC",
+    "name": "We Are the Borg",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "The Borg Queen"
+  },
+  {
+    "id": "ae1ec0e5-698a-5138-98f5-d4b0ac11885c",
+    "slug": "WeAreTheBorgCollectorSEdition_TRC",
+    "name": "We Are the Borg Collector's Edition",
+    "setCode": "TRC",
+    "releaseDate": "2026-11-13",
+    "commanderName": "The Borg Queen"
+  }
+]

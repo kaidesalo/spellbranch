@@ -24,6 +24,15 @@ vi.mock("@/lib/auth/require-user", () => ({
 vi.mock("@/lib/queries/decks", () => ({
   listVisibleDecks: async () => [],
   listMyBranches: async () => [],
+  listPreconPage: async () => ({
+    decks: [],
+    total: 0,
+    catalogTotal: 0,
+    page: 1,
+    pageCount: 1,
+    years: [],
+    sets: [],
+  }),
 }));
 
 vi.mock("@/lib/data", () => ({
