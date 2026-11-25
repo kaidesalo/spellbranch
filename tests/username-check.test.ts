@@ -31,7 +31,7 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionUser: vi.fn(),
   setSessionCookie: vi.fn(),
   // Confirmations off: sign-up returns a session, then checks the profile.
-  loadSupabaseSession: async () => ({
+  getSessionLoad: async () => ({
     status: "ready" as const,
     user: { id: "u", email: "felix@example.test", username: "Felix_1", displayName: "Felix" },
   }),

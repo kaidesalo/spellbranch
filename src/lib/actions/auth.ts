@@ -10,7 +10,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { safeNextPath } from "@/lib/auth/redirect";
 import {
   clearSessionCookie,
-  loadSupabaseSession,
+  getSessionLoad,
   PROFILE_UNAVAILABLE_MESSAGE,
   setSessionCookie,
 } from "@/lib/auth/session";
@@ -191,8 +191,9 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
     }
     // Password auth can succeed while the follow-up profiles read fails
     // (RLS on profiles queries friendships/comments as this role). Redirecting
-    // anyway sends the browser to a page that looks signed out.
-    const loaded = await loadSupabaseSession(supabase);
+    // anyway sends the browser to a page that looks signed out. A new server
+    // client sees the cookies signInWithPassword just wrote.
+    const loaded = await getSessionLoad();
     if (loaded.status === "profile-unavailable") {
       return { error: PROFILE_UNAVAILABLE_MESSAGE };
     }
@@ -415,7 +416,7 @@ async function supabaseSignUp(input: {
   }
 
   if (data.session) {
-    const loaded = await loadSupabaseSession(supabase);
+    const loaded = await getSessionLoad();
     if (loaded.status === "profile-unavailable") {
       return { error: PROFILE_UNAVAILABLE_MESSAGE };
     }
