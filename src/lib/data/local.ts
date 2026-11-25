@@ -26,7 +26,8 @@ import {
   decideSendRequest,
   findPair,
 } from "@/lib/data/friend-rules";
-import type { FriendRow, Repository } from "@/lib/data/types";
+import type { FriendRow, PreconBrowsePage, PreconBrowseQuery, Repository } from "@/lib/data/types";
+import { browsePreconDecks } from "@/lib/precons/browse";
 import { USERNAME_RE, scryfallImageOrNull } from "@/lib/data/validation";
 import {
   ORIGINAL_DECK_FORKS_LOCKED,
@@ -198,6 +199,51 @@ function chargeForkCopy(store: DataStore, userId: string, nowMs: number) {
   store.forkCopyHits = [...recent, { userId, at: new Date(nowMs).toISOString() }];
 }
 
+function pagePrecons(
+  store: DataStore,
+  decks: Deck[],
+  viewerId: string | null,
+  query: PreconBrowseQuery = {},
+): PreconBrowsePage {
+  const browsed = browsePreconDecks(decks, query);
+  if (query.summaryOnly) {
+    return { decks: [], ...browsedMeta(browsed) };
+  }
+  const ids = new Set(browsed.items.map((deck) => deck.id));
+  const cardCount = new Map<string, number>();
+  for (const card of store.deckCards) {
+    if (!ids.has(card.deckId) || !isMainBoard(card.board)) continue;
+    cardCount.set(card.deckId, (cardCount.get(card.deckId) ?? 0) + card.quantity);
+  }
+  const forkCount = new Map<string, number>();
+  for (const other of store.decks) {
+    if (!other.forkedFromId || !ids.has(other.forkedFromId)) continue;
+    if (!canViewDeck(store, other, viewerId)) continue;
+    forkCount.set(other.forkedFromId, (forkCount.get(other.forkedFromId) ?? 0) + 1);
+  }
+  return {
+    decks: browsed.items.map((deck) => ({
+      ...deck,
+      commander: deck.commander ?? null,
+      colors: deckColors(deck),
+      cardCount: cardCount.get(deck.id) ?? 0,
+      forkCount: forkCount.get(deck.id) ?? 0,
+    })),
+    ...browsedMeta(browsed),
+  };
+}
+
+function browsedMeta(browsed: ReturnType<typeof browsePreconDecks>): Omit<PreconBrowsePage, "decks"> {
+  return {
+    total: browsed.total,
+    catalogTotal: browsed.catalogTotal,
+    page: browsed.page,
+    pageCount: browsed.pageCount,
+    years: browsed.years,
+    sets: browsed.sets,
+  };
+}
+
 /** The deck's colors as stored; null (no colors picked) for older decks. */
 function deckColors(deck: Deck): string[] | null {
   return Array.isArray(deck.colors) ? normalizeDeckColors(deck.colors) : null;
@@ -298,6 +344,12 @@ export const localRepository: Repository = {
     }
 
     return decks.map((d) => decorateDeck(store, d, viewerId)).sort(byUpdatedDesc);
+  },
+
+  async listPreconPage(viewerId, query) {
+    const store = await readStore();
+    const decks = store.decks.filter((deck) => deck.isPrecon && deck.visibility === "public" && !deck.forkedFromId);
+    return pagePrecons(store, decks, viewerId, query);
   },
 
   async listMyBranches(userId) {

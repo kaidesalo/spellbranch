@@ -147,6 +147,49 @@ describe("supabase adapter: decks", () => {
     expect(calls[signedInAt].filters).toEqual(calls[0].filters);
   });
 
+  it("pages precons and counts cards only for the visible page", async () => {
+    const oldId = "11111111-1111-4111-8111-111111111111";
+    const recentId = "22222222-2222-4222-8222-222222222222";
+    const forkId = "33333333-3333-4333-8333-333333333333";
+    const row = (id: string, name: string, notes: string) =>
+      deckRow({
+        id,
+        owner_id: null,
+        is_precon: true,
+        name,
+        format: "commander",
+        visibility: "public",
+        forked_from_id: null,
+        notes,
+        commander_name: name,
+      });
+    const { repo, calls } = repoWith((c) => {
+      if (isTable(c, "decks") && eqValue(c, "is_precon") === true) {
+        return ok([
+          row(oldId, "Counterpunch", "Counterpunch is an official Commander precon from CMD, released 2011-06-17."),
+          row(recentId, "World Shaper", "World Shaper is an official Commander precon from EOC, released 2025-08-01."),
+        ]);
+      }
+      if (isTable(c, "deck_cards")) return ok([{ id: "card-1", deck_id: recentId, quantity: 99, board: "main" }]);
+      if (isTable(c, "decks")) return ok([{ id: forkId, forked_from_id: recentId }]);
+      return undefined;
+    });
+
+    const summary = await repo.listPreconPage(null, { summaryOnly: true });
+    expect(summary.catalogTotal).toBe(2);
+    expect(summary.decks).toEqual([]);
+    expect(calls.some((call) => call.table === "deck_cards")).toBe(false);
+
+    const page = await repo.listPreconPage(null, { year: "2025" });
+    expect(page.total).toBe(1);
+    expect(page.catalogTotal).toBe(2);
+    expect(page.decks.map((deck) => [deck.name, deck.cardCount, deck.forkCount])).toEqual([["World Shaper", 99, 1]]);
+    const cardCall = calls.find((call) => call.table === "deck_cards");
+    expect(cardCall?.filters).toContainEqual(["in", "deck_id", [recentId]]);
+    expect(JSON.stringify(cardCall)).not.toContain(oldId);
+    expect(JSON.stringify(cardCall)).not.toContain(forkId);
+  });
+
   it("mine/friends need a viewer and filter on the caller", async () => {
     const { repo, calls } = repoWith((c) => (isTable(c, "decks") ? ok([]) : undefined));
     expect(await repo.listDecks(null, "mine")).toEqual([]);

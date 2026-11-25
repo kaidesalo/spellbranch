@@ -3,7 +3,7 @@ import "server-only";
 import { requireUser } from "@/lib/auth/require-user";
 import { getSessionUser } from "@/lib/auth/session";
 import { getRepository } from "@/lib/data";
-import type { DeckScope } from "@/lib/data/types";
+import type { DeckScope, PreconBrowseQuery } from "@/lib/data/types";
 import type { DeckWithMeta } from "@/lib/types";
 
 // Read helpers for deck pages. Server-only (not "use server"), so none of
@@ -16,6 +16,10 @@ async function viewerId() {
 
 export async function listVisibleDecks(scope: DeckScope = "mine") {
   return getRepository().listDecks(await viewerId(), scope);
+}
+
+export async function listPreconPage(query: PreconBrowseQuery = {}) {
+  return getRepository().listPreconPage(await viewerId(), query);
 }
 
 export async function listMyBranches() {
