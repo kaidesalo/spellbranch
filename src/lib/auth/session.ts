@@ -126,15 +126,51 @@ async function getLocalSessionUser(): Promise<SessionUser | null> {
 // ---------------------------------------------------------------------------
 
 /**
+ * Shown when sign-in succeeded and the JWT verifies, but public.profiles
+ * could not be read. The PostgREST text stays in the server log only.
+ */
+export const PROFILE_UNAVAILABLE_MESSAGE =
+  "You're signed in, but your profile could not be loaded.";
+
+export type SessionLoad =
+  | { status: "anonymous" }
+  | { status: "ready"; user: SessionUser }
+  | { status: "profile-unavailable" };
+
+type ProfileError = { message?: string } | null;
+
+/** The bits of a server Supabase client this module actually calls. */
+type SessionReader = {
+  auth: {
+    getClaims: () => Promise<{
+      data: { claims?: Record<string, unknown> } | null;
+      error: ProfileError;
+    }>;
+  };
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (
+        column: string,
+        value: string,
+      ) => {
+        maybeSingle: () => PromiseLike<{ data: unknown; error: ProfileError }>;
+      };
+    };
+  };
+};
+
+/**
  * Identity comes only from supabase.auth.getClaims(), which verifies the JWT
  * (never from getSession(), which trusts the cookie as-is). Profile fields come
- * from public.profiles (RLS: authenticated users may read profiles).
+ * from public.profiles (RLS: "Authenticated read related profiles").
+ *
+ * A verified JWT with no readable profile is not "signed out". Callers that
+ * treat it as signed out bounce the browser back to /login with no message.
  */
-async function getSupabaseSessionUser(): Promise<SessionUser | null> {
-  const supabase = await createSupabaseServerClient();
+export async function loadSupabaseSession(supabase: SessionReader): Promise<SessionLoad> {
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims;
-  if (error || !claims || typeof claims.sub !== "string") return null;
+  if (error || !claims || typeof claims.sub !== "string") return { status: "anonymous" };
 
   const columns = ["id, username, display_name, avatar_url, avatar_preset", "id, username, display_name, avatar_url"];
   type ProfileRead = {
@@ -145,7 +181,7 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
     avatar_preset?: string | null;
   };
   let profile: ProfileRead | null = null;
-  let profileError: { message: string } | null = null;
+  let profileError: ProfileError = null;
   for (const columnList of columns) {
     const res = await supabase.from("profiles").select(columnList).eq("id", claims.sub).maybeSingle();
     if (isMissingAvatarPresetColumn(res.error)) continue;
@@ -155,19 +191,25 @@ async function getSupabaseSessionUser(): Promise<SessionUser | null> {
   }
 
   if (profileError || !profile) {
-    if (profileError) {
-      console.error("[spellbranch] could not load profile:", profileError.message);
-    }
-    return null;
+    // The message is a Postgres/PostgREST error ("permission denied for table
+    // friendships"), not a token, email, or key.
+    console.error(
+      "[spellbranch] could not load profile:",
+      profileError?.message ?? "no row for the signed-in user",
+    );
+    return { status: "profile-unavailable" };
   }
 
   return {
-    id: profile.id,
-    email: typeof claims.email === "string" ? claims.email : "",
-    username: profile.username,
-    displayName: profile.display_name,
-    avatarUrl: typeof profile.avatar_url === "string" ? profile.avatar_url : null,
-    avatarPreset: typeof profile.avatar_preset === "string" ? profile.avatar_preset : null,
+    status: "ready",
+    user: {
+      id: profile.id,
+      email: typeof claims.email === "string" ? claims.email : "",
+      username: profile.username,
+      displayName: profile.display_name,
+      avatarUrl: typeof profile.avatar_url === "string" ? profile.avatar_url : null,
+      avatarPreset: typeof profile.avatar_preset === "string" ? profile.avatar_preset : null,
+    },
   };
 }
 
@@ -189,9 +231,18 @@ export async function getRequestedUsername(): Promise<string | null> {
 
 // ---------------------------------------------------------------------------
 
+export async function getSessionLoad(): Promise<SessionLoad> {
+  if (!isSupabaseConfigured()) {
+    const user = await getLocalSessionUser();
+    return user ? { status: "ready", user } : { status: "anonymous" };
+  }
+  // Supabase's filter-builder generics don't compare to SessionReader here.
+  return loadSupabaseSession((await createSupabaseServerClient()) as unknown as SessionReader);
+}
+
 export async function getSessionUser(): Promise<SessionUser | null> {
-  if (isSupabaseConfigured()) return getSupabaseSessionUser();
-  return getLocalSessionUser();
+  const loaded = await getSessionLoad();
+  return loaded.status === "ready" ? loaded.user : null;
 }
 
 export { COOKIE_NAME };

@@ -30,6 +30,12 @@ vi.mock("@/lib/auth/session", () => ({
   clearSessionCookie: vi.fn(),
   getSessionUser: vi.fn(),
   setSessionCookie: vi.fn(),
+  // Confirmations off: sign-up returns a session, then checks the profile.
+  getSessionLoad: async () => ({
+    status: "ready" as const,
+    user: { id: "u", email: "felix@example.test", username: "Felix_1", displayName: "Felix" },
+  }),
+  PROFILE_UNAVAILABLE_MESSAGE: "You're signed in, but your profile could not be loaded.",
 }));
 
 const updateStore = vi.fn();

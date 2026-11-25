@@ -8,7 +8,12 @@ import { v4 as uuidv4 } from "uuid";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireUser } from "@/lib/auth/require-user";
 import { safeNextPath } from "@/lib/auth/redirect";
-import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
+import {
+  clearSessionCookie,
+  getSessionLoad,
+  PROFILE_UNAVAILABLE_MESSAGE,
+  setSessionCookie,
+} from "@/lib/auth/session";
 import { updateStore } from "@/lib/data/store";
 import { LIMITS } from "@/lib/data/limits";
 import { isFormData } from "@/lib/actions/schemas";
@@ -183,6 +188,14 @@ export async function signInAction(formData: FormData): Promise<AuthResult> {
         return { error: RATE_LIMIT_UNAVAILABLE_MESSAGE };
       }
       return { error: "Invalid email or password" };
+    }
+    // Password auth can succeed while the follow-up profiles read fails
+    // (RLS on profiles queries friendships/comments as this role). Redirecting
+    // anyway sends the browser to a page that looks signed out. A new server
+    // client sees the cookies signInWithPassword just wrote.
+    const loaded = await getSessionLoad();
+    if (loaded.status === "profile-unavailable") {
+      return { error: PROFILE_UNAVAILABLE_MESSAGE };
     }
     redirect(safeNextPath(nextFrom(formData)));
   }
@@ -402,7 +415,13 @@ async function supabaseSignUp(input: {
     return { error: "Could not create account" };
   }
 
-  if (data.session) return "signed-in";
+  if (data.session) {
+    const loaded = await getSessionLoad();
+    if (loaded.status === "profile-unavailable") {
+      return { error: PROFILE_UNAVAILABLE_MESSAGE };
+    }
+    return "signed-in";
+  }
 
   // Email confirmation is on: no session until the link in the email is used.
   // (Supabase also returns this, without an error, for an already-registered
