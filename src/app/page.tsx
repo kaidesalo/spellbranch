@@ -43,13 +43,15 @@ export default async function HomePage() {
 
         <div
           aria-hidden
-          className="relative hidden min-h-[420px] overflow-hidden rounded-none lg:block animate-rise-delay-2"
+          className="relative hidden min-h-[420px] overflow-hidden rounded-none border border-border bg-white lg:block animate-rise-delay-2 dark:border-0 dark:bg-transparent"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(232,183,106,0.22),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(52,65,88,0.65),transparent_50%),linear-gradient(160deg,#1A2232_0%,#10141F_55%,#1A2232_100%)]" />
-          <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(244,235,221,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(244,235,221,0.06)_1px,transparent_1px)] [background-size:28px_28px]" />
-          <div className="absolute inset-x-8 top-10 bottom-10 flex flex-col justify-between text-[#F4EBDD]">
+          {/* Light panel is white. The navy painting is the dark-mode layer,
+              toggled by the .dark class the boot script sets before paint. */}
+          <div className="absolute inset-0 hidden bg-[radial-gradient(circle_at_20%_20%,rgba(232,183,106,0.22),transparent_45%),radial-gradient(circle_at_80%_30%,rgba(52,65,88,0.65),transparent_50%),linear-gradient(160deg,#1A2232_0%,#10141F_55%,#1A2232_100%)] dark:block" />
+          <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(16,20,31,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(16,20,31,0.07)_1px,transparent_1px)] [background-size:28px_28px] dark:opacity-40 dark:[background-image:linear-gradient(rgba(244,235,221,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(244,235,221,0.06)_1px,transparent_1px)]" />
+          <div className="absolute inset-x-8 top-10 bottom-10 flex flex-col justify-between text-[#10141F] dark:text-[#F4EBDD]">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[#F4EBDD]">
+              <p className="text-xs uppercase tracking-[0.2em] text-[#344158] dark:text-[#F4EBDD]">
                 Branch view
               </p>
               <p className="mt-2 font-display text-3xl font-semibold">
@@ -57,20 +59,20 @@ export default async function HomePage() {
               </p>
             </div>
             <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between border-b border-[#F4EBDD]/15 pb-2">
-                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#E8B76A]" />+ Nature&apos;s Lore</span>
+              <div className="flex items-center justify-between border-b border-[#8C7B66]/40 pb-2 dark:border-[#F4EBDD]/15">
+                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#7A4E10] dark:bg-[#E8B76A]" />+ Nature&apos;s Lore</span>
                 <span className="font-medium tabular-nums">0 → 1</span>
               </div>
-              <div className="flex items-center justify-between border-b border-[#F4EBDD]/15 pb-2">
-                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#ABB7C9]" />− Cultivate</span>
+              <div className="flex items-center justify-between border-b border-[#8C7B66]/40 pb-2 dark:border-[#F4EBDD]/15">
+                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#344158] dark:bg-[#ABB7C9]" />− Cultivate</span>
                 <span className="font-medium tabular-nums">1 → 0</span>
               </div>
-              <div className="flex items-center justify-between border-b border-[#F4EBDD]/15 pb-2">
-                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#F4EBDD]" />Sol Ring qty</span>
+              <div className="flex items-center justify-between border-b border-[#8C7B66]/40 pb-2 dark:border-[#F4EBDD]/15">
+                <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#10141F] dark:bg-[#F4EBDD]" />Sol Ring qty</span>
                 <span className="font-medium tabular-nums">1 → 2</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[#ABB7C9]">Rhystic Study</span>
+                <span className="text-[#344158] dark:text-[#ABB7C9]">Rhystic Study</span>
                 <span>unchanged</span>
               </div>
             </div>

@@ -133,6 +133,13 @@ export const PAIRS = [
   ["home hero dot gold / #10141f (UI)", "#e8b76a", "#10141f", LARGE],
   ["home hero dot parchment / #10141f (UI)", "#f4ebdd", "#10141f", LARGE],
   ["home hero dot mist / #10141f (UI)", "#abb7c9", "#10141f", LARGE],
+  // Light branch view: white panel, navy ink, antique-gold and slate marks.
+  ["home hero light text #10141f / #ffffff", "#10141f", "#ffffff", AA],
+  ["home hero light muted #344158 / #ffffff", "#344158", "#ffffff", AA],
+  ["home hero light gold #7a4e10 / #ffffff", "#7a4e10", "#ffffff", AA],
+  ["home hero light dot navy / #ffffff (UI)", "#10141f", "#ffffff", LARGE],
+  ["home hero light dot gold / #ffffff (UI)", "#7a4e10", "#ffffff", LARGE],
+  ["home hero light dot slate / #ffffff (UI)", "#344158", "#ffffff", LARGE],
   ["/auth/confirm dark text #f4ebdd / #10141f", "#f4ebdd", "#10141f", AA],
   ["/auth/confirm dark paragraph #abb7c9 / #10141f", "#abb7c9", "#10141f", AA],
   ["/auth/confirm dark button #10141f / #e8b76a", "#10141f", "#e8b76a", AA],
