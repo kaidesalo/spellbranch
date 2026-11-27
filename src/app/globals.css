@@ -56,13 +56,56 @@
 }
 
 :root {
-  /* Spellbranch brand palette.
+  /* Light mode: parchment page, navy ink, antique-gold controls.
+     The bright brand gold (#E8B76A) cannot be both text and a button fill
+     on a light page, so primary is the darker gold #7A4E10 with cream labels.
+     Focus rings are midnight navy: gold at 50% opacity misses 3:1 on parchment.
+     Contrast: node scripts/theme-contrast.mjs. */
+  color-scheme: light;
+  --background: #F7F1E6;
+  --foreground: #10141F;
+  --card: #FFFCF7;
+  --card-foreground: #10141F;
+  --popover: #FFFCF7;
+  --popover-foreground: #10141F;
+  --primary: #7A4E10;
+  --primary-foreground: #FFFCF7;
+  --secondary: #E4D8C4;
+  --secondary-foreground: #10141F;
+  --muted: #E4D8C4;
+  --muted-foreground: #344158;
+  --accent: #E4D8C4;
+  --accent-foreground: #10141F;
+  --destructive: #9B2C24;
+  --destructive-foreground: #FFFCF7;
+  --border: #8C7B66;
+  --input: #8C7B66;
+  --ring: #10141F;
+  --chart-1: #7A4E10;
+  --chart-2: #344158;
+  --chart-3: #9B2C24;
+  --chart-4: #10141F;
+  --chart-5: #E4D8C4;
+  --radius: 0.75rem;
+  --sidebar: #F7F1E6;
+  --sidebar-foreground: #10141F;
+  --sidebar-primary: #7A4E10;
+  --sidebar-primary-foreground: #FFFCF7;
+  --sidebar-accent: #E4D8C4;
+  --sidebar-accent-foreground: #10141F;
+  --sidebar-border: #8C7B66;
+  --sidebar-ring: #10141F;
+}
+
+.dark {
+  /* Spellbranch brand palette. This is the look the app shipped with.
      Page #10141F, panels #1A2232, borders #344158, text #F4EBDD,
      secondary text #ABB7C9, primary buttons and active tabs #E8B76A.
      Gold controls use midnight navy labels: parchment on gold is below 4.5:1.
      #F07167 is the only color outside the six, for error text and destructive
      buttons (navy label). Hover, focus, and disabled states are mixes or
      opacity of these. Contrast: node scripts/theme-contrast.mjs. */
+  color-scheme: dark;
   --background: #10141F;
   --foreground: #F4EBDD;
   --card: #1A2232;
@@ -87,7 +130,6 @@
   --chart-3: #344158;
   --chart-4: #F4EBDD;
   --chart-5: #1A2232;
-  --radius: 0.75rem;
   --sidebar: #1A2232;
   --sidebar-foreground: #F4EBDD;
   --sidebar-primary: #E8B76A;
@@ -104,15 +146,27 @@
   }
   body {
     @apply bg-background text-foreground;
-    color-scheme: dark;
+    background-attachment: fixed;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(122, 78, 16, 0.16), transparent),
+      radial-gradient(ellipse 60% 40% at 90% 0%, rgba(16, 20, 31, 0.06), transparent);
+  }
+  .dark body {
     background-image:
       radial-gradient(ellipse 80% 50% at 10% -10%, rgba(232, 183, 106, 0.14), transparent),
       radial-gradient(ellipse 60% 40% at 90% 0%, rgba(52, 65, 88, 0.55), transparent);
-    background-attachment: fixed;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* The wordmark PNG is parchment ink for the navy page. Class `light` is set
+   by the theme script before paint. Invert, then rotate hue back, so the
+   letters become navy and the gold mark stays gold. Kept outside @layer:
+   Tailwind rewrites a `.dark` selector in this file. */
+.light .site-logo {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 /* Cinzel 600 for the Spellbranch wordmark and deck titles only.

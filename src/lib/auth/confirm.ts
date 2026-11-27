@@ -66,11 +66,18 @@ export function renderConfirmPage(input: {
 <meta name="robots" content="noindex">
 <title>Confirm your email · Spellbranch</title>
 <style>
-body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#10141F;color:#F4EBDD}
-main{max-width:24rem;padding:2rem;border:1px solid #344158;border-radius:.75rem;text-align:center}
+/* No script on this page (login CSRF). It follows the OS, not a saved override. */
+body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#F7F1E6;color:#10141F}
+main{max-width:24rem;padding:2rem;border:1px solid #8C7B66;border-radius:.75rem;text-align:center}
 h1{font-size:1.25rem;margin:0 0 .5rem}
-p{color:#ABB7C9;margin:0 0 1.5rem}
-button{font:inherit;padding:.6rem 1.25rem;border:0;border-radius:.5rem;background:#E8B76A;color:#10141F;cursor:pointer}
+p{color:#344158;margin:0 0 1.5rem}
+button{font:inherit;padding:.6rem 1.25rem;border:0;border-radius:.5rem;background:#7A4E10;color:#FFFCF7;cursor:pointer}
+@media (prefers-color-scheme: dark){
+body{background:#10141F;color:#F4EBDD}
+main{border-color:#344158}
+p{color:#ABB7C9}
+button{background:#E8B76A;color:#10141F}
+}
 </style>
 </head>
 <body>

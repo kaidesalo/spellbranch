@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { Cinzel, Geist_Mono, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter, footerRevision } from "@/components/layout/site-footer";
 import { BootReady, BootSplashGate } from "@/components/layout/boot-splash";
@@ -51,20 +52,26 @@ export default async function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${cinzel.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="flex min-h-dvh min-w-0 flex-col">
-        <script
-          nonce={nonce ?? undefined}
-          dangerouslySetInnerHTML={{ __html: SPLASH_START_SCRIPT }}
-        />
-        <BootSplashGate>
-          {/* Session and the page stream in behind the splash. Client
-              navigations are transitions, so this fallback does not replace
-              a page that is already on screen. */}
-          <Suspense fallback={null}>
-            <AppBody>{children}</AppBody>
-          </Suspense>
-        </BootSplashGate>
+        {/* ThemeProvider's first child is the blocking color-mode script, so
+            it runs before the splash stamp and before the page is painted.
+            suppressHydrationWarning on <html> covers the class it writes. */}
+        <ThemeProvider nonce={nonce ?? undefined}>
+          <script
+            nonce={nonce ?? undefined}
+            dangerouslySetInnerHTML={{ __html: SPLASH_START_SCRIPT }}
+          />
+          <BootSplashGate>
+            {/* Session and the page stream in behind the splash. Client
+                navigations are transitions, so this fallback does not replace
+                a page that is already on screen. */}
+            <Suspense fallback={null}>
+              <AppBody>{children}</AppBody>
+            </Suspense>
+          </BootSplashGate>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -192,7 +192,7 @@ function PreconBrowser({
 }) {
   const filters = { q, year, set };
   const fieldClass =
-    "h-11 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+    "h-11 w-full rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
   return (
     <div className="min-w-0">
       <form

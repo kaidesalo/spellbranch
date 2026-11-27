@@ -273,7 +273,7 @@ export function AdvancedFiltersPanel({
                 <span className="text-muted-foreground">Operator</span>
                 <select
                   aria-label="Mana value operator"
-                  className="h-11 rounded-lg border border-input bg-transparent px-2"
+                  className="h-11 rounded-lg border border-input bg-background px-2 text-foreground"
                   value={filters.manaOp}
                   onChange={(event) => onChange({ ...filters, manaOp: event.target.value as ManaOp })}
                 >
@@ -320,7 +320,7 @@ export function AdvancedFiltersPanel({
                 <span className="text-muted-foreground">Match</span>
                 <select
                   aria-label="Set match"
-                  className="h-11 rounded-lg border border-input bg-transparent px-2"
+                  className="h-11 rounded-lg border border-input bg-background px-2 text-foreground"
                   value={filters.setExcluded ? "!=" : "="}
                   onChange={(event) => onChange({ ...filters, setExcluded: event.target.value === "!=" })}
                 >
@@ -346,7 +346,7 @@ export function AdvancedFiltersPanel({
                 <span className="text-muted-foreground">Sort</span>
                 <select
                   aria-label="Sort order"
-                  className="h-11 rounded-lg border border-input bg-transparent px-2"
+                  className="h-11 rounded-lg border border-input bg-background px-2 text-foreground"
                   value={filters.order}
                   onChange={(event) => onChange({ ...filters, order: event.target.value as "" | SortOrder })}
                 >
@@ -362,7 +362,7 @@ export function AdvancedFiltersPanel({
                 <span className="text-muted-foreground">Direction</span>
                 <select
                   aria-label="Sort direction"
-                  className="h-11 rounded-lg border border-input bg-transparent px-2"
+                  className="h-11 rounded-lg border border-input bg-background px-2 text-foreground"
                   value={filters.direction}
                   onChange={(event) =>
                     onChange({ ...filters, direction: event.target.value as "" | SortDirection })

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MAIN_NAV, MOBILE_MENU_NAV, mainNavActive, type MainNavHref } from "@/components/layout/main-nav";
 import { SearchDialog } from "@/components/layout/search-dialog";
+import { ThemeRadiogroup, ThemeToggle } from "@/components/theme/theme-toggle";
 import {
   Dialog,
   DialogTrigger,
@@ -114,7 +115,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
   return (
     <header className="sticky top-0 z-40 min-w-0 border-b border-border/70 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 min-w-0 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href={user ? "/dashboard" : "/"} className="flex min-w-0 items-center">
+        <Link href={user ? "/dashboard" : "/"} className="flex min-w-0 items-center overflow-hidden">
           <Image
             src="/spellbranch-logo.png"
             alt="Spellbranch"
@@ -122,7 +123,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
             height={449}
             priority
             unoptimized
-            className="h-8 w-auto max-w-[46vw] sm:h-10 sm:max-w-[220px]"
+            className="site-logo h-8 w-auto max-w-full sm:h-10 sm:max-w-[220px]"
           />
         </Link>
 
@@ -140,6 +141,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
               />
             </nav>
             <div className="flex shrink-0 items-center gap-1">
+              <ThemeToggle />
               <DialogTrigger
                 render={
                   <button
@@ -186,6 +188,16 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                     className="min-h-11 py-3 text-sm font-medium text-foreground"
                   />
                 </nav>
+                <section aria-labelledby="mobile-color-heading" className="mt-2 border-t border-border px-2 pt-4">
+                  <h2 id="mobile-color-heading" className="label-caps px-3 text-primary">
+                    Color mode
+                  </h2>
+                  <ThemeRadiogroup
+                    labelledBy="mobile-color-heading"
+                    showLabels
+                    className="mt-2 grid w-full grid-cols-3"
+                  />
+                </section>
                 <section
                   aria-labelledby="mobile-profile-heading"
                   className="mt-2 border-t border-border px-2 pt-4 md:hidden"
@@ -240,6 +252,7 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
         ) : (
           <Dialog open={searchOpen} onOpenChange={onSearchOpenChange}>
             <div className="flex shrink-0 items-center gap-2">
+              <ThemeToggle />
               <DialogTrigger
                 render={
                   <button

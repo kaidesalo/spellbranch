@@ -151,8 +151,9 @@ describe("SiteHeader nav", () => {
     expect(menuButton.className).toContain("size-11");
     expect(menuButton.className).toContain("md:hidden");
     const cluster = icon?.parentElement;
-    expect(cluster?.children[0]).toBe(icon);
-    expect(cluster?.children[1]).toBe(account);
+    expect(cluster?.children[0]?.getAttribute("data-testid")).toBe("theme-toggle");
+    expect(cluster?.children[1]).toBe(icon);
+    expect(cluster?.children[2]).toBe(account);
     expect(cluster?.contains(menuButton)).toBe(true);
     expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Favorites" })).toBeNull();
@@ -174,6 +175,11 @@ describe("SiteHeader nav", () => {
       "/friends",
     ]);
     expect(within(mobile!).queryByRole("link", { name: "Search" })).toBeNull();
+    const colorHeading = screen.getByRole("heading", { name: "Color mode" });
+    expect(colorHeading.getAttribute("id")).toBe("mobile-color-heading");
+    expect(screen.getAllByRole("radio", { name: "Light" }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("radio", { name: "Dark" }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("radio", { name: "System" }).length).toBeGreaterThanOrEqual(1);
 
     const profile = screen.getByRole("region", { name: "Profile & settings" });
     expect(profile.className).toContain("md:hidden");
@@ -226,6 +232,7 @@ describe("SiteHeader nav", () => {
   it("keeps signed-out visitors on sign in and join, without the main nav", () => {
     render(createElement(SiteHeader, { user: null }));
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    expect(screen.getAllByRole("radiogroup", { name: "Color mode" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/login");
     expect(screen.getByRole("link", { name: "Join free" }).getAttribute("href")).toBe("/signup");
     expect(screen.queryByRole("link", { name: "Social" })).toBeNull();
