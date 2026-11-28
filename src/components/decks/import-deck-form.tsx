@@ -85,7 +85,7 @@ export function ImportDeckForm() {
             name="format"
             value={format}
             onChange={(event) => setFormat(event.target.value as DeckFormat)}
-            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
           >
             {DECK_FORMATS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -100,7 +100,7 @@ export function ImportDeckForm() {
             id="import-visibility"
             name="visibility"
             defaultValue="private"
-            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
           >
             {VISIBILITY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>

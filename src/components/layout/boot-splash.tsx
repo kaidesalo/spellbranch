@@ -156,7 +156,6 @@ function BootSplash({ phase, reducedMotion }: { phase: SplashPhase; reducedMotio
       aria-busy={phase === "show"}
       style={
         {
-          backgroundColor: "#10141F",
           "--splash-timeout": `${SPLASH_TIMEOUT_MS}ms`,
           "--splash-fade": `${SPLASH_FADE_MS}ms`,
           "--splash-travel": `${SPLASH_TRAVEL_MS}ms`,

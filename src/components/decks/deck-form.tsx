@@ -66,7 +66,7 @@ export function DeckForm({
             value={format}
             onChange={(e) => setFormat(e.target.value)}
             aria-describedby={commanderWillClear ? "format-commander-hint" : undefined}
-            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
           >
             {DECK_FORMATS.map((f) => (
               <option key={f.value} value={f.value}>
@@ -87,7 +87,7 @@ export function DeckForm({
             id="visibility"
             name="visibility"
             defaultValue={deck?.visibility ?? "private"}
-            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
           >
             {VISIBILITY_OPTIONS.map((v) => (
               <option key={v.value} value={v.value}>

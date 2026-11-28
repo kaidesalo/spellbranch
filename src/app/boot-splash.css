@@ -11,14 +11,18 @@
   align-items: center;
   justify-content: center;
   padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.25rem, env(safe-area-inset-bottom));
-  /* Solid app navy. The wood sits above this at 60%, so the table
-     fades into this color instead of the page or a white flash. */
-  background-color: #10141f;
+  /* Follow the page color so the splash fades into the active theme.
+     Dark mode pins the original navy below; the wood sits on that at 60%. */
+  background-color: var(--background, #f7f1e6);
   animation-name: boot-splash-failsafe;
   animation-duration: 1ms;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
   animation-delay: var(--splash-timeout, 4000ms);
+}
+
+.dark .boot-splash {
+  background-color: #10141f;
 }
 
 .boot-splash::before {
@@ -27,7 +31,8 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.6;
+  /* Light pages get a warm wash. Dark mode restores the original table. */
+  opacity: 0.28;
   background-color: #2c1b10;
   /* The grain is a 640px tile. stitchTiles and a filter region that
      matches the tile keep that repeat seamless past one tile. */
@@ -38,6 +43,10 @@
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01 0.36' numOctaves='5' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.42 0.18 0.06 0 0.1 0.24 0.12 0.04 0 0.05 0.08 0.04 0.015 0 0.02 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   background-repeat: no-repeat, no-repeat, no-repeat, repeat;
   background-size: auto, auto, auto, 640px 640px;
+}
+
+.dark .boot-splash::before {
+  opacity: 0.6;
 }
 
 .boot-splash-leaving {

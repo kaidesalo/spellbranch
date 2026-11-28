@@ -21,13 +21,33 @@ export const SPELLBRANCH = [
   "#10141f", "#1a2232", "#344158", "#f4ebdd", "#abb7c9", "#e8b76a", "#f07167",
 ];
 
-/** Custom properties of the first `:root { ... }` block in globals.css. */
-export function readRootTokens(css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8")) {
-  const block = css.match(/:root\s*\{([\s\S]*?)\n\}/);
-  if (!block) throw new Error("No :root block in globals.css");
+/**
+ * Light mode. Parchment, cream cards, navy ink, antique gold, and the same
+ * blue-gray for secondary text. #9b2c24 is the light-mode error red (the
+ * bright #f07167 fails on parchment). #8c7b66 is the warm border.
+ */
+export const LIGHT_PALETTE = [
+  "#f7f1e6", "#fffcf7", "#10141f", "#7a4e10", "#e4d8c4", "#344158", "#9b2c24", "#8c7b66",
+];
+
+/** Custom properties of the first block that starts with `selector {`. */
+export function readTokenBlock(selector, css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8")) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const block = css.match(new RegExp(escaped + "\\s*\\{([\\s\\S]*?)\\n\\}"));
+  if (!block) throw new Error(`No ${selector} block in globals.css`);
   const tokens = {};
   for (const m of block[1].matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) tokens[m[1]] = m[2].trim();
   return tokens;
+}
+
+/** Light tokens (`:root`). */
+export function readRootTokens(css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8")) {
+  return readTokenBlock(":root", css);
+}
+
+/** Dark tokens (`.dark`), the original Spellbranch palette. */
+export function readDarkTokens(css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8")) {
+  return readTokenBlock(".dark", css);
 }
 
 function rgb(hex) {
@@ -73,8 +93,6 @@ const LARGE = 3; // large text (>= 24px, or >= 18.66px bold) and UI component bo
 /** [label, foreground, surface, minimum ratio] */
 export const PAIRS = [
   ["foreground / background", "foreground", "background", AA],
-  ["foreground / background + gold glow", "foreground", ["background", { color: "#e8b76a", alpha: 0.14 }], AA],
-  ["foreground / background + blue-gray glow", "foreground", ["background", { color: "#344158", alpha: 0.55 }], AA],
   ["foreground / header (background/90)", "foreground", ["background", { color: "background", alpha: 0.9 }], AA],
   ["card-foreground / card", "card-foreground", "card", AA],
   ["card-foreground / card/70 over background", "card-foreground", ["background", { color: "card", alpha: 0.7 }], AA],
@@ -115,12 +133,29 @@ export const PAIRS = [
   ["home hero dot gold / #10141f (UI)", "#e8b76a", "#10141f", LARGE],
   ["home hero dot parchment / #10141f (UI)", "#f4ebdd", "#10141f", LARGE],
   ["home hero dot mist / #10141f (UI)", "#abb7c9", "#10141f", LARGE],
-  ["/auth/confirm text #f4ebdd / #10141f", "#f4ebdd", "#10141f", AA],
-  ["/auth/confirm paragraph #abb7c9 / #10141f", "#abb7c9", "#10141f", AA],
-  ["/auth/confirm button #10141f / #e8b76a", "#10141f", "#e8b76a", AA],
-  // Compare-view semantics. Greens, roses, and ambers already marked adds,
-  // removes, and quantity changes; the shades are the ones that stay readable
-  // on the navy surfaces. Row washes stay translucent so parchment still passes.
+  // Light branch view: white panel, navy ink, antique-gold and slate marks.
+  ["home hero light text #10141f / #ffffff", "#10141f", "#ffffff", AA],
+  ["home hero light muted #344158 / #ffffff", "#344158", "#ffffff", AA],
+  ["home hero light gold #7a4e10 / #ffffff", "#7a4e10", "#ffffff", AA],
+  ["home hero light dot navy / #ffffff (UI)", "#10141f", "#ffffff", LARGE],
+  ["home hero light dot gold / #ffffff (UI)", "#7a4e10", "#ffffff", LARGE],
+  ["home hero light dot slate / #ffffff (UI)", "#344158", "#ffffff", LARGE],
+  ["/auth/confirm dark text #f4ebdd / #10141f", "#f4ebdd", "#10141f", AA],
+  ["/auth/confirm dark paragraph #abb7c9 / #10141f", "#abb7c9", "#10141f", AA],
+  ["/auth/confirm dark button #10141f / #e8b76a", "#10141f", "#e8b76a", AA],
+  ["/auth/confirm light text #10141f / #f7f1e6", "#10141f", "#f7f1e6", AA],
+  ["/auth/confirm light paragraph #344158 / #f7f1e6", "#344158", "#f7f1e6", AA],
+  ["/auth/confirm light button #fffcf7 / #7a4e10", "#fffcf7", "#7a4e10", AA],
+  // Badge fills are the same in both themes (white or navy on a solid chip).
+  ["compare added badge #ffffff / #047857", "#ffffff", "#047857", AA],
+  ["compare removed badge #ffffff / #be123c", "#ffffff", "#be123c", AA],
+  ["compare quantity badge #10141f / #d97706", "#10141f", "#d97706", AA],
+];
+
+/** Glows and compare text that only sit on the navy surfaces. */
+const DARK_PAIRS = [
+  ["foreground / background + gold glow", "foreground", ["background", { color: "#e8b76a", alpha: 0.14 }], AA],
+  ["foreground / background + blue-gray glow", "foreground", ["background", { color: "#344158", alpha: 0.55 }], AA],
   ["compare added #6ee7b7 / background", "#6ee7b7", "background", AA],
   ["compare added #6ee7b7 / card", "#6ee7b7", "card", AA],
   ["compare removed #fda4af / background", "#fda4af", "background", AA],
@@ -129,17 +164,32 @@ export const PAIRS = [
   ["compare added text / emerald wash on background", "#6ee7b7", ["background", { color: "#34d399", alpha: 0.15 }], AA],
   ["compare removed text / rose wash on background", "#fda4af", ["background", { color: "#fb7185", alpha: 0.15 }], AA],
   ["compare parchment / amber wash on background", "foreground", ["background", { color: "#fcd34d", alpha: 0.15 }], AA],
-  ["compare added badge #ffffff / #047857", "#ffffff", "#047857", AA],
-  ["compare removed badge #ffffff / #be123c", "#ffffff", "#be123c", AA],
-  ["compare quantity badge #10141f / #d97706", "#10141f", "#d97706", AA],
 ];
+
+/** Glows and compare text for the parchment surfaces. */
+const LIGHT_PAIRS = [
+  ["foreground / background + gold glow", "foreground", ["background", { color: "#7a4e10", alpha: 0.16 }], AA],
+  ["foreground / background + navy glow", "foreground", ["background", { color: "#10141f", alpha: 0.06 }], AA],
+  ["compare added #065f46 / background", "#065f46", "background", AA],
+  ["compare added #065f46 / card", "#065f46", "card", AA],
+  ["compare removed #9f1239 / background", "#9f1239", "background", AA],
+  ["compare removed #9f1239 / card", "#9f1239", "card", AA],
+  ["compare added text / emerald wash on background", "#065f46", ["background", { color: "#34d399", alpha: 0.15 }], AA],
+  ["compare removed text / rose wash on background", "#9f1239", ["background", { color: "#fb7185", alpha: 0.15 }], AA],
+  ["compare foreground / amber wash on background", "foreground", ["background", { color: "#fcd34d", alpha: 0.15 }], AA],
+];
+
+function pairsFor(tokens) {
+  const dark = String(tokens.background || "").toLowerCase() === "#10141f";
+  return [...PAIRS, ...(dark ? DARK_PAIRS : LIGHT_PAIRS)];
+}
 
 /**
  * @param {Record<string, string>} [tokens]
  * @returns {{ label: string, ratio: number, min: number, pass: boolean }[]}
  */
 export function checkContrast(tokens = readRootTokens()) {
-  return PAIRS.map(([label, fg, bg, min]) => {
+  return pairsFor(tokens).map(([label, fg, bg, min]) => {
     if (typeof label !== "string" || typeof min !== "number") throw new Error("Bad pair");
     const surface = resolve(bg, tokens);
     const ratio = contrast(resolve(fg, tokens, surface), surface);
@@ -148,12 +198,22 @@ export function checkContrast(tokens = readRootTokens()) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const rows = checkContrast();
-  console.log("| Pair | Ratio | Needs | Result |\n|---|---|---|---|");
-  for (const r of rows) {
-    console.log(`| ${r.label} | ${r.ratio.toFixed(2)}:1 | ${r.min}:1 | ${r.pass ? "pass" : "FAIL"} |`);
+  let failed = 0;
+  let total = 0;
+  for (const [name, tokens] of [
+    ["Light", readRootTokens()],
+    ["Dark", readDarkTokens()],
+  ]) {
+    const rows = checkContrast(tokens);
+    console.log(`\n### ${name}\n\n| Pair | Ratio | Needs | Result |\n|---|---|---|---|`);
+    for (const r of rows) {
+      console.log(`| ${r.label} | ${r.ratio.toFixed(2)}:1 | ${r.min}:1 | ${r.pass ? "pass" : "FAIL"} |`);
+    }
+    const bad = rows.filter((r) => !r.pass).length;
+    failed += bad;
+    total += rows.length;
+    console.log(`\n${rows.length - bad}/${rows.length} ${name.toLowerCase()} pairs pass.`);
   }
-  const failed = rows.filter((r) => !r.pass).length;
-  console.log(`\n${rows.length - failed}/${rows.length} pairs pass.`);
   process.exitCode = failed ? 1 : 0;
+  console.log(`\n${total - failed}/${total} pairs pass.`);
 }

@@ -144,7 +144,7 @@ export function CompareView({
               </p>
             ) : (
               <p>
-                <span className={source.commander ? "text-rose-300 line-through" : "text-muted-foreground"}>
+                <span className={source.commander ? "text-rose-800 line-through dark:text-rose-300" : "text-muted-foreground"}>
                   {source.commander ? (
                     <CardZoom
                       card={zoomCardFromSaved(source.commander.cardName, source.commander.imageUri)}
@@ -157,7 +157,7 @@ export function CompareView({
                   )}
                 </span>
                 <span className="mx-2 text-muted-foreground">→</span>
-                <span className={branch.commander ? "font-medium text-emerald-300" : "text-muted-foreground"}>
+                <span className={branch.commander ? "font-medium text-emerald-800 dark:text-emerald-300" : "text-muted-foreground"}>
                   {branch.commander ? (
                     <CardZoom
                       card={zoomCardFromSaved(branch.commander.cardName, branch.commander.imageUri)}
@@ -184,7 +184,7 @@ export function CompareView({
                 key={`${pair.removed.scryfallId}:${normalizeBoard(pair.removed.board)}-${pair.added.scryfallId}:${normalizeBoard(pair.added.board)}`}
                 className="rounded-xl border border-border/70 bg-background/60 px-4 py-3 text-sm"
               >
-                <span className="text-rose-300 line-through">
+                <span className="text-rose-800 line-through dark:text-rose-300">
                   <CardZoom
                     card={zoomCardFromSaved(pair.removed.cardName, pair.removed.imageUri)}
                     className="hover:decoration-2"
@@ -193,7 +193,7 @@ export function CompareView({
                   </CardZoom>
                 </span>
                 <span className="mx-2 text-muted-foreground">→</span>
-                <span className="font-medium text-emerald-300">
+                <span className="font-medium text-emerald-800 dark:text-emerald-300">
                   <CardZoom
                     card={zoomCardFromSaved(pair.added.cardName, pair.added.imageUri)}
                     className="hover:underline"

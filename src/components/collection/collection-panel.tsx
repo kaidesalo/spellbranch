@@ -212,7 +212,7 @@ function VisibilitySelect({ visibility }: { visibility: Visibility }) {
   return (
     <select
       aria-label="Collection visibility"
-      className="h-9 min-w-0 rounded-lg border border-input bg-transparent px-2 text-sm"
+      className="h-9 min-w-0 rounded-lg border border-input bg-background px-2 text-sm text-foreground"
       defaultValue={visibility}
       disabled={pending}
       onChange={(event) => {
@@ -474,7 +474,7 @@ function FinishSelect({
   return (
     <select
       aria-label={label}
-      className="h-9 min-w-0 rounded-lg border border-input bg-transparent px-2 text-sm"
+      className="h-9 min-w-0 rounded-lg border border-input bg-background px-2 text-sm text-foreground"
       value={value}
       onChange={(event) => onChange(event.target.value as CollectionFinish)}
     >
@@ -499,7 +499,7 @@ function ConditionSelect({
   return (
     <select
       aria-label={label}
-      className="h-9 min-w-0 rounded-lg border border-input bg-transparent px-2 text-sm"
+      className="h-9 min-w-0 rounded-lg border border-input bg-background px-2 text-sm text-foreground"
       value={value}
       onChange={(event) => onChange(event.target.value as CollectionCondition | "")}
     >
