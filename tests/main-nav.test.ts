@@ -147,7 +147,7 @@ describe("SiteHeader nav", () => {
     expect(account.className).toContain("size-11");
     expect(account.className).toContain("hidden");
     expect(account.className).toContain("md:inline-flex");
-    const menuButton = screen.getByRole("button", { name: "Open menu" });
+    const menuButton = screen.getByRole("button", { name: "Menu" });
     expect(menuButton.className).toContain("size-11");
     expect(menuButton.className).toContain("md:hidden");
     const cluster = icon?.parentElement;
@@ -158,7 +158,7 @@ describe("SiteHeader nav", () => {
     expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Favorites" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Menu" }));
     const mobile = [...document.querySelectorAll("nav")].find((nav) => !nav.className.includes("md:flex"));
     expect(mobile).toBeTruthy();
     const mobileLinks = within(mobile!).getAllByRole("link");
